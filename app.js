@@ -59,7 +59,7 @@ If theres no duplicate and there is only the wrong one, then just keep it as is 
   }
   function renderLibrary() {
     const list=$('#reviewer-list');
-    list.innerHTML=state.reviewers.map(r=>`<button class="reviewer-item ${r.id===state.activeId?'active':''}" data-reviewer="${escapeHtml(r.id)}"><span class="file-icon">▤</span><span class="reviewer-copy"><span class="reviewer-title">${escapeHtml(r.title)}</span><span class="reviewer-meta">${r.questions.length} questions</span></span><span class="reviewer-delete" data-delete="${escapeHtml(r.id)}" title="Delete reviewer" aria-label="Delete reviewer">×</span></button>`).join('');
+    list.innerHTML=state.reviewers.map(r=>`<button class="reviewer-item ${r.id===state.activeId?'active':''}" data-reviewer="${escapeHtml(r.id)}"><svg class="ui-icon reviewer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.75h7l4 4v12.5H7zM14 3.75v4h4M10 12h5M10 16h5"/></svg><span class="reviewer-copy"><span class="reviewer-title">${escapeHtml(r.title)}</span></span><span class="reviewer-delete" data-delete="${escapeHtml(r.id)}" title="Delete reviewer" aria-label="Delete reviewer">×</span></button>`).join('');
     list.querySelectorAll('[data-reviewer]').forEach(btn=>btn.addEventListener('click', e=>{if(e.target.closest('[data-delete]'))return;openReviewer(btn.dataset.reviewer);}));
     list.querySelectorAll('[data-delete]').forEach(btn=>btn.addEventListener('click',e=>{e.stopPropagation();deleteReviewer(btn.dataset.delete);}));
   }
