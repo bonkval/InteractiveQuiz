@@ -18,3 +18,25 @@ body.dark{color-scheme:dark;--bg:#17181c;--surface:#222329;--text:#f1f1f4;--mute
 .question-index-card.current{height:57px}
 .question-number{font-size:16px;font-weight:800;letter-spacing:.03em}
 @media(max-width:760px){.question-index-card{width:44px;flex-basis:44px;height:46px}.question-index-card.current{height:53px}.question-index-card span{font-size:14px}.question-number{font-size:15px}}
+.reviewer-entry{display:flex;align-items:center;min-width:0;border-radius:10px}
+.reviewer-entry .reviewer-item{flex:1;min-width:0}
+.reviewer-entry .reviewer-delete{width:28px;height:30px;flex:none;cursor:pointer}
+.reviewer-entry:hover .reviewer-delete,.reviewer-delete:focus-visible{opacity:1}
+.sidebar-collapsed .reviewer-entry .reviewer-delete{display:none}
+.welcome-actions{display:flex;gap:9px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.import-name{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 11px;margin-bottom:15px;background:var(--surface);color:var(--text);outline:none}
+.import-name:focus{border-color:var(--accent)}
+.import-feedback{min-height:17px;margin:11px 0 0;font-size:11px;color:#39845e}
+.import-feedback.error{color:#c45b60}
+.review-row.result-jump{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
+.review-row.result-jump:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.score-total{font-size:22px;color:var(--muted)}
+.result-status{margin-left:12px}
+.dark .question-index-card,.dark .question-index-card:before,.dark .question-index-card:after{background:#292a31;box-shadow:none}
+.dark .question-index-card.current{background:#302e46}
+.dark .question-index-card.unknown{background:#493922}
+.dark .prompt-link.active{background:#302e46}
+.dark .import-card:hover{background:#302e46}
+.dark .short-answer{border-color:var(--line)}
+.question-number{font-size:clamp(25px,2.5vw,36px);line-height:1.2;color:var(--accent)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
