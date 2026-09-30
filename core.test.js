@@ -45,6 +45,24 @@ test('imports exported JSON', () => {
   assert.equal(result.questions[0].answer, 'STP');
 });
 
+test('identification grading accepts case, spacing, punctuation, and listed alternatives', () => {
+  const question = core.parseImport('Question 1\nName the spanning-tree protocol.\nAnswer: STP\nAlso accepted: spanning tree protocol | spanning-tree protocol').questions[0];
+  assert.equal(core.isCorrect(question, [' stp!!! ']), true);
+  assert.equal(core.isCorrect(question, ['SPANNING   TREE PROTOCOL']), true);
+  assert.equal(core.isCorrect(question, ['etherchannel']), false);
+});
+
+test('accepted answer alternatives survive JSON normalization and command blocks retain line breaks', () => {
+  const q = core.normalizeQuestion({text:'Name the protocol',answer:'STP',acceptedAnswers:['Spanning Tree Protocol']});
+  assert.equal(core.isCorrect(q, ['spanning tree protocol']), true);
+  const config = core.normalizeQuestion({
+    text:'Configure the channel:\nSW1# show running-config\ninterface GigabitEthernet0/1',
+    options:['channel-group 1 mode active\nswitchport mode trunk']
+  });
+  assert.match(config.text, /show running-config\ninterface GigabitEthernet0\/1/);
+  assert.equal(config.options[0], 'channel-group 1 mode active\nswitchport mode trunk');
+});
+
 test('matches a separate answer key to a labeled choice', () => {
   const input = 'Question 1\nWhich one?\nChoice A: first\nChoice B: second\nAnswer: B';
   const q = core.parseImport(input).questions[0];

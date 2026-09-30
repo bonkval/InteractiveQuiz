@@ -1,6 +1,7 @@
 (() => {
   'use strict';
   const KEY = 'recall-reviewers-v1';
+  const SESSION_KEY = 'rev-quiz-session-v1';
   const SEED_KEY = 'rev-starter-seeded-v1';
   const MASTER_KEY = 'rev-master-prompt-v1';
   const IMPORT_KEY = 'rev-import-prompt-v1';
@@ -42,23 +43,25 @@ Choice A: first choice
 Correct! Choice B: second choice
 Choice C: third choice
 
-For identification:
+For identification, preserve the main answer. Include alternate answers only when the source explicitly lists them:
 Question 2
 Question text
 Answer: answer text
+Also accepted: another valid answer | a common abbreviation
 
 For multiple correct answers, prefix each correct choice with Correct!. Do not add markdown fences or a separate answer key.
 
 Reviewer to convert:
 [PASTE REVIEWER HERE]`;
+  let sessionSaveWarningShown = false;
   const $ = (s, root = document) => root.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
   const state = {
-    reviewers: [], activeId: null, screen: 'home', order: [], position: 0,
+    reviewers: [], activeId: null, screen: 'home', order: [], position: 0, mode: 'quiz',
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
-    sourceText: '', selectedFiles: [], importBusy: false
+    sourceText: '', selectedFiles: [], importBusy: false, reviewerSearch: '', reviewerSort: 'recent'
   };
   function toast(message) {
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
@@ -119,31 +122,81 @@ Reviewer to convert:
         questions: starter.questions.map(RevCore.normalizeQuestion)}];
       saveReviewers(); put(SEED_KEY, '1');
     }
+    restoreSession();
   }
   function saveReviewers() { return put(KEY, JSON.stringify(state.reviewers)); }
+  function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+  function saveSession() {
+    if (!currentReviewer() || !['study', 'retry-prompt', 'results'].includes(state.screen)) return;
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        reviewerId: state.activeId, screen: state.screen, order: state.order,
+        position: state.position, answers: state.answers, results: state.results,
+        revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode
+      }));
+      sessionSaveWarningShown = false;
+    } catch {
+      if (!sessionSaveWarningShown) toast('Progress could not be saved because device storage is full.');
+      sessionSaveWarningShown = true;
+    }
+  }
+  function restoreSession() {
+    try {
+      const saved = JSON.parse(get(SESSION_KEY, 'null'));
+      const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId);
+      const order = Array.isArray(saved?.order) ? saved.order.filter(i => Number.isInteger(i) && i >= 0 && i < (reviewer?.questions.length || 0)) : [];
+      if (!reviewer || !order.length || !['study', 'retry-prompt', 'results'].includes(saved.screen)) return clearSession();
+      state.activeId = reviewer.id; state.screen = saved.screen; state.order = order;
+      state.position = Math.min(Math.max(0, Number(saved.position) || 0), order.length - 1);
+      state.answers = saved.answers && typeof saved.answers === 'object' ? saved.answers : {};
+      state.results = saved.results && typeof saved.results === 'object' ? saved.results : {};
+      state.revealed = new Set(Array.isArray(saved.revealed) ? saved.revealed : []);
+      state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
+      state.retry = Boolean(saved.retry); state.mode = saved.mode === 'practice' ? 'practice' : 'quiz';
+    } catch { clearSession(); }
+  }
   function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId); }
   function clearHash() { if (location.hash) history.replaceState(null, '', location.pathname + location.search); }
+  function setMobileNav(open) {
+    const wasOpen = document.body.classList.contains('mobile-nav-open');
+    document.body.classList.toggle('mobile-nav-open', open);
+    $('#mobile-nav-toggle').setAttribute('aria-expanded', String(open));
+    $('#mobile-nav-toggle').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    $('#nav-scrim').hidden = !open;
+    if (open) $('#new-reviewer').focus();
+    else if (wasOpen && document.body.classList.contains('mobile-nav')) $('#mobile-nav-toggle').focus();
+  }
   function renderLibrary() {
-    $('#reviewer-list').innerHTML = state.reviewers.map(r => `<div class="reviewer-entry">
-      <button class="reviewer-item ${r.id === state.activeId && !location.hash ? 'active' : ''}" data-reviewer="${esc(r.id)}">
+    const search = state.reviewerSearch.trim().toLocaleLowerCase();
+    const reviewers = [...state.reviewers].sort((a, b) => {
+      if (state.reviewerSort === 'az') return String(a.title || '').localeCompare(String(b.title || ''));
+      if (state.reviewerSort === 'oldest') return (a.updatedAt || 0) - (b.updatedAt || 0);
+      return (b.updatedAt || 0) - (a.updatedAt || 0);
+    }).filter(reviewer => !search || String(reviewer.title || '').toLocaleLowerCase().includes(search));
+    $('#reviewer-list').innerHTML = reviewers.length ? reviewers.map(r => `<div class="reviewer-entry">
+      <button class="reviewer-item ${r.id === state.activeId && !location.hash ? 'active' : ''}" data-reviewer="${esc(r.id)}" aria-current="${r.id === state.activeId && !location.hash ? 'page' : 'false'}">
         <svg class="ui-icon reviewer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.75h7l4 4v12.5H7zM14 3.75v4h4M10 12h5M10 16h5"/></svg>
         <span class="reviewer-copy"><span class="reviewer-title">${esc(r.title)}</span></span>
       </button><button class="reviewer-delete" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}" title="Delete reviewer">×</button>
-    </div>`).join('');
+    </div>`).join('') : `<p class="reviewer-empty">${search ? 'No matching reviewers' : 'No reviewers yet'}</p>`;
     $('#reviewer-list').querySelectorAll('[data-reviewer]').forEach(b => b.onclick = () => selectReviewer(b.dataset.reviewer));
     $('#reviewer-list').querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteReviewer(b.dataset.delete));
     $('#prompt-link').classList.toggle('active', location.hash === '#prompt');
     $('#import-prompt-link').classList.toggle('active', location.hash === '#import-prompt');
   }
   function selectReviewer(id) {
+    const selectedFromMobileNav = document.body.classList.contains('mobile-nav-open');
+    setMobileNav(false);
+    clearSession();
     clearHash(); state.activeId = id; state.screen = 'home'; state.order = [];
     render();
+    if (selectedFromMobileNav) $('#start-quiz')?.focus();
   }
   function deleteReviewer(id) {
     const reviewer = state.reviewers.find(x => x.id === id);
     if (!reviewer || !confirm(`Delete "${reviewer.title}"?`)) return;
     state.reviewers = state.reviewers.filter(x => x.id !== id);
-    if (state.activeId === id) { state.activeId = null; state.screen = 'home'; clearHash(); }
+    if (state.activeId === id) { clearSession(); state.activeId = null; state.screen = 'home'; clearHash(); }
     saveReviewers(); render();
   }
   function render() {
@@ -168,9 +221,11 @@ Reviewer to convert:
     $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${esc(reviewer.title)}</h2>
       <p>${reviewer.questions.length} questions</p>
       <button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start reviewing</button>
+      <div class="welcome-actions"><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice (no score)</button></div>
       <div class="welcome-actions"><button class="mini-control" id="edit-reviewer">Edit questions</button>
       <button class="mini-control" id="export-reviewer">Export</button></div></div></div>`;
-    $('#start-quiz').onclick = () => startQuiz();
+    $('#start-quiz').onclick = () => startQuiz(false, 'quiz');
+    $('#practice-quiz').onclick = () => startQuiz(false, 'practice');
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
@@ -195,12 +250,12 @@ Reviewer to convert:
       toast('Prompt copied.');
     };
   }
-  function startQuiz(shuffle = false) {
+  function startQuiz(shuffle = false, mode = 'quiz') {
     const reviewer = currentReviewer(); if (!reviewer?.questions.length) return;
     state.order = reviewer.questions.map((_, i) => i);
     if (shuffle) shuffleInPlace(state.order);
     state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; state.screen = 'study'; render();
+    state.retry = false; state.mode = mode; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
     for (let i = values.length - 1; i > 0; i--) {
@@ -233,15 +288,15 @@ Reviewer to convert:
     let input;
     if (q.options.length) {
       const multi = q.correctAnswers.length > 1;
-      input = `<div class="answer-list">${q.options.map((o, i) => {
+      input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
         const checked = selected.includes(i);
         const graded = Object.hasOwn(state.results, id);
         const cls = revealed || graded ? (q.correctAnswers.includes(i) ? 'correct' : checked ? 'incorrect' : '') : checked ? 'selected' : '';
-        return `<button class="answer-option ${cls}" data-option="${i}" aria-pressed="${checked}">
+        return `<button class="answer-option ${cls}" data-option="${i}" aria-keyshortcuts="${i < 9 ? `${i + 1} ArrowUp ArrowDown` : 'ArrowUp ArrowDown'}" aria-pressed="${checked}">
           <span class="option-letter">${multi ? '□' : String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`;
       }).join('')}</div>`;
     } else {
-      input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
+      input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
     const knownAnswer = q.options.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer;
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
@@ -252,19 +307,21 @@ Reviewer to convert:
     const oldScroll = deckEl?.scrollLeft ?? null;
     const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
+      ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}</div><div class="study-controls">
       <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
-      <article class="question-card"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-text">${esc(q.text)}</div>
+      <p class="shortcut-hint">1–9 choose · ↑/↓ choices · ←/→ move · Enter next</p>
+      <article class="question-card" tabindex="-1"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-text" id="question-prompt">${esc(q.text)}</div>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="Exhibit ${i + 1}" loading="lazy">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${status || feedback}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
-      <button class="secondary-button" id="prev-question" ${state.position ? '' : 'disabled'}>Back</button>
-      <button class="primary-button" id="next-question">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
+      <button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
+      <button class="primary-button" id="next-question" aria-keyshortcuts="Enter ArrowRight">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
     if (direction && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       const offset = direction === 'next' ? 9 : -9;
       $('#main-panel').querySelectorAll('.question-card,.answer-list,.short-answer').forEach((element, index) => {
@@ -275,6 +332,7 @@ Reviewer to convert:
         enter.onfinish = () => enter.cancel();
       });
     }
+    if (direction) $('.question-card').focus({preventScroll:true});
     if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
     $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
@@ -291,6 +349,7 @@ Reviewer to convert:
       });
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
       syncCurrentCard(answer.length > 0);
+      saveSession();
     });
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
@@ -298,6 +357,7 @@ Reviewer to convert:
       delete state.results[id];
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
       syncCurrentCard(state.answers[id].length > 0);
+      saveSession();
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
     $('#dont-know').onclick = () => advance(true);
@@ -307,11 +367,12 @@ Reviewer to convert:
       const target = Number(b.dataset.jump), direction = target > state.position ? 'next' : 'previous';
       state.position = target; renderQuestion(direction);
     });
-    $('#exit-quiz').onclick = () => { state.screen = 'home'; render(); };
+    $('#exit-quiz').onclick = () => { clearSession(); state.screen = 'home'; render(); };
     $('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
     };
+    saveSession();
   }
   function advance(dontKnow) {
     const id = state.order[state.position];
@@ -320,6 +381,8 @@ Reviewer to convert:
     if (dontKnow) {
       state.unknown.add(id);
       delete state.results[id];
+    } else if (state.mode === 'practice') {
+      if (answer.length || state.revealed.has(id)) state.unknown.delete(id);
     } else if (answer.length && (question.correctAnswers.length || question.answer)) {
       state.results[id] = RevCore.isCorrect(question, answer);
       showAnswerResult(state.results[id]);
@@ -333,32 +396,54 @@ Reviewer to convert:
     state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function renderRetryPrompt() {
+    saveSession();
     const count = state.unknown.size;
     $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${count} card${count === 1 ? '' : 's'} to review later</h2>
       <div class="welcome-actions"><button class="primary-button" id="retry-unknown">Review these cards</button>
       <button class="secondary-button" id="finish-now">Finish for now</button></div></div></div>`;
     $('#retry-unknown').onclick = () => {
       state.order = [...state.unknown].sort((a, b) => a - b);
-      state.position = 0; state.retry = true; state.screen = 'study'; render();
+      state.position = 0; state.retry = true; state.screen = 'study'; renderQuestion('next');
     };
     $('#finish-now').onclick = () => { state.screen = 'results'; render(); };
   }
   function renderResults() {
+    saveSession();
     const reviewer = currentReviewer();
     const keyed = reviewer.questions.filter(q => q.correctAnswers.length || q.answer);
     const score = reviewer.questions.filter((q, i) => (q.correctAnswers.length || q.answer) && RevCore.isCorrect(q, state.answers[i])).length;
-    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">Review complete</h2>
-      <div class="result-score">${score}<span class="score-total"> / ${keyed.length}</span></div>
-      <p class="result-sub">${keyed.length < reviewer.questions.length ? `${reviewer.questions.length - keyed.length} without an answer key` : `${reviewer.questions.length} questions`}</p>
+    const outcomes = reviewer.questions.map((q, i) => {
+      const hasKey = q.correctAnswers.length || q.answer;
+      const correct = hasKey && RevCore.isCorrect(q, state.answers[i]);
+      const status = state.unknown.has(i) ? 'I don\'t know'
+        : state.mode === 'practice' ? (state.answers[i]?.length || state.revealed.has(i) ? 'Practiced' : 'Not practiced')
+          : !hasKey ? 'No key' : correct ? 'Correct' : state.answers[i]?.length ? 'Incorrect' : 'Not answered';
+      const missed = state.mode === 'practice' ? state.unknown.has(i) : state.unknown.has(i) || (hasKey && !correct);
+      return {q, i, status, missed};
+    });
+    const missed = outcomes.filter(result => result.missed);
+    const summary = `<section class="missed-summary"><div class="missed-summary-head"><div><h3>${state.mode === 'practice' ? 'Cards to revisit' : 'Missed questions'}</h3>
+      <p>${missed.length ? `${missed.length} card${missed.length === 1 ? '' : 's'} ready to review` : 'You are all caught up.'}</p></div><span class="missed-count">${missed.length}</span></div>
+      ${missed.length ? `<button class="primary-button" id="review-missed">Review missed cards</button>` : ''}</section>`;
+    const completion = state.mode === 'practice'
+      ? `<p class="result-sub">Practice complete · ${reviewer.questions.length} cards</p>`
+      : `<div class="result-score">${score}<span class="score-total"> / ${keyed.length}</span></div>
+        <p class="result-sub">${keyed.length < reviewer.questions.length ? `${keyed.length} scored · ${reviewer.questions.length - keyed.length} without an answer key` : `${reviewer.questions.length} questions`}</p>`;
+    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice complete' : 'Review complete'}</h2>
+      ${completion}${summary}
       <div class="result-actions"><button class="secondary-button" id="back-to-reviewer">Done</button>
-      <button class="primary-button" id="retry-quiz">Review again</button></div>
-      <div class="review-list">${reviewer.questions.map((q, i) => `<button class="review-row result-jump" data-result-jump="${i}">
-      <span>${esc(q.sourceNumber)}. ${esc(q.text.slice(0, 80))}</span><span class="result-status">${state.unknown.has(i) ? 'I don\'t know' : !(q.correctAnswers.length || q.answer) ? 'No key' : RevCore.isCorrect(q, state.answers[i]) ? 'Correct' : 'Review'}</span></button>`).join('')}</div></div></div>`;
-    $('#back-to-reviewer').onclick = () => { state.screen = 'home'; render(); };
-    $('#retry-quiz').onclick = () => startQuiz();
+      <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Practice again' : 'Review again'}</button></div>
+      <div class="review-list">${outcomes.map(({q, i, status}) => `<button class="review-row result-jump" data-result-jump="${i}">
+      <span>${esc(q.sourceNumber)}. ${esc(q.text.slice(0, 100))}</span><span class="result-status">${status}</span></button>`).join('')}</div></div></div>`;
+    $('#back-to-reviewer').onclick = () => { clearSession(); state.screen = 'home'; render(); };
+    $('#retry-quiz').onclick = () => startQuiz(false, state.mode);
+    $('#review-missed')?.addEventListener('click', () => {
+      state.order = missed.map(result => result.i); state.position = 0;
+      state.unknown = new Set(state.order); state.retry = true; state.screen = 'study'; renderQuestion('next');
+    });
     $('#main-panel').querySelectorAll('[data-result-jump]').forEach(b => b.onclick = () => {
       state.order = reviewer.questions.map((_, i) => i); state.position = Number(b.dataset.resultJump);
-      state.retry = false; state.screen = 'study'; render();
+      state.retry = false; state.screen = 'study'; renderQuestion('next');
     });
   }
   function reviewerToText(reviewer) {
@@ -369,7 +454,7 @@ Reviewer to convert:
       const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
       return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
         ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
-        : q.answer ? `Answer: ${q.answer}` : ''}${refs.map(image => `\nExhibit: ${image}`).join('')}`;
+        : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${refs.map(image => `\nExhibit: ${image}`).join('')}`;
     }).join('\n\n');
   }
   function exportReviewer(reviewer) {
@@ -377,6 +462,42 @@ Reviewer to convert:
     const a = document.createElement('a'), url = URL.createObjectURL(blob);
     a.href = url; a.download = (reviewer.title.replace(/[^a-z0-9-_]+/gi, '-').slice(0, 60) || 'reviewer') + '.json';
     a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function exportLibraryBackup() {
+    const payload = {format:'rev-backup-v1',exportedAt:new Date().toISOString(),reviewers:state.reviewers};
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'), url = URL.createObjectURL(blob);
+    a.href = url; a.download = `rev-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(`${state.reviewers.length} reviewer${state.reviewers.length === 1 ? '' : 's'} backed up.`);
+  }
+  async function restoreLibraryBackup(file) {
+    try {
+      const data = JSON.parse(await file.text());
+      const source = Array.isArray(data) ? data : Array.isArray(data?.reviewers) ? data.reviewers : data?.questions ? [data] : null;
+      if (!source?.length || source.some(item => !item || !Array.isArray(item.questions) || !item.questions.length ||
+        item.questions.some(question => !question || typeof question !== 'object' || !String(question.text || '').trim()))) {
+        throw new Error('This file does not contain a Rev reviewer backup.');
+      }
+      if (!confirm(`Restore ${source.length} reviewer${source.length === 1 ? '' : 's'}? Reviewers with matching IDs will be updated; other reviewers stay here.`)) return;
+      const restored = source.map(item => ({
+        ...item, id:String(item.id || crypto.randomUUID()), title:String(item.title || 'Imported reviewer').slice(0,70),
+        questions:item.questions.map(RevCore.normalizeQuestion), updatedAt:Number(item.updatedAt) || Date.now()
+      }));
+      const previous = state.reviewers, merged = [...previous];
+      for (const reviewer of restored) {
+        const at = merged.findIndex(item => item.id === reviewer.id);
+        if (at >= 0) merged[at] = reviewer; else merged.push(reviewer);
+      }
+      state.reviewers = merged;
+      if (!saveReviewers()) { state.reviewers = previous; return; }
+      clearSession();
+      state.screen = 'home'; state.order = []; state.position = 0; state.answers = {}; state.results = {};
+      state.revealed.clear(); state.unknown.clear(); state.retry = false;
+      if (!state.activeId || !state.reviewers.some(item => item.id === state.activeId)) state.activeId = restored[0].id;
+      render(); toast(`Restored ${restored.length} reviewer${restored.length === 1 ? '' : 's'}.`);
+    } catch (error) { toast(error.message || 'Could not restore this backup.'); }
+    finally { $('#backup-file').value = ''; }
   }
   function openImport(reviewer = null) {
     const dialog = $('#import-dialog');
@@ -451,6 +572,7 @@ Reviewer to convert:
         else state.reviewers.shift();
         return feedback('Browser storage is full. Export or remove a reviewer, then try again.', true);
       }
+      clearSession();
       state.activeId = reviewer.id; state.screen = 'home'; clearHash();
       $('#import-dialog').close(); render();
       if (parsed.warnings.length) toast(`Imported ${parsed.questions.length} questions. ${parsed.warnings.length} formatting note(s).`);
@@ -469,9 +591,59 @@ Reviewer to convert:
       reader.readAsDataURL(file);
     });
   }
+  function installKeyboardShortcuts() {
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Tab' && document.body.classList.contains('mobile-nav-open')) {
+        const items = [...$('#sidebar').querySelectorAll('button:not(:disabled),a[href],input:not([hidden]),select')]
+          .filter(item => item.getClientRects().length);
+        const first = items[0], last = items.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        return;
+      }
+      if (event.key === 'Escape' && document.body.classList.contains('mobile-nav-open')) {
+        setMobileNav(false); return;
+      }
+      if (document.body.classList.contains('mobile-nav-open')) return;
+      if (state.screen !== 'study' || $('#import-dialog').open || event.altKey || event.ctrlKey || event.metaKey) return;
+      const target = event.target;
+      if (target.matches('input,textarea,select,[contenteditable="true"]')) {
+        if (event.key === 'Enter' && target.id === 'short-answer') { event.preventDefault(); $('#next-question')?.click(); }
+        return;
+      }
+      const optionButtons = [...$('#main-panel').querySelectorAll('[data-option]')];
+      if (/^[1-9]$/.test(event.key) && Number(event.key) <= optionButtons.length) {
+        event.preventDefault(); optionButtons[Number(event.key) - 1].click(); return;
+      }
+      if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && target.matches('[data-option]')) {
+        event.preventDefault();
+        const index = optionButtons.indexOf(target), direction = event.key === 'ArrowDown' ? 1 : -1;
+        optionButtons[(index + direction + optionButtons.length) % optionButtons.length]?.focus(); return;
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault(); $('#prev-question')?.click(); return;
+      }
+      if (event.key === 'ArrowRight') {
+        event.preventDefault(); $('#next-question')?.click(); return;
+      }
+      if (event.key === 'Enter' && target.matches('[data-option]') && target.getAttribute('aria-pressed') === 'true') {
+        event.preventDefault(); $('#next-question')?.click(); return;
+      }
+      if (event.key === 'Enter' && !target.closest('button,a')) {
+        event.preventDefault(); $('#next-question')?.click();
+      }
+    });
+  }
   function initialize() {
     load();
-    document.body.classList.toggle('sidebar-collapsed', get('rev-sidebar-open') === 'false');
+    const mobileLayout = window.matchMedia('(max-width:760px)');
+    const applySidebarLayout = () => {
+      document.body.classList.toggle('mobile-nav', mobileLayout.matches);
+      document.body.classList.toggle('sidebar-collapsed', !mobileLayout.matches && get('rev-sidebar-open') === 'false');
+      if (!mobileLayout.matches) setMobileNav(false);
+    };
+    applySidebarLayout();
+    mobileLayout.addEventListener?.('change', applySidebarLayout);
     document.body.classList.toggle('dark', get('rev-theme') === 'dark');
     const setThemeAppearance = dark => {
       $('#theme-state').textContent = dark ? 'Dark' : 'Light';
@@ -486,12 +658,21 @@ Reviewer to convert:
       put('rev-sidebar-open', String(!collapsed));
       $('#sidebar-toggle').setAttribute('aria-label', collapsed ? 'Expand navigation' : 'Collapse navigation');
     };
+    $('#mobile-nav-toggle').onclick = () => setMobileNav(!document.body.classList.contains('mobile-nav-open'));
+    $('#nav-scrim').onclick = () => setMobileNav(false);
     $('#theme-toggle').onclick = () => {
       const dark = document.body.classList.toggle('dark');
       put('rev-theme', dark ? 'dark' : 'light'); setThemeAppearance(dark);
     };
-    $('#new-reviewer').onclick = () => openImport();
-    $('#import-trigger').onclick = () => openImport();
+    $('#new-reviewer').onclick = () => { setMobileNav(false); openImport(); };
+    $('#import-trigger').onclick = () => { setMobileNav(false); openImport(); };
+    $('#prompt-link').addEventListener('click', () => setMobileNav(false));
+    $('#import-prompt-link').addEventListener('click', () => setMobileNav(false));
+    $('#reviewer-search').oninput = event => { state.reviewerSearch = event.target.value; renderLibrary(); };
+    $('#reviewer-sort').onchange = event => { state.reviewerSort = event.target.value; renderLibrary(); };
+    $('#backup-library').onclick = exportLibraryBackup;
+    $('#restore-library').onclick = () => { setMobileNav(false); $('#backup-file').click(); };
+    $('#backup-file').onchange = event => { if (event.target.files[0]) restoreLibraryBackup(event.target.files[0]); };
     $('#cancel-import').onclick = () => $('#import-dialog').close();
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
@@ -501,6 +682,9 @@ Reviewer to convert:
     };
     $('#import-submit').onclick = submitImport;
     window.addEventListener('hashchange', render);
+    window.addEventListener('pagehide', saveSession);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) saveSession(); });
+    installKeyboardShortcuts();
     render();
   }
   initialize();

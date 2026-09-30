@@ -17,13 +17,19 @@ const RevCore = (() => {
     const options = Array.isArray(raw?.options) ? raw.options.map(cleanReadingText) : [];
     const correctAnswers = unique(Array.isArray(raw?.correctAnswers) ? raw.correctAnswers.map(Number) : [])
       .filter(i => Number.isInteger(i) && i >= 0 && i < options.length);
-    const answer = cleanReadingText(raw?.answer);
+    const answerValues = Array.isArray(raw?.answer) ? raw.answer : [raw?.answer, ...(Array.isArray(raw?.answers) ? raw.answers : [])];
+    const answer = cleanReadingText(answerValues.find(value => String(value ?? '').trim()));
+    const acceptedAnswers = unique([
+      ...answerValues.slice(1).map(cleanReadingText),
+      ...(Array.isArray(raw?.acceptedAnswers) ? raw.acceptedAnswers.map(cleanReadingText) : [])
+    ].filter(value => value && normalize(value) !== normalize(answer)));
     return {
       sourceNumber: String(raw?.sourceNumber ?? index + 1),
       text: cleanReadingText(raw?.text),
       options,
       correctAnswers,
       answer,
+      ...(acceptedAnswers.length ? {acceptedAnswers} : {}),
       type: options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
       ...(raw?.image ? { image: String(raw.image) } : {}),
       ...(Array.isArray(raw?.images) ? { images: raw.images.map(x => String(x)).filter(Boolean) } : []),
@@ -76,6 +82,9 @@ const RevCore = (() => {
     const answerAt = lines.findIndex(line => /^Answer\s*:\s*\S/i.test(line));
     if (answerAt >= 0) {
       const key = lines[answerAt].replace(/^Answer\s*:\s*/i, '').trim();
+      const acceptedAnswers = lines.slice(answerAt + 1)
+        .filter(line => /^Also accepted\s*:/i.test(line))
+        .flatMap(line => line.replace(/^Also accepted\s*:\s*/i, '').split(/\s*[|;]\s*/).map(value => value.trim()).filter(Boolean));
       if (lines.slice(0, answerAt).some(line => optionLine(line).labeled)) {
         const question = parseBlock({...block, lines: lines.slice(0, answerAt)}, []);
         const letter = key.match(/^(?:Choice\s+)?([A-Z])\s*[.)]?$/i);
@@ -85,7 +94,7 @@ const RevCore = (() => {
         else warnings.push(`Question ${block.number}: answer key did not match a choice.`);
         return attachImages(question, media);
       }
-      return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key }), media);
+      return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key, acceptedAnswers }), media);
     }
     const firstLabeled = lines.findIndex(line => optionLine(line).labeled);
     const firstMarked = lines.findIndex(line => optionLine(line).marked);
@@ -265,7 +274,9 @@ const RevCore = (() => {
     if (question.options.length) {
       return answer.length === question.correctAnswers.length && answer.every(i => question.correctAnswers.includes(i));
     }
-    return !!question.answer && normalize(answer[0]).replace(/[.,!?;:]$/, '') === normalize(question.answer).replace(/[.,!?;:]$/, '');
+    const cleanAnswer = value => normalize(value).replace(/[\s.,!?;:]+$/, '');
+    return [question.answer, ...(question.acceptedAnswers || [])]
+      .some(expected => !!expected && cleanAnswer(answer[0]) === cleanAnswer(expected));
   }
 
   return { parseImport, parseText, formatPdfRows, resolveImageFiles, normalizeQuestion, isCorrect, normalize };
