@@ -1,0 +1,23 @@
+window.REV_EXHIBIT_ALTS = {
+  '6': 'Two switches, SW1 and SW2, connect through Gi0/1 and Gi0/2. Both links are trunks. SW1 uses channel-group 1 mode auto on both ports; SW2 uses mode active.',
+  '12': 'S1 and S2 connect by Fa0/0 and Fa0/1. Both use channel-group 1 mode active. S1 allows VLANs 1-5,10; S2 allows VLANs 1,5,10.',
+  '16': 'One upper switch connects to each of three lower switches with two parallel links.',
+  '24': 'EtherChannel summary shows Po1(SD) using PAgP, with Fa0/1(I), Fa0/2(I), and Fa0/3(I).',
+  '30': 'EtherChannel load table lists Gi1/1 with load 36 and 3 bits, Gi1/2 with load 84 and 3 bits, and Gi1/3 with load 16 and 2 bits; all are Active.',
+  '34': 'Three switches S1, S2, and S3 form a triangle with paired links. S1 interface range Fa0/1 through Fa0/4 is configured with channel-group 1 mode on.',
+  '43': 'S1 is the root bridge. S1, S2, and S3 form a triangle. S2 connects to PCs A, B, and C; arrows label ports A, B, C, and D.',
+  '48': 'R1 show ipv6 interface GigabitEthernet0/0 output shows the interface up, address 2001:DB8:ACAD:1::1/64, router advertisements sent every 200 seconds, and hosts use DHCP for other configuration.',
+  '54': 'R1 configures IPv6 DHCP pool ACAD_NET with DNS server 2001:DB8:ACAD:A1::10 and domain netacad.net. GigabitEthernet0/0 uses 2001:DB8:ACAD:1::1/64 and ipv6 dhcp server ACAD_NET.',
+  '87': 'RTR1 connects PC-A through SW1 on 2001:DB8:1234:5678::/64 and a DHCPv6 server through SW2 on 2001:DB8:1234:ABCD::/64. Running configuration shows managed-config-flag on Gi0/0 and a DHCP relay destination on Gi0/1.',
+  '89': 'An internal LAN connects through two switches to routers R1 and R2; both routers connect to the Internet.',
+  '99': 'Four switches S1, S2, S3, and S4 form a square. All have bridge priority 32769; their MAC addresses end 2222, 1111, 3333, and 1212 respectively.',
+  '112': 'FastEthernet0/1 Group 1 HSRP output: state Active, virtual IP 192.168.2.100, active router local, standby router 192.168.2.2, priority 100, with two group members.',
+  '113': 'RTR1 connects PC-A via SW1 on 2001:DB8:1234:5678::/64 and a DHCPv6 server via SW2 on 2001:DB8:1234:ABCD::/64. Running configuration shows ipv6 nd managed-config-flag on FastEthernet0/0.',
+  '120': 'DHCP server 192.168.1.8/24 and PC1 192.168.1.130/24 connect through a switch to R1 FastEthernet0/1 at 192.168.1.1/24.',
+  '143': 'EtherChannel summary shows group 1 Po1(SU) using PAgP with Fa0/1(P) and Fa0/2(P).',
+  '144': 'R1 configures DHCPv6 pool ACAD_CLASS with DNS server 2001:DB8:ACAD:A1::10 and domain netacad.net. GigabitEthernet0/0 uses 2001:DB8:ACAD:1::1/64, ipv6 dhcp server ACAD_CLASS, and ipv6 nd other-config-flag.',
+  '148': 'R1 configures DHCPv6 pool ACAD_CLASS with DNS server 2001:DB8:ACAD:A1::10 and domain netacad.net. GigabitEthernet0/0 uses 2001:DB8:ACAD:1::1/64, ipv6 dhcp server ACAD_CLASS, and ipv6 nd other-config-flag.',
+  '153': 'R1 running configuration has DHCPv6 pool IPV6 with DNS server 2001:DB8:1234:5678::100 and domain netacad.com. FastEthernet0/0 uses ipv6 nd other-config-flag and ipv6 dhcp server IPV6.',
+  '156': 'SW1 and SW2 connect with Gi0/1 and Gi0/2 trunks. SW1 uses channel-group 1 mode on; SW2 uses mode desirable. Both Port-channel 1 interfaces are trunks.',
+  '164': 'Forwarding and standby routers share a virtual router between the core and an access switch with a connected PC.'
+};

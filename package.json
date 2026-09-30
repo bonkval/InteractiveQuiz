@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test core.test.js"
+    "test": "node --test core.test.js app.test.cjs api.test.cjs"
   },
   "repository": {
     "type": "git",
@@ -25,6 +25,7 @@
     "@supabase/supabase-js": "^2.117.2"
   },
   "devDependencies": {
+    "jsdom": "^30.1.1",
     "vite": "^8.3.1"
   }
 }

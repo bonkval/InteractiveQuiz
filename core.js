@@ -33,21 +33,25 @@ const RevCore = (() => {
       type: options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
       ...(raw?.image ? { image: String(raw.image) } : {}),
       ...(Array.isArray(raw?.images) ? { images: raw.images.map(x => String(x)).filter(Boolean) } : []),
+      ...(Array.isArray(raw?.imageAlts) ? { imageAlts: raw.imageAlts.map(x => cleanReadingText(x)) } : []),
       ...(Array.isArray(raw?.imageRefs) || raw?.imageRef ? { imageRefs: [...(Array.isArray(raw?.imageRefs) ? raw.imageRefs : raw?.imageRefs ? [raw.imageRefs] : []), ...(raw?.imageRef ? [raw.imageRef] : [])].map(String) } : [])
     };
   }
 
   function imageSources(lines) {
-    const images = [], imageRefs = [];
+    const images = [], imageRefs = [], imageAlts = [];
     for (const line of lines) {
+      const altLine = line.match(/^\s*Alt text(?:\s+\d+)?\s*:\s*(.*?)\s*$/i);
+      if (altLine) { imageAlts.push(cleanReadingText(altLine[1])); continue; }
       const marker = line.match(/^\s*(?:Exhibit|Image)\s*:\s*(.*?)\s*$/i);
-      const markdown = line.match(/^\s*!\[[^\]]*\]\(([^)]+)\)\s*$/);
-      const source = (marker?.[1] || markdown?.[1] || '').trim();
+      const markdown = line.match(/^\s*!\[([^\]]*)\]\(([^)]+)\)\s*$/);
+      const source = (marker?.[1] || markdown?.[2] || '').trim();
       if (!source) continue;
+      if (markdown?.[1]) imageAlts.push(cleanReadingText(markdown[1]));
       if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(source) || /^https?:\/\//i.test(source)) images.push(source);
       else imageRefs.push(source);
     }
-    return {images, imageRefs};
+    return {images, imageRefs, imageAlts};
   }
 
   function optionLine(line) {
@@ -77,7 +81,7 @@ const RevCore = (() => {
 
   function parseBlock(block, warnings) {
     const media = imageSources(block.lines);
-    const lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
+    const lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image|Alt text(?:\s+\d+)?)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
     if (!lines.length) return null;
     const answerAt = lines.findIndex(line => /^Answer\s*:\s*\S/i.test(line));
     if (answerAt >= 0) {
@@ -138,6 +142,7 @@ const RevCore = (() => {
   function attachImages(question, media) {
     if (media.images.length) question.images = [...(question.images || []), ...media.images];
     if (media.imageRefs.length) question.imageRefs = [...(question.imageRefs || []), ...media.imageRefs];
+    if (media.imageAlts.length) question.imageAlts = media.imageAlts;
     if (question.images?.length === 1) question.image = question.images[0];
     return question;
   }

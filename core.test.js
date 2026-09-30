@@ -71,13 +71,16 @@ test('matches a separate answer key to a labeled choice', () => {
 });
 
 test('keeps exhibit references with the question and accepts embedded image data', () => {
-  const linked = core.parseImport('Question 1\nRefer to the exhibit. What is shown?\nExhibit: topology.png\nChoice A: one\nCorrect! Choice B: two').questions[0];
+  const linked = core.parseImport('Question 1\nRefer to the exhibit. What is shown?\nExhibit: topology.png\nAlt text: Two switches connected by a trunk.\nChoice A: one\nCorrect! Choice B: two').questions[0];
   assert.equal(linked.text, 'Refer to the exhibit. What is shown?');
   assert.deepEqual(linked.imageRefs, ['topology.png']);
+  assert.deepEqual(linked.imageAlts, ['Two switches connected by a trunk.']);
+  assert.equal(linked.options.length, 2);
   const embedded = core.parseImport('Question 2\nRead the diagram.\nExhibit: data:image/png;base64,aGVsbG8=\nAnswer: diagram').questions[0];
   assert.deepEqual(embedded.images, ['data:image/png;base64,aGVsbG8=']);
   const markdown = core.parseImport('Question 3\nWhat does this show?\n![Exhibit](https://example.com/figure.png)\nAnswer: example').questions[0];
   assert.deepEqual(markdown.images, ['https://example.com/figure.png']);
+  assert.deepEqual(markdown.imageAlts, ['Exhibit']);
 });
 
 test('attaches image files by filename and preserves old or bundled exhibits', () => {
