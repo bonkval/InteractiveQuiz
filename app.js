@@ -69,9 +69,28 @@ Reviewer to convert:
     mark.className = `answer-result-overlay ${correct ? 'correct' : 'incorrect'}`;
     mark.setAttribute('role', 'status');
     mark.setAttribute('aria-label', correct ? 'Correct answer' : 'Incorrect answer');
-    mark.innerHTML = `<span aria-hidden="true">${correct ? '&#10003;' : '&#10005;'}</span>`;
+    const icon = correct
+      ? '<path d="M7 17.5 13 23.5 25 10.5" pathLength="1" />'
+      : '<path d="m10 10 14 14" pathLength="1" /><path d="m24 10-14 14" pathLength="1" />';
+    mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 34 34" fill="none">${icon}</svg></span>`;
     document.body.append(mark);
-    setTimeout(() => mark.remove(), 1050);
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reducedMotion && mark.animate) {
+      mark.animate([
+        { opacity: 0, offset: 0 }, { opacity: 1, offset: .2 },
+        { opacity: .96, offset: .62 }, { opacity: 0, offset: 1 }
+      ], { duration: 740, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' });
+      mark.firstElementChild.animate([
+        { transform: 'translateY(10px) scale(.84)', filter: 'blur(2px)' },
+        { transform: 'translateY(0) scale(1)', filter: 'blur(0)', offset: .46 },
+        { transform: 'translateY(-2px) scale(.98)', filter: 'blur(0)' }
+      ], { duration: 660, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'forwards' });
+      mark.querySelectorAll('path').forEach(path => path.animate(
+        [{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }],
+        { duration: 390, delay: 100, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' }
+      ));
+    }
+    setTimeout(() => mark.remove(), reducedMotion ? 400 : 780);
   }
   function load() {
     try {
