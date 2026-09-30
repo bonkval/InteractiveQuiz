@@ -57,7 +57,7 @@ Reviewer to convert:
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
   const state = {
     reviewers: [], activeId: null, screen: 'home', order: [], position: 0,
-    answers: {}, revealed: new Set(), unknown: new Set(), retry: false,
+    answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
     sourceText: '', selectedFiles: [], importBusy: false
   };
   function toast(message) {
@@ -171,7 +171,7 @@ Reviewer to convert:
     const reviewer = currentReviewer(); if (!reviewer?.questions.length) return;
     state.order = reviewer.questions.map((_, i) => i);
     if (shuffle) shuffleInPlace(state.order);
-    state.position = 0; state.answers = {}; state.revealed.clear(); state.unknown.clear();
+    state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; state.screen = 'study'; render();
   }
   function shuffleInPlace(values) {
@@ -185,15 +185,19 @@ Reviewer to convert:
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
     const deck = state.order.map((key, position) => {
       const item = reviewer.questions[key];
-      return `<button class="question-index-card ${position === state.position ? 'current' : ''} ${state.unknown.has(key) ? 'unknown' : ''} ${state.answers[key]?.length ? 'answered' : ''}"
-        data-jump="${position}" aria-label="Question ${esc(item.sourceNumber)}" title="Question ${esc(item.sourceNumber)}"><span>${esc(item.sourceNumber)}</span></button>`;
+      const result = state.results[key];
+      const status = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'unknown' : '';
+      const label = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'marked to review' : '';
+      return `<button class="question-index-card ${position === state.position ? 'current' : ''} ${status} ${state.answers[key]?.length ? 'answered' : ''}"
+        data-jump="${position}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
     if (q.options.length) {
       const multi = q.correctAnswers.length > 1;
       input = `<div class="answer-list">${q.options.map((o, i) => {
         const checked = selected.includes(i);
-        const cls = revealed ? (q.correctAnswers.includes(i) ? 'correct' : checked ? 'incorrect' : '') : checked ? 'selected' : '';
+        const graded = Object.hasOwn(state.results, id);
+        const cls = revealed || graded ? (q.correctAnswers.includes(i) ? 'correct' : checked ? 'incorrect' : '') : checked ? 'selected' : '';
         return `<button class="answer-option ${cls}" data-option="${i}" aria-pressed="${checked}">
           <span class="option-letter">${multi ? '□' : String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`;
       }).join('')}</div>`;
@@ -201,7 +205,10 @@ Reviewer to convert:
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
     const knownAnswer = q.options.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer;
-    const feedback = revealed ? (knownAnswer ? `Answer: ${esc(knownAnswer)}` : 'No answer key in this reviewer.') : '';
+    const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
+    const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
+    const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
+    const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
     const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
@@ -214,21 +221,23 @@ Reviewer to convert:
       <article class="question-card"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-text">${esc(q.text)}</div>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="Exhibit ${i + 1}" loading="lazy">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
-      ${input}<div class="question-footer"><div class="feedback-area" role="status">${feedback ? `<span class="feedback neutral">${feedback}</span>` : ''}</div>
+      ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${status || feedback}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       <button class="secondary-button" id="prev-question" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
     if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
-    else $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest'});
+    $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
       const option = Number(b.dataset.option), multi = q.correctAnswers.length > 1;
       state.answers[id] = multi ? (selected.includes(option) ? selected.filter(x => x !== option) : [...selected, option]) : [option];
-      state.revealed.delete(id); renderQuestion();
+      delete state.results[id]; state.revealed.delete(id); renderQuestion();
     });
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
+      delete state.results[id];
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
     $('#dont-know').onclick = () => advance(true);
@@ -245,9 +254,22 @@ Reviewer to convert:
   }
   function advance(dontKnow) {
     const id = state.order[state.position];
-    if (dontKnow) state.unknown.add(id);
-    else if (state.answers[id]?.length || state.revealed.has(id)) state.unknown.delete(id);
-    if (state.position < state.order.length - 1) { state.position++; renderQuestion(); return; }
+    const question = currentReviewer().questions[id];
+    const answer = state.answers[id] || [];
+    let resultMessage = '';
+    if (dontKnow) {
+      state.unknown.add(id);
+      delete state.results[id];
+    } else if (answer.length && (question.correctAnswers.length || question.answer)) {
+      state.results[id] = RevCore.isCorrect(question, answer);
+      resultMessage = `Question ${question.sourceNumber}: ${state.results[id] ? 'Correct' : 'Incorrect'} — ${state.results[id] ? '✓' : '×'} on its card`;
+      if (state.results[id]) state.unknown.delete(id);
+      else if (state.retry) state.unknown.add(id);
+    } else if (answer.length || state.revealed.has(id)) {
+      delete state.results[id];
+      state.unknown.delete(id);
+    }
+    if (state.position < state.order.length - 1) { state.position++; renderQuestion(); if (resultMessage) toast(resultMessage); return; }
     state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function renderRetryPrompt() {

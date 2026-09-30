@@ -35,6 +35,14 @@ body.dark{color-scheme:dark;--bg:#17181c;--surface:#222329;--text:#f1f1f4;--mute
 .dark .question-index-card,.dark .question-index-card:before,.dark .question-index-card:after{background:#292a31;box-shadow:none}
 .dark .question-index-card.current{background:#302e46}
 .dark .question-index-card.unknown{background:#493922}
+.question-index-card.correct{border-color:#7bc59b;background:#eefaf2;color:#2d7a4e}
+.question-index-card.incorrect{border-color:#e79a9d;background:#fff1f2;color:#ae4148}
+.question-index-card .card-result{position:absolute;right:4px;top:3px;font-size:12px;line-height:1;font-weight:800}
+.question-index-card.correct .card-result{color:#318558}
+.question-index-card.incorrect .card-result{color:#c54e55}
+.dark .question-index-card.correct{background:#25372e;color:#bce6cc}
+.dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
+.selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
 .dark .prompt-link.active{background:#302e46}
 .dark .import-card:hover{background:#302e46}
 .dark .short-answer{border-color:var(--line)}
