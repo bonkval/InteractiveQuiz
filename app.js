@@ -207,7 +207,7 @@ Reviewer to convert:
       const j = Math.floor(Math.random() * (i + 1)); [values[i], values[j]] = [values[j], values[i]];
     }
   }
-  function renderQuestion() {
+  function renderQuestion(direction = '') {
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
@@ -217,7 +217,7 @@ Reviewer to convert:
       const status = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'unknown' : '';
       const label = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'marked to review' : '';
       return `<button class="question-index-card ${position === state.position ? 'current' : ''} ${status} ${state.answers[key]?.length ? 'answered' : ''}"
-        data-jump="${position}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
+        data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
     if (q.options.length) {
@@ -254,6 +254,16 @@ Reviewer to convert:
       <button class="secondary-button" id="dont-know">I don't know</button>
       <button class="secondary-button" id="prev-question" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
+    if (direction && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const offset = direction === 'next' ? 9 : -9;
+      $('#main-panel').querySelectorAll('.question-card,.answer-list,.short-answer').forEach((element, index) => {
+        const enter = element.animate([
+          { opacity: 0, transform: `translateX(${offset}px)` },
+          { opacity: 1, transform: 'translateX(0)' }
+        ], { duration: 220, delay: index * 30, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' });
+        enter.onfinish = () => enter.cancel();
+      });
+    }
     if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
     $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
@@ -269,10 +279,11 @@ Reviewer to convert:
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
     $('#dont-know').onclick = () => advance(true);
-    $('#prev-question').onclick = () => { state.position--; renderQuestion(); };
+    $('#prev-question').onclick = () => { state.position--; renderQuestion('previous'); };
     $('#next-question').onclick = () => advance(false);
     $('#main-panel').querySelectorAll('[data-jump]').forEach(b => b.onclick = () => {
-      state.position = Number(b.dataset.jump); renderQuestion();
+      const target = Number(b.dataset.jump), direction = target > state.position ? 'next' : 'previous';
+      state.position = target; renderQuestion(direction);
     });
     $('#exit-quiz').onclick = () => { state.screen = 'home'; render(); };
     $('#shuffle-questions').onclick = () => {
@@ -296,7 +307,7 @@ Reviewer to convert:
       delete state.results[id];
       state.unknown.delete(id);
     }
-    if (state.position < state.order.length - 1) { state.position++; renderQuestion(); return; }
+    if (state.position < state.order.length - 1) { state.position++; renderQuestion('next'); return; }
     state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function renderRetryPrompt() {
