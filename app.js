@@ -382,13 +382,17 @@ Reviewer to convert:
       state.unknown.add(id);
       delete state.results[id];
     } else if (state.mode === 'practice') {
-      if (answer.length || state.revealed.has(id)) state.unknown.delete(id);
+      if (answer.length) state.unknown.delete(id);
+      else if (state.revealed.has(id)) state.unknown.add(id);
     } else if (answer.length && (question.correctAnswers.length || question.answer)) {
       state.results[id] = RevCore.isCorrect(question, answer);
       showAnswerResult(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
-    } else if (answer.length || state.revealed.has(id)) {
+    } else if (state.revealed.has(id) && !answer.length) {
+      delete state.results[id];
+      state.unknown.add(id);
+    } else if (answer.length) {
       delete state.results[id];
       state.unknown.delete(id);
     }
@@ -419,11 +423,15 @@ Reviewer to convert:
         : state.mode === 'practice' ? (state.answers[i]?.length || state.revealed.has(i) ? 'Practiced' : 'Not practiced')
           : !hasKey ? 'No key' : correct ? 'Correct' : state.answers[i]?.length ? 'Incorrect' : 'Not answered';
       const missed = state.mode === 'practice' ? state.unknown.has(i) : state.unknown.has(i) || (hasKey && !correct);
-      return {q, i, status, missed};
+      const tone = status === 'Correct' ? 'correct' : status === 'Incorrect' ? 'incorrect'
+        : status === 'I don\'t know' || status === 'Not answered' ? 'unknown' : 'neutral';
+      return {q, i, status, tone, missed};
     });
     const missed = outcomes.filter(result => result.missed);
     const summary = `<section class="missed-summary"><div class="missed-summary-head"><div><h3>${state.mode === 'practice' ? 'Cards to revisit' : 'Missed questions'}</h3>
       <p>${missed.length ? `${missed.length} card${missed.length === 1 ? '' : 's'} ready to review` : 'You are all caught up.'}</p></div><span class="missed-count">${missed.length}</span></div>
+      ${missed.length ? `<div class="missed-items">${missed.map(({q, i, status, tone}) => `<button class="missed-item status-${tone}" data-result-jump="${i}">
+        <span class="missed-item-number">${esc(q.sourceNumber)}</span><span class="missed-item-text">${esc(q.text)}</span><span class="result-status">${status}</span></button>`).join('')}</div>` : ''}
       ${missed.length ? `<button class="primary-button" id="review-missed">Review missed cards</button>` : ''}</section>`;
     const completion = state.mode === 'practice'
       ? `<p class="result-sub">Practice complete · ${reviewer.questions.length} cards</p>`
@@ -433,7 +441,7 @@ Reviewer to convert:
       ${completion}${summary}
       <div class="result-actions"><button class="secondary-button" id="back-to-reviewer">Done</button>
       <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Practice again' : 'Review again'}</button></div>
-      <div class="review-list">${outcomes.map(({q, i, status}) => `<button class="review-row result-jump" data-result-jump="${i}">
+      <div class="review-list">${outcomes.map(({q, i, status, tone}) => `<button class="review-row result-jump status-${tone}" data-result-jump="${i}">
       <span>${esc(q.sourceNumber)}. ${esc(q.text.slice(0, 100))}</span><span class="result-status">${status}</span></button>`).join('')}</div></div></div>`;
     $('#back-to-reviewer').onclick = () => { clearSession(); state.screen = 'home'; render(); };
     $('#retry-quiz').onclick = () => startQuiz(false, state.mode);
