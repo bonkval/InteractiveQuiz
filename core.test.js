@@ -52,6 +52,33 @@ test('matches a separate answer key to a labeled choice', () => {
   assert.deepEqual(q.correctAnswers, [1]);
 });
 
+test('keeps exhibit references with the question and accepts embedded image data', () => {
+  const linked = core.parseImport('Question 1\nRefer to the exhibit. What is shown?\nExhibit: topology.png\nChoice A: one\nCorrect! Choice B: two').questions[0];
+  assert.equal(linked.text, 'Refer to the exhibit. What is shown?');
+  assert.deepEqual(linked.imageRefs, ['topology.png']);
+  const embedded = core.parseImport('Question 2\nRead the diagram.\nExhibit: data:image/png;base64,aGVsbG8=\nAnswer: diagram').questions[0];
+  assert.deepEqual(embedded.images, ['data:image/png;base64,aGVsbG8=']);
+  const markdown = core.parseImport('Question 3\nWhat does this show?\n![Exhibit](https://example.com/figure.png)\nAnswer: example').questions[0];
+  assert.deepEqual(markdown.images, ['https://example.com/figure.png']);
+});
+
+test('attaches image files by filename and preserves old or bundled exhibits', () => {
+  const questions = [
+    {sourceNumber:'1',text:'Question one',imageRefs:['topology.png']},
+    {sourceNumber:'2',text:'Question two',imageRefs:['attached']},
+    {sourceNumber:'3',text:'Refer to this exhibit',imageRefs:[]},
+    {sourceNumber:'4',text:'Question four',imageRefs:['missing']}
+  ];
+  const old = [{sourceNumber:'2',text:'Question two',images:['data:image/png;base64,b2xk']}];
+  const bundled = [{sourceNumber:'3',text:'Refer to this exhibit',images:['data:image/png;base64,cGRm']}];
+  const result = core.resolveImageFiles(questions,[{name:'Topology.PNG',data:'data:image/png;base64,bG9jYWw='}],bundled,old);
+  assert.deepEqual(result.unresolved, []);
+  assert.deepEqual(questions[0].images,['data:image/png;base64,bG9jYWw=']);
+  assert.deepEqual(questions[1].images,['data:image/png;base64,b2xk']);
+  assert.deepEqual(questions[2].images,['data:image/png;base64,cGRm']);
+  assert.deepEqual(questions[3].imageRefs,['missing']);
+});
+
 test('imports the source PDF style with unlabeled choices', () => {
   const input = 'Question 2\nWhich statement describes a characteristic of EtherChannel?\nIt can combine up to a maximum of 4 physical links.\nIt consists of multiple parallel links\nCorrect! It is made by combining multiple physical links that are seen as one link\nIt can bundle mixed types of 100 Mb/s and 1Gb/s Ethernet links.';
   const {questions} = core.parseImport(input);
@@ -83,5 +110,8 @@ test('bundled reviewer has complete questions and answer keys', () => {
   assert.equal(questions.filter(q => q.options.length === 4).length, 147);
   assert.equal(questions.filter(q => q.options.length === 2).length, 23);
   assert.ok(questions.every(q => q.text && q.correctAnswers.length === 1));
+  assert.equal(questions.filter(q => q.images?.length).length, 21);
+  assert.deepEqual(questions.filter(q => q.images?.length).map(q => Number(q.sourceNumber)), [6,12,16,24,30,34,43,48,54,87,89,99,112,113,120,143,144,148,153,156,164]);
+  assert.ok(questions.filter(q => q.images?.length).every(q => /exhibit/i.test(q.text)));
   assert.equal(new Set(questions.map(q => core.normalize(q.text))).size, 170);
 });

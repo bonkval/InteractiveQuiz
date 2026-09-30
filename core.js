@@ -15,8 +15,23 @@ const RevCore = (() => {
       correctAnswers,
       answer,
       type: options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
-      ...(raw?.image ? { image: String(raw.image) } : {})
+      ...(raw?.image ? { image: String(raw.image) } : {}),
+      ...(Array.isArray(raw?.images) ? { images: raw.images.map(x => String(x)).filter(Boolean) } : []),
+      ...(Array.isArray(raw?.imageRefs) || raw?.imageRef ? { imageRefs: [...(Array.isArray(raw?.imageRefs) ? raw.imageRefs : raw?.imageRefs ? [raw.imageRefs] : []), ...(raw?.imageRef ? [raw.imageRef] : [])].map(String) } : [])
     };
+  }
+
+  function imageSources(lines) {
+    const images = [], imageRefs = [];
+    for (const line of lines) {
+      const marker = line.match(/^\s*(?:Exhibit|Image)\s*:\s*(.*?)\s*$/i);
+      const markdown = line.match(/^\s*!\[[^\]]*\]\(([^)]+)\)\s*$/);
+      const source = (marker?.[1] || markdown?.[1] || '').trim();
+      if (!source) continue;
+      if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(source) || /^https?:\/\//i.test(source)) images.push(source);
+      else imageRefs.push(source);
+    }
+    return {images, imageRefs};
   }
 
   function optionLine(line) {
@@ -45,7 +60,8 @@ const RevCore = (() => {
   }
 
   function parseBlock(block, warnings) {
-    const lines = block.lines.filter(Boolean);
+    const media = imageSources(block.lines);
+    const lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
     if (!lines.length) return null;
     const answerAt = lines.findIndex(line => /^Answer\s*:\s*\S/i.test(line));
     if (answerAt >= 0) {
@@ -57,9 +73,9 @@ const RevCore = (() => {
           : question.options.findIndex(option => normalize(option) === normalize(key));
         if (index >= 0 && index < question.options.length) question.correctAnswers = [index];
         else warnings.push(`Question ${block.number}: answer key did not match a choice.`);
-        return question;
+        return attachImages(question, media);
       }
-      return normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key });
+      return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key }), media);
     }
     const firstLabeled = lines.findIndex(line => optionLine(line).labeled);
     const firstMarked = lines.findIndex(line => optionLine(line).marked);
@@ -97,7 +113,14 @@ const RevCore = (() => {
       warnings.push(`Question ${block.number}: no answer key was found.`);
     }
     if (!text) warnings.push(`Question ${block.number}: question text is empty.`);
-    return normalizeQuestion({ sourceNumber: block.number, text, options, correctAnswers });
+    return attachImages(normalizeQuestion({ sourceNumber: block.number, text, options, correctAnswers }), media);
+  }
+
+  function attachImages(question, media) {
+    if (media.images.length) question.images = [...(question.images || []), ...media.images];
+    if (media.imageRefs.length) question.imageRefs = [...(question.imageRefs || []), ...media.imageRefs];
+    if (question.images?.length === 1) question.image = question.images[0];
+    return question;
   }
 
   function deduplicate(questions, warnings) {
@@ -194,6 +217,39 @@ const RevCore = (() => {
     return output.join('\n');
   }
 
+  function resolveImageFiles(questions, imageFiles = [], fallbackQuestions = [], previousQuestions = []) {
+    const byName = new Map();
+    for (const file of imageFiles) {
+      const name = String(file.name).split(/[\\/]/).pop().toLocaleLowerCase();
+      byName.set(name, file.data);
+      byName.set(name.replace(/\.[^.]+$/, ''), file.data);
+    }
+    const unresolved = [];
+    for (const question of questions) {
+      const remainingRefs = [];
+      for (const ref of question.imageRefs || []) {
+        const name = String(ref).split(/[\\/]/).pop().toLocaleLowerCase();
+        const image = byName.get(name) || byName.get(name.replace(/\.[^.]+$/, ''));
+        if (image) question.images = [...(question.images || []), image];
+        else if (name === 'missing') remainingRefs.push('missing');
+        else if (name === 'attached') {
+          const old = previousQuestions.find(item => item.sourceNumber === question.sourceNumber);
+          if (old) question.images = [...(question.images || []), ...(old.images || []), ...(old.image ? [old.image] : [])];
+          else unresolved.push(ref);
+        } else unresolved.push(ref);
+      }
+      question.imageRefs = remainingRefs;
+      const old = previousQuestions.find(item => item.sourceNumber === question.sourceNumber);
+      const source = fallbackQuestions.find(item => normalize(item.text) === normalize(question.text));
+      if (!question.images?.length && old) question.images = [...(old.images || []), ...(old.image ? [old.image] : [])];
+      if (!question.images?.length && source?.images?.length) question.images = source.images;
+      if (question.images?.length) question.images = unique(question.images);
+      if (question.images?.length === 1) question.image = question.images[0];
+      else delete question.image;
+    }
+    return { questions, unresolved: unique(unresolved) };
+  }
+
   function isCorrect(question, answer) {
     if (!Array.isArray(answer) || !answer.length) return false;
     if (question.options.length) {
@@ -202,7 +258,7 @@ const RevCore = (() => {
     return !!question.answer && normalize(answer[0]).replace(/[.,!?;:]$/, '') === normalize(question.answer).replace(/[.,!?;:]$/, '');
   }
 
-  return { parseImport, parseText, formatPdfRows, normalizeQuestion, isCorrect, normalize };
+  return { parseImport, parseText, formatPdfRows, resolveImageFiles, normalizeQuestion, isCorrect, normalize };
 })();
 
 if (typeof module !== 'undefined') module.exports = RevCore;

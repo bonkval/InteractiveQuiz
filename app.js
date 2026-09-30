@@ -31,7 +31,9 @@ If there is a duplicate and the other one is wrong, remove the wrong one and kee
 If theres no duplicate and there is only the wrong one, then just keep it as is because it will still serve as the reviewer.`;
   const IMPORT = `Convert this reviewer into plain text for Rev.
 
-Preserve the exact wording and order of every question and choice. Preserve every correct answer at its existing choice position. Mark a choice correct only when the source explicitly identifies it as correct. A student's wrong answer is not correct. Keep True/False and identification questions as they are. Remove duplicate questions, page numbers, and unrelated headers. If duplicates disagree, keep the copy with a clear correct answer. Do not invent missing questions, choices, or answers.
+Preserve the exact wording and order of every question and choice. Preserve every correct answer at its existing choice position. Mark a choice correct only when the source explicitly identifies it as correct. A student's wrong answer is not correct. Keep True/False and identification questions as they are. Remove duplicate questions, page numbers, and unrelated headers. If duplicates disagree, keep the copy with a clear correct answer. Do not invent missing questions, choices, answers, or exhibits.
+
+For any question that refers to a picture, diagram, topology, screenshot, or exhibit, keep its reference and add a line inside the question block: Exhibit: exact-image-filename.png. Preserve filenames exactly and attach each image only to the question that refers to it. Never replace an exhibit with a description or invent one. If an exhibit file is not available, write Exhibit: missing.
 
 Return only this format, with one choice per line:
 Question 1
@@ -56,7 +58,7 @@ Reviewer to convert:
   const state = {
     reviewers: [], activeId: null, screen: 'home', order: [], position: 0,
     answers: {}, revealed: new Set(), unknown: new Set(), retry: false,
-    sourceText: '', selectedFile: null, importBusy: false
+    sourceText: '', selectedFiles: [], importBusy: false
   };
   function toast(message) {
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
@@ -77,6 +79,13 @@ Reviewer to convert:
       oldStarter.title = starter.title;
       saveReviewers();
     }
+    let addedExhibits = false;
+    for (const reviewer of state.reviewers) for (const question of reviewer.questions) {
+      if (question.images?.length || question.image) continue;
+      const source = starter?.questions.find(item => RevCore.normalize(item.text) === RevCore.normalize(question.text));
+      if (source?.images?.length) { question.images = [...source.images]; addedExhibits = true; }
+    }
+    if (addedExhibits) saveReviewers();
     if (!get(SEED_KEY) && get(KEY) === null && window.RECALL_STARTER_REVIEWER) {
       state.reviewers = [{...starter, id: starter.id || crypto.randomUUID(),
         questions: starter.questions.map(RevCore.normalizeQuestion)}];
@@ -187,6 +196,7 @@ Reviewer to convert:
     const feedback = revealed ? (knownAnswer ? `Answer: ${esc(knownAnswer)}` : 'No answer key in this reviewer.') : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
+    const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}</div><div class="study-controls">
       <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
@@ -194,7 +204,8 @@ Reviewer to convert:
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
       <article class="question-card"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-text">${esc(q.text)}</div>
-      ${q.image ? `<img class="question-image" src="${esc(q.image)}" alt="Question exhibit">` : ''}</article>
+      ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="Exhibit ${i + 1}" loading="lazy">`).join('')}
+      ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${input}<div class="question-footer"><div class="feedback-area" role="status">${feedback ? `<span class="feedback neutral">${feedback}</span>` : ''}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
@@ -261,9 +272,15 @@ Reviewer to convert:
     });
   }
   function reviewerToText(reviewer) {
-    return reviewer.questions.map(q => `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
-      ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
-      : q.answer ? `Answer: ${q.answer}` : ''}`).join('\n\n');
+    return reviewer.questions.map(q => {
+      const images = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
+      const readableImages = images.filter(image => !/^data:image\//i.test(image));
+      const hasEmbeddedImage = images.some(image => /^data:image\//i.test(image));
+      const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
+      return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
+        ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
+        : q.answer ? `Answer: ${q.answer}` : ''}${refs.map(image => `\nExhibit: ${image}`).join('')}`;
+    }).join('\n\n');
   }
   function exportReviewer(reviewer) {
     const blob = new Blob([JSON.stringify(reviewer, null, 2)], {type:'application/json'});
@@ -274,10 +291,10 @@ Reviewer to convert:
   function openImport(reviewer = null) {
     const dialog = $('#import-dialog');
     dialog.dataset.editId = reviewer?.id || '';
-    state.sourceText = ''; state.selectedFile = null; state.importBusy = false;
+    state.sourceText = ''; state.selectedFiles = []; state.importBusy = false;
     $('#reviewer-name').value = reviewer?.title || '';
     $('#paste-text').value = reviewer ? reviewerToText(reviewer) : '';
-    $('#file-input').value = ''; $('#file-status').textContent = 'PDF text is extracted in your browser.';
+    $('#file-input').value = ''; $('#file-status').textContent = 'PDF text is extracted locally. Attach image files and reference each filename with Exhibit: filename.png.';
     $('#import-feedback').textContent = '';
     showImportTab('paste'); dialog.showModal(); $('#reviewer-name').focus();
   }
@@ -314,35 +331,53 @@ Reviewer to convert:
   }
   async function submitImport() {
     if (state.importBusy) return;
-    const tab = $('.import-tab.active').dataset.tab, file = state.selectedFile;
-    let source = $('#paste-text').value;
-    if (tab === 'file') {
-      if (!file) return feedback('Choose a file first.', true);
-      state.importBusy = true; $('#import-submit').disabled = true;
-      try { source = /\.pdf$/i.test(file.name) ? await extractPdf(file) : await file.text(); }
-      catch (error) { feedback(error.message || 'Could not read this file.', true); state.importBusy = false; $('#import-submit').disabled = false; return; }
+    state.importBusy = true; $('#import-submit').disabled = true;
+    try {
+      const tab = $('.import-tab.active').dataset.tab, files = state.selectedFiles;
+      const file = files.find(x => !x.type.startsWith('image/'));
+      const exhibitFiles = files.filter(x => x.type.startsWith('image/'));
+      let source = $('#paste-text').value;
+      if (tab === 'file' && file) source = /\.pdf$/i.test(file.name) ? await extractPdf(file) : await file.text();
+      else if (tab === 'file' && !source.trim()) return feedback('Choose a reviewer file or paste text, then attach any exhibit images.', true);
+      if (!source.trim()) return feedback('Paste questions or choose a file.', true);
+      const parsed = RevCore.parseImport(source);
+      if (!parsed.questions.length) return feedback('No questions found. Use Question 1 headings or the Import prompt.', true);
+      const empty = parsed.questions.filter(q => !q.text);
+      if (empty.length) return feedback(`${empty.length} question(s) have no question text. Check the formatting before saving.`, true);
+      const imageFiles = [];
+      for (const imageFile of exhibitFiles) imageFiles.push({name:imageFile.name,data:await fileToDataUrl(imageFile)});
+      const editId = $('#import-dialog').dataset.editId;
+      const previousReviewer = state.reviewers.find(item => item.id === editId);
+      const fallbackQuestions = window.RECALL_STARTER_REVIEWER?.questions || [];
+      const resolved = RevCore.resolveImageFiles(parsed.questions, imageFiles, fallbackQuestions, previousReviewer?.questions || []);
+      if (resolved.unresolved.length) return feedback(`Attach image file(s) matching: ${resolved.unresolved.join(', ')}`, true);
+      const title = ($('#reviewer-name').value.trim() || parsed.title || file?.name?.replace(/\.[^.]+$/, '') || 'New reviewer').slice(0, 70);
+      const reviewer = {id: editId || crypto.randomUUID(), title, questions: parsed.questions, updatedAt: Date.now()};
+      const index = state.reviewers.findIndex(x => x.id === editId);
+      const previous = index >= 0 ? state.reviewers[index] : null;
+      if (index >= 0) state.reviewers[index] = reviewer; else state.reviewers.unshift(reviewer);
+      if (!saveReviewers()) {
+        if (index >= 0) state.reviewers[index] = previous;
+        else state.reviewers.shift();
+        return feedback('Browser storage is full. Export or remove a reviewer, then try again.', true);
+      }
+      state.activeId = reviewer.id; state.screen = 'home'; clearHash();
+      $('#import-dialog').close(); render();
+      if (parsed.warnings.length) toast(`Imported ${parsed.questions.length} questions. ${parsed.warnings.length} formatting note(s).`);
+      else toast(`Imported ${parsed.questions.length} questions.`);
+    } catch (error) {
+      feedback(error.message || 'Could not read the reviewer or exhibit image.', true);
+    } finally {
       state.importBusy = false; $('#import-submit').disabled = false;
     }
-    if (!source.trim()) return feedback('Paste questions or choose a file.', true);
-    const parsed = RevCore.parseImport(source);
-    if (!parsed.questions.length) return feedback('No questions found. Use Question 1 headings or the Import prompt.', true);
-    const empty = parsed.questions.filter(q => !q.text);
-    if (empty.length) return feedback(`${empty.length} question(s) have no question text. Check the formatting before saving.`, true);
-    const editId = $('#import-dialog').dataset.editId;
-    const title = ($('#reviewer-name').value.trim() || parsed.title || file?.name?.replace(/\.[^.]+$/, '') || 'New reviewer').slice(0, 70);
-    const reviewer = {id: editId || crypto.randomUUID(), title, questions: parsed.questions, updatedAt: Date.now()};
-    const index = state.reviewers.findIndex(x => x.id === editId);
-    const previous = index >= 0 ? state.reviewers[index] : null;
-    if (index >= 0) state.reviewers[index] = reviewer; else state.reviewers.unshift(reviewer);
-    if (!saveReviewers()) {
-      if (index >= 0) state.reviewers[index] = previous;
-      else state.reviewers.shift();
-      return feedback('Browser storage is full. Export or remove a reviewer, then try again.', true);
-    }
-    state.activeId = reviewer.id; state.screen = 'home'; clearHash();
-    $('#import-dialog').close(); render();
-    if (parsed.warnings.length) toast(`Imported ${parsed.questions.length} questions. ${parsed.warnings.length} formatting note(s).`);
-    else toast(`Imported ${parsed.questions.length} questions.`);
+  }
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error(`Could not read image ${file.name}.`));
+      reader.readAsDataURL(file);
+    });
   }
   function initialize() {
     load();
@@ -363,8 +398,8 @@ Reviewer to convert:
     $('#cancel-import').onclick = () => $('#import-dialog').close();
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
-      state.selectedFile = e.target.files[0] || null;
-      $('#file-status').textContent = state.selectedFile?.name || 'PDF text is extracted in your browser.';
+      state.selectedFiles = [...e.target.files];
+      $('#file-status').textContent = state.selectedFiles.map(x => x.name).join(', ') || 'PDF text is extracted locally. Attach image files and reference them with Exhibit: filename.png.';
       feedback('');
     };
     $('#import-submit').onclick = submitImport;
