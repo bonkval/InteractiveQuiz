@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4f5f7">
+  <title>Recall — Quiz reviewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Recall home"><span class="brand-mark">R</span><span>recall<span class="brand-dot">.</span></span></a>
+    <div class="header-actions"><span class="local-badge"><i></i> Saved on this device</span><button class="icon-button" id="theme-toggle" aria-label="Toggle color theme" title="Toggle theme">◐</button></div>
+  </header>
+  <main class="shell">
+    <section class="intro">
+      <div><p class="eyebrow">YOUR STUDY SPACE</p><h1>Make it <span>stick.</span></h1><p class="intro-copy">A quieter way to review. Add a reviewer, then take it one question at a time.</p></div>
+      <div class="intro-art" aria-hidden="true"><div class="art-ring ring-one"></div><div class="art-ring ring-two"></div><div class="art-core">✓</div><span class="art-star">✳</span><span class="art-dot dot-one"></span><span class="art-dot dot-two"></span></div>
+    </section>
+
+    <section class="workspace">
+      <aside class="sidebar">
+        <div class="side-heading"><span>YOUR REVIEWERS</span><button class="text-button" id="new-reviewer">＋ New</button></div>
+        <div class="reviewer-list" id="reviewer-list"></div>
+        <button class="import-card" id="import-trigger"><span class="import-icon">↑</span><span><strong>Bring your questions</strong><small>Import a PDF, text file, or paste text</small></span><span class="chevron">›</span></button>
+        <div class="sidebar-note"><span class="note-icon">✦</span><p><strong>Your data stays yours.</strong><br>Reviewers are saved right in this browser.</p></div>
+      </aside>
+
+      <section class="main-panel" id="main-panel" aria-live="polite"></section>
+    </section>
+    <footer><span>Made for focused study</span><span>Quiet mind. Clear recall. <b>✳</b></span></footer>
+  </main>
+
+  <dialog id="import-dialog" class="modal">
+    <form method="dialog" class="modal-head"><div><p class="eyebrow">ADD TO YOUR LIBRARY</p><h2>Bring your questions.</h2></div><button class="icon-button close-button" aria-label="Close">×</button></form>
+    <div class="import-tabs"><button class="import-tab active" data-tab="paste">Paste text</button><button class="import-tab" data-tab="file">Choose a file</button></div>
+    <section id="paste-pane"><label class="field-label" for="paste-text">Paste your reviewer</label><textarea id="paste-text" placeholder="Question 1&#10;What is the purpose of STP?&#10;prevents loops&#10;Correct! prevents Layer 2 loops&#10;creates domains"></textarea><p class="hint">Works with “Question 1” and “Correct!” answer markers. Plain text is kept exactly as written.</p></section>
+    <section id="file-pane" hidden><label class="drop-zone" for="file-input"><span class="upload-glyph">↑</span><strong>Choose a file to import</strong><small>PDF, TXT, or Markdown</small><input id="file-input" type="file" accept=".pdf,.txt,.md,text/plain,application/pdf"></label><p class="hint" id="file-status">PDF text is extracted locally in your browser.</p></section>
+    <div class="modal-actions"><button class="secondary-button" id="cancel-import">Cancel</button><button class="primary-button" id="import-submit">Add reviewer <span>→</span></button></div>
+  </dialog>
+  <input id="file-fallback" type="file" hidden accept=".pdf,.txt,.md,text/plain,application/pdf">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="reviewer-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
