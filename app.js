@@ -64,6 +64,15 @@ Reviewer to convert:
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
     document.body.append(el); setTimeout(() => el.remove(), 3200);
   }
+  function showAnswerResult(correct) {
+    const mark = document.createElement('div');
+    mark.className = `answer-result-overlay ${correct ? 'correct' : 'incorrect'}`;
+    mark.setAttribute('role', 'status');
+    mark.setAttribute('aria-label', correct ? 'Correct answer' : 'Incorrect answer');
+    mark.innerHTML = `<span aria-hidden="true">${correct ? '&#10003;' : '&#10005;'}</span>`;
+    document.body.append(mark);
+    setTimeout(() => mark.remove(), 1050);
+  }
   function load() {
     try {
       const saved = JSON.parse(get(KEY, '[]'));
@@ -256,20 +265,19 @@ Reviewer to convert:
     const id = state.order[state.position];
     const question = currentReviewer().questions[id];
     const answer = state.answers[id] || [];
-    let resultMessage = '';
     if (dontKnow) {
       state.unknown.add(id);
       delete state.results[id];
     } else if (answer.length && (question.correctAnswers.length || question.answer)) {
       state.results[id] = RevCore.isCorrect(question, answer);
-      resultMessage = `Question ${question.sourceNumber}: ${state.results[id] ? 'Correct' : 'Incorrect'} — ${state.results[id] ? '✓' : '×'} on its card`;
+      showAnswerResult(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
     } else if (answer.length || state.revealed.has(id)) {
       delete state.results[id];
       state.unknown.delete(id);
     }
-    if (state.position < state.order.length - 1) { state.position++; renderQuestion(); if (resultMessage) toast(resultMessage); return; }
+    if (state.position < state.order.length - 1) { state.position++; renderQuestion(); return; }
     state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function renderRetryPrompt() {

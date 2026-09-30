@@ -43,6 +43,13 @@ body.dark{color-scheme:dark;--bg:#17181c;--surface:#222329;--text:#f1f1f4;--mute
 .dark .question-index-card.correct{background:#25372e;color:#bce6cc}
 .dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
 .selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
+.answer-result-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;pointer-events:none;animation:answer-result-fade 1.05s ease both}
+.answer-result-overlay span{width:108px;height:108px;display:grid;place-items:center;border-radius:50%;font:700 64px/1 system-ui;color:#fff;box-shadow:0 14px 38px #17181c30;animation:answer-result-pop 1.05s cubic-bezier(.2,.8,.2,1) both}
+.answer-result-overlay.correct span{background:#2fa66a}
+.answer-result-overlay.incorrect span{background:#dc5058}
+@keyframes answer-result-pop{0%{transform:scale(.35) translateY(15px)}28%{transform:scale(1.12) translateY(0)}45%{transform:scale(1)}100%{transform:scale(.96)}}
+@keyframes answer-result-fade{0%,70%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.answer-result-overlay,.answer-result-overlay span{animation:none!important}.answer-result-overlay span{transform:none}}
 .dark .prompt-link.active{background:#302e46}
 .dark .import-card:hover{background:#302e46}
 .dark .short-answer{border-color:var(--line)}
