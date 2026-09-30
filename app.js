@@ -120,11 +120,14 @@ Reviewer to convert:
   }
   function render() {
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt';
-    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt;
+    const easterEgg = location.hash === '#easter-egg';
+    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg;
     document.body.classList.toggle('is-studying', studying);
     document.body.classList.toggle('prompt-open', prompt);
+    document.body.classList.toggle('easter-egg-open', easterEgg);
     $('#intro').hidden = prompt || studying || !!currentReviewer();
     renderLibrary();
+    if (easterEgg) return renderEasterEgg();
     if (prompt) return renderPrompt(location.hash === '#import-prompt');
     const reviewer = currentReviewer();
     if (!reviewer) {
@@ -142,6 +145,11 @@ Reviewer to convert:
     $('#start-quiz').onclick = () => startQuiz();
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
+  }
+  function renderEasterEgg() {
+    $('#intro').hidden = true;
+    $('#main-panel').innerHTML = `<section class="easter-egg-page"><p>09655236422 - alam nyo na gagawin</p><button class="secondary-button" id="egg-back">Back to reviewer</button></section>`;
+    $('#egg-back').onclick = () => { clearHash(); render(); };
   }
   function renderPrompt(importPrompt) {
     const key = importPrompt ? IMPORT_KEY : MASTER_KEY;
