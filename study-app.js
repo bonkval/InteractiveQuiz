@@ -280,6 +280,7 @@ Reviewer to convert:
     $('#prompt-link').classList.toggle('active', location.hash === '#prompt');
     $('#import-prompt-link').classList.toggle('active', location.hash === '#import-prompt');
     $('#data-link').classList.toggle('active', location.hash === '#data');
+    $('#help-link').classList.toggle('active', location.hash === '#help');
   }
   function selectReviewer(id) {
     const selectedFromMobileNav = document.body.classList.contains('mobile-nav-open');
@@ -303,15 +304,17 @@ Reviewer to convert:
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt';
     const easterEgg = location.hash === '#easter-egg';
     const dataScreen = location.hash === '#data';
-    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg && !dataScreen;
+    const helpScreen = location.hash === '#help';
+    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg && !dataScreen && !helpScreen;
     document.body.classList.toggle('is-studying', studying);
     document.body.classList.toggle('prompt-open', prompt);
     document.body.classList.toggle('easter-egg-open', easterEgg);
-    $('#intro').hidden = prompt || studying || dataScreen || !!currentReviewer();
+    $('#intro').hidden = prompt || studying || dataScreen || helpScreen || !!currentReviewer();
     renderLibrary();
     if (easterEgg) return renderEasterEgg();
     if (prompt) return renderPrompt(location.hash === '#import-prompt');
     if (dataScreen) return renderDataSettings();
+    if (helpScreen) return renderHelp();
     const reviewer = currentReviewer();
     if (!reviewer) {
       $('#main-panel').innerHTML = '<div class="welcome"><button class="primary-button" id="welcome-import">Add reviewer</button></div>';
@@ -332,6 +335,15 @@ Reviewer to convert:
     $('#practice-quiz').onclick = () => startQuiz(false, 'practice', $('#study-filter').value);
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
+  }
+  function renderHelp() {
+    saveSession();
+    $('#main-panel').innerHTML = `<section class="help-page" aria-labelledby="help-title"><div class="help-head"><div><p class="eyebrow">QUICK GUIDE</p><h1 id="help-title">How to use Rev</h1></div><button class="secondary-button" id="help-back" type="button">Back to reviewer</button></div>
+      <ol class="help-steps"><li><strong>Add a reviewer</strong><p>Choose <b>Import reviewer</b> in the sidebar. Paste your questions or select a file and its exhibit images. Check the preview, then save.</p></li>
+      <li><strong>Start studying</strong><p>Select a reviewer in the sidebar, choose a question set, and press <b>Start reviewing</b>. You can also use <b>Practice</b> to study without a score.</p></li>
+      <li><strong>Work through cards</strong><p>Choose an answer, then press <b>Next</b>. Use <b>Show answer</b> if you need help, <b>I don’t know</b> to revisit a card, or <b>Back</b> and the numbered cards to return to a question. Flag a confusing card for later.</p></li>
+      <li><strong>Review and keep your work</strong><p>At the end, review missed cards or start a set of incorrect, unanswered, flagged, or <b>I don’t know</b> questions. Progress saves on this device; use <b>Backup</b> to move reviewers to another device.</p></li></ol></section>`;
+    $('#help-back').onclick = () => { clearHash(); render(); };
   }
   function renderEasterEgg() {
     $('#intro').hidden = true;
@@ -926,6 +938,7 @@ Reviewer to convert:
     $('#prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#import-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#data-link').addEventListener('click', () => setMobileNav(false));
+    $('#help-link').addEventListener('click', () => setMobileNav(false));
     $('#reviewer-search').oninput = event => { state.reviewerSearch = event.target.value; renderLibrary(); };
     $('#reviewer-sort').onchange = event => { state.reviewerSort = event.target.value; renderLibrary(); };
     $('#backup-library').onclick = exportLibraryBackup;
