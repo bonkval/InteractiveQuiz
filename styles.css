@@ -43,16 +43,16 @@ body.dark{color-scheme:dark;--bg:#17181c;--surface:#222329;--text:#f1f1f4;--mute
 .dark .question-index-card.correct{background:#25372e;color:#bce6cc}
 .dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
 .selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
-.answer-result-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;pointer-events:none;animation:answer-result-fade 720ms ease both}
-.answer-result-badge{width:92px;height:92px;display:grid;place-items:center;border-radius:50%;box-shadow:0 12px 32px #17181c24;animation:answer-result-arrive 660ms cubic-bezier(.16,1,.3,1) both}
+.answer-result-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;pointer-events:none;animation:answer-result-fade 760ms linear both}
+.answer-result-badge{width:92px;height:92px;display:grid;place-items:center;border-radius:50%;box-shadow:0 12px 32px #17181c24;transform-origin:center;animation:answer-result-arrive 640ms both}
 .answer-result-overlay.correct .answer-result-badge{background:#2fa66a}
 .answer-result-overlay.incorrect .answer-result-badge{background:#dc5058}
 .answer-result-badge svg{width:54px;height:54px;overflow:visible}
-.answer-result-badge path{stroke:#fff;stroke-width:3.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:0;animation:answer-result-draw 390ms 100ms cubic-bezier(.4,0,.2,1) both}
-@keyframes answer-result-arrive{0%{transform:translateY(10px) scale(.84);filter:blur(2px)}46%{transform:translateY(0) scale(1);filter:blur(0)}100%{transform:translateY(-2px) scale(.98)}}
+.answer-result-badge path{stroke:#fff;stroke-width:3.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw 360ms 120ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes answer-result-arrive{0%{transform:scale(.16);filter:blur(3px)}30%{transform:scale(.74);filter:blur(0)}53%{transform:scale(1.1)}68%{transform:scale(.94)}82%{transform:scale(1.025)}100%{transform:scale(1)}}
 @keyframes answer-result-draw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
-@keyframes answer-result-fade{0%{opacity:0}20%,62%{opacity:1}100%{opacity:0}}
-@media(prefers-reduced-motion:reduce){.answer-result-overlay,.answer-result-badge,.answer-result-badge path{animation:none!important}.answer-result-overlay{opacity:1}.answer-result-badge path{stroke-dashoffset:0}}
+@keyframes answer-result-fade{0%{opacity:0}11%,72%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.answer-result-overlay{animation:answer-result-fade 260ms linear both}.answer-result-badge{animation:none}.answer-result-badge path{animation:none;stroke-dashoffset:0}}
 .dark .prompt-link.active{background:#302e46}
 .dark .import-card:hover{background:#302e46}
 .dark .short-answer{border-color:var(--line)}
@@ -194,3 +194,20 @@ button:not(:disabled):active{transform:scale(.975)}
 .dark .missed-item.status-incorrect{border-color:#96565a}
 .dark .missed-item.status-unknown{border-color:#8e6b38}
 @media(max-width:520px){.missed-item{grid-template-columns:30px minmax(0,1fr);gap:7px;padding:9px}.missed-item .result-status{grid-column:2;justify-self:start}.missed-items{max-height:42vh}}
+.account-actions{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:8px}
+.account-button{display:flex;align-items:center;gap:10px;min-width:0;min-height:42px;flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);text-align:left;font-size:12px}
+.account-button:hover,.account-signout:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.account-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.account-signout{flex:none;min-height:42px;padding:8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--muted);font-size:11px}
+.account-signout[hidden]{display:none}
+.sidebar-collapsed .account-label,.sidebar-collapsed .account-signout{display:none}
+.sidebar-collapsed .account-button{justify-content:center;padding:8px}
+.account-dialog input{width:100%;min-height:43px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text);font-size:14px}
+.account-dialog input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.account-dialog .modal-head{margin-bottom:18px}
+.account-dialog .modal-head h2{margin:0}
+.account-submit{width:100%;min-height:43px}
+.account-switch{display:block;margin:15px auto 0;border:0;background:none;color:var(--accent);font-size:12px;font-weight:700}
+.account-note{margin:16px 0 0;color:var(--muted);font-size:11px;line-height:1.5;text-align:center}
+.account-dialog .import-feedback{min-height:18px}
+@media(max-width:760px){body.mobile-nav.sidebar-collapsed .account-label{display:initial}body.mobile-nav.sidebar-collapsed .account-button{justify-content:flex-start}body.mobile-nav.sidebar-collapsed .account-signout:not([hidden]){display:block}}

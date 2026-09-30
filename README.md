@@ -1,6 +1,28 @@
 # Rev
 
-Rev is a local quiz reviewer. Open [index.html](index.html) in a modern browser to use it. Your reviewers and both editable prompts are saved in that browser's local storage. Export a reviewer as JSON to keep a portable backup; JSON can be imported again.
+Rev is a quiz reviewer that runs in the browser. Reviewer questions, progress, and editable prompts are saved on the current device. Export a backup to move reviewers to another device.
+
+## Run locally
+
+Install Node.js, then run:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite. `npm run build` creates the production site in `dist/`; `npm run preview` serves that build locally. Opening `index.html` directly no longer works because the app uses Vite modules.
+
+## Accounts and deployment
+
+Rev supports email and password accounts through Supabase Auth. Without Supabase settings, the reviewer still works locally and the account form explains what is missing. Accounts are separate from the guest library on the same browser. **Signing in does not sync reviewers between devices yet.** Use Backup and Restore to move them. No passwords are stored by Rev.
+
+1. Create a Supabase project and enable email signups in Authentication. Copy the project URL and **publishable** key from the project settings. Never use a secret or service role key in the browser.
+2. Copy `.env.example` to `.env.local` and replace its sample values with `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Restart the local dev server.
+3. In Supabase Auth URL Configuration, set the Site URL to your production Vercel URL and allow `http://localhost:5173` as a redirect URL for local email confirmation.
+4. Import this GitHub repository into Vercel. The `vercel.json` file selects Vite. Add the same two `VITE_` variables in Vercel project Environment Variables, then deploy. They are public browser settings; do not put private keys there.
+
+Each user gets an account-specific library in that browser. Cloud reviewer storage needs a future database table and Row Level Security before users can access the same reviewers on their phone and PC. Keep backups until that is added.
 
 The bundled S2 It0015 reviewer was rebuilt from the source PDF. It has 170 questions: 147 with four choices, 23 True/False, and 21 attached exhibit images. The app updates the earlier malformed bundled copy in local storage when it recognizes it. Importing the same PDF matches its questions to those bundled exhibits.
 

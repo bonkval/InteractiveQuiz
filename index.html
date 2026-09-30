@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f5f7">
+  <meta name="description" content="Rev helps you study one question at a time.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>Rev — Quiz reviewer</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -22,6 +24,7 @@
     <button class="import-card" id="import-trigger" title="Import reviewer"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L7.5 7.5M12 3l4.5 4.5M4 14v6h16v-6"/></svg><span class="import-copy"><strong>Import reviewer</strong></span></button>
     <div class="data-actions"><button class="data-action" id="backup-library" aria-label="Back up all reviewers" title="Back up all reviewers"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg><span>Backup</span></button><button class="data-action" id="restore-library" aria-label="Restore reviewers from a backup" title="Restore reviewers from a backup"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4M4 14v6h16v-6"/></svg><span>Restore</span></button><input id="backup-file" type="file" accept=".json,application/json" hidden></div>
     <div class="sidebar-spacer"></div>
+    <div class="account-actions"><button class="account-button" id="account-button" aria-label="Sign in or create an account"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.7-3.5 3.3-5.4 7.5-5.4s6.8 1.9 7.5 5.4"/></svg><span class="account-label" id="account-label">Sign in</span></button><button class="account-signout" id="account-signout" type="button" hidden>Sign out</button></div>
     <button class="theme-button" id="theme-toggle" aria-label="Switch to dark mode"><svg class="ui-icon theme-icon" id="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-label">Appearance</span><span class="theme-state" id="theme-state">Light</span></button>
   </aside>
   <main class="main-area" id="main-area">
@@ -37,9 +40,16 @@
     <p class="import-feedback" id="import-feedback" role="status" aria-live="polite"></p>
     <div class="modal-actions"><button class="secondary-button" id="cancel-import" type="button">Cancel</button><button class="primary-button" id="import-submit" type="button">Save reviewer</button></div>
   </dialog>
+  <dialog id="account-dialog" class="modal account-dialog" aria-labelledby="account-heading">
+    <form method="dialog" class="modal-head"><h2 id="account-heading">Sign in</h2><button class="icon-button close-button" aria-label="Close">×</button></form>
+    <form id="account-form"><label class="field-label" for="account-email">Email</label><input id="account-email" type="email" autocomplete="email" required>
+      <label class="field-label" for="account-password">Password</label><input id="account-password" type="password" autocomplete="current-password" minlength="6" required>
+      <p class="import-feedback" id="account-feedback" role="status" aria-live="polite"></p>
+      <button class="primary-button account-submit" id="account-submit" type="submit">Sign in</button></form>
+    <button class="account-switch" id="account-switch" type="button">New to Rev? Create an account</button>
+    <p class="account-note">Reviewers stay on this device for now. Accounts use Supabase; cloud reviewer sync is coming later.</p>
+  </dialog>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <script src="reviewer-data.js"></script>
-  <script src="core.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
