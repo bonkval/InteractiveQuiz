@@ -108,3 +108,7 @@ button:not(:disabled):active{transform:scale(.975)}
 @keyframes modal-arrive{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes modal-scrim{from{background:#20233400;backdrop-filter:blur(0)}to{background:#20233455;backdrop-filter:blur(3px)}}
 @media(max-width:760px){.question-deck{gap:7px}.question-index-card,.question-index-card.current{width:40px;height:40px;flex-basis:40px}.question-index-card span,.question-index-card.current span{font-size:12px}.question-footer{gap:13px}}
+.question-text,.is-studying .question-text{font-size:22px;line-height:1.45}
+.question-number{font-size:22px;line-height:1.2}
+.answer-option{font-size:15px;line-height:1.5;white-space:pre-wrap}
+@media(max-width:760px){.question-text,.is-studying .question-text{font-size:22px}.question-number{font-size:22px}.answer-option{font-size:15px}}

@@ -3,14 +3,24 @@ const RevCore = (() => {
   const normalize = value => String(value ?? '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
   const unique = values => [...new Set(values)];
 
+  function cleanReadingText(value) {
+    const lines = String(value ?? '').replace(/\r/g, '').split('\n');
+    const codeLine = /^(?:\S+[>#]\s|interface\s|switchport\s|channel-group\s|ip\s+(?:address|route|helper|access-group)\b|router\s+\w|hostname\s|vlan\s+\d|spanning-tree\s|no\s+\S|shutdown\b|description\s|configure terminal\b|show\s+\S|line\s+vty\b|exit\s*$)/i;
+    const cleanLine = line => line.trim().replace(/[\t ]+/g, ' ');
+    if (lines.length > 1 && lines.some(line => codeLine.test(line.trim()))) {
+      return lines.map(cleanLine).filter(Boolean).join('\n');
+    }
+    return lines.map(cleanLine).filter(Boolean).join(' ');
+  }
+
   function normalizeQuestion(raw, index = 0) {
-    const options = Array.isArray(raw?.options) ? raw.options.map(x => String(x).trim()) : [];
+    const options = Array.isArray(raw?.options) ? raw.options.map(cleanReadingText) : [];
     const correctAnswers = unique(Array.isArray(raw?.correctAnswers) ? raw.correctAnswers.map(Number) : [])
       .filter(i => Number.isInteger(i) && i >= 0 && i < options.length);
-    const answer = String(raw?.answer ?? '').trim();
+    const answer = cleanReadingText(raw?.answer);
     return {
       sourceNumber: String(raw?.sourceNumber ?? index + 1),
-      text: String(raw?.text ?? '').trim(),
+      text: cleanReadingText(raw?.text),
       options,
       correctAnswers,
       answer,

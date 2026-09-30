@@ -27,7 +27,7 @@ test('imports identification answers and true or false with a wrong student resp
   assert.deepEqual(boolean.correctAnswers, [1]);
   assert.equal(boolean.type, 'boolean');
   const multiline = core.parseImport('Question 1\nA flag signifies SLAAC\nwithout ending punctuation\nYou Answered True (wrong)\nFalse (correct)').questions[0];
-  assert.equal(multiline.text, 'A flag signifies SLAAC\nwithout ending punctuation');
+  assert.equal(multiline.text, 'A flag signifies SLAAC without ending punctuation');
   assert.deepEqual(multiline.options, ['True', 'False']);
 });
 
@@ -86,7 +86,7 @@ test('imports the source PDF style with unlabeled choices', () => {
   assert.deepEqual(questions[0].correctAnswers, [2]);
 });
 
-test('uses PDF indentation and spacing to keep wrapped choices intact', () => {
+test('joins PDF-wrapped choice lines into readable phrases', () => {
   const pages = [[
     {x:68,y:728,text:'Question 1'},
     {x:68,y:706,text:'Which choice is correct?'},
@@ -98,7 +98,7 @@ test('uses PDF indentation and spacing to keep wrapped choices intact', () => {
     {x:540,y:30,text:'1'}
   ]];
   const q = core.parseImport(core.formatPdfRows(pages)).questions[0];
-  assert.deepEqual(q.options, ['First choice spans\ntwo lines','Second choice','Third choice','Fourth choice']);
+  assert.deepEqual(q.options, ['First choice spans two lines','Second choice','Third choice','Fourth choice']);
   assert.deepEqual(q.correctAnswers, [1]);
 });
 
