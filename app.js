@@ -207,6 +207,17 @@ Reviewer to convert:
       const j = Math.floor(Math.random() * (i + 1)); [values[i], values[j]] = [values[j], values[i]];
     }
   }
+  function syncCurrentCard(answered) {
+    const card = $('.question-index-card.current');
+    if (!card) return;
+    const id = state.order[state.position], question = currentReviewer().questions[id];
+    card.classList.toggle('answered', answered);
+    card.classList.remove('correct', 'incorrect');
+    card.querySelector('.card-result')?.remove();
+    const label = state.unknown.has(id) ? 'marked to review' : answered ? 'answered' : '';
+    card.setAttribute('aria-label', `Question ${esc(question.sourceNumber)}${label ? `, ${label}` : ''}`);
+    card.title = `Question ${esc(question.sourceNumber)}${label ? `: ${label}` : ''}`;
+  }
   function renderQuestion(direction = '') {
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
@@ -268,14 +279,25 @@ Reviewer to convert:
     $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
       const option = Number(b.dataset.option), multi = q.correctAnswers.length > 1;
-      state.answers[id] = multi ? (selected.includes(option) ? selected.filter(x => x !== option) : [...selected, option]) : [option];
-      delete state.results[id]; state.revealed.delete(id); renderQuestion();
+      const current = state.answers[id] || [];
+      const answer = multi ? (current.includes(option) ? current.filter(x => x !== option) : [...current, option]) : [option];
+      state.answers[id] = answer;
+      delete state.results[id]; state.revealed.delete(id);
+      $('#main-panel').querySelectorAll('[data-option]').forEach(choice => {
+        const isSelected = answer.includes(Number(choice.dataset.option));
+        choice.classList.remove('correct', 'incorrect');
+        choice.classList.toggle('selected', isSelected);
+        choice.setAttribute('aria-pressed', String(isSelected));
+      });
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
+      syncCurrentCard(answer.length > 0);
     });
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
       delete state.results[id];
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
+      syncCurrentCard(state.answers[id].length > 0);
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
     $('#dont-know').onclick = () => advance(true);
