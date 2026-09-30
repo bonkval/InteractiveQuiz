@@ -47,9 +47,19 @@
       <p class="import-feedback" id="account-feedback" role="status" aria-live="polite"></p>
       <button class="primary-button account-submit" id="account-submit" type="submit">Sign in</button></form>
     <button class="account-switch" id="account-switch" type="button">New to Rev? Create an account</button>
+    <button class="account-guest" id="account-guest" type="button">Continue without signing in</button>
     <p class="account-note">Reviewers stay on this device for now. Accounts use Supabase; cloud reviewer sync is coming later.</p>
   </dialog>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script>
+    if (location.protocol === 'file:') {
+      document.body.classList.add('offline-file');
+      document.querySelector('link[rel="icon"]').href = 'public/favicon.svg';
+      for (const path of ['reviewer-data.js', 'core.js', 'app-local.js']) {
+        document.write('<script src="' + path + '"><\/script>');
+      }
+    }
+  </script>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

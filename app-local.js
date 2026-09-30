@@ -1,17 +1,8 @@
-import './reviewer-data.js';
-import './core.js';
-import { createClient } from '@supabase/supabase-js';
-
 (() => {
   'use strict';
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const accountsConfigured = Boolean(supabaseUrl && supabaseKey);
-  const auth = accountsConfigured ? createClient(supabaseUrl, supabaseKey) : null;
   const KEY = 'recall-reviewers-v1';
   const SESSION_KEY = 'rev-quiz-session-v1';
   const SEED_KEY = 'rev-starter-seeded-v1';
-  const scopedKey = key => state.user ? `${key}:user:${state.user.id}` : key;
   const MASTER_KEY = 'rev-master-prompt-v1';
   const IMPORT_KEY = 'rev-import-prompt-v1';
   const MASTER = `I want you to create an interactive quiz reviewer for me a local web app would suffice
@@ -68,7 +59,7 @@ Reviewer to convert:
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
   const state = {
-    reviewers: [], user: null, activeId: null, screen: 'home', order: [], position: 0, mode: 'quiz',
+    reviewers: [], activeId: null, screen: 'home', order: [], position: 0, mode: 'quiz',
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
     sourceText: '', selectedFiles: [], importBusy: false, reviewerSearch: '', reviewerSort: 'recent'
   };
@@ -91,9 +82,8 @@ Reviewer to convert:
     setTimeout(() => mark.remove(), reducedMotion ? 260 : 760);
   }
   function load() {
-    state.reviewers = [];
     try {
-      const saved = JSON.parse(get(scopedKey(KEY), '[]'));
+      const saved = JSON.parse(get(KEY, '[]'));
       if (Array.isArray(saved)) state.reviewers = saved.filter(x => x && Array.isArray(x.questions))
         .map(x => ({...x, questions: x.questions.map(RevCore.normalizeQuestion)}));
     } catch { state.reviewers = []; }
@@ -113,19 +103,19 @@ Reviewer to convert:
       if (source?.images?.length) { question.images = [...source.images]; addedExhibits = true; }
     }
     if (addedExhibits) saveReviewers();
-    if (!get(scopedKey(SEED_KEY)) && get(scopedKey(KEY)) === null && window.RECALL_STARTER_REVIEWER) {
+    if (!get(SEED_KEY) && get(KEY) === null && window.RECALL_STARTER_REVIEWER) {
       state.reviewers = [{...starter, id: starter.id || crypto.randomUUID(),
         questions: starter.questions.map(RevCore.normalizeQuestion)}];
-      saveReviewers(); put(scopedKey(SEED_KEY), '1');
+      saveReviewers(); put(SEED_KEY, '1');
     }
     restoreSession();
   }
-  function saveReviewers() { return put(scopedKey(KEY), JSON.stringify(state.reviewers)); }
-  function clearSession() { try { localStorage.removeItem(scopedKey(SESSION_KEY)); } catch {} }
+  function saveReviewers() { return put(KEY, JSON.stringify(state.reviewers)); }
+  function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
   function saveSession() {
     if (!currentReviewer() || !['study', 'retry-prompt', 'results'].includes(state.screen)) return;
     try {
-      localStorage.setItem(scopedKey(SESSION_KEY), JSON.stringify({
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
         reviewerId: state.activeId, screen: state.screen, order: state.order,
         position: state.position, answers: state.answers, results: state.results,
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode
@@ -138,7 +128,7 @@ Reviewer to convert:
   }
   function restoreSession() {
     try {
-      const saved = JSON.parse(get(scopedKey(SESSION_KEY), 'null'));
+      const saved = JSON.parse(get(SESSION_KEY, 'null'));
       const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId);
       const order = Array.isArray(saved?.order) ? saved.order.filter(i => Number.isInteger(i) && i >= 0 && i < (reviewer?.questions.length || 0)) : [];
       if (!reviewer || !order.length || !['study', 'retry-prompt', 'results'].includes(saved.screen)) return clearSession();
@@ -152,68 +142,6 @@ Reviewer to convert:
     } catch { clearSession(); }
   }
   function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId); }
-  function switchAccount(user) {
-    if (state.user?.id === user?.id) return;
-    saveSession();
-    state.user = user || null;
-    state.activeId = null; state.screen = 'home'; state.order = []; state.position = 0;
-    state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; clearHash(); load();
-    $('#account-label').textContent = user?.email || 'Sign in';
-    $('#account-button').setAttribute('aria-label', user ? `Account: ${user.email}` : 'Sign in or create an account');
-    $('#account-signout').hidden = !user;
-    render();
-  }
-  function showAccountDialog(mode = 'signin') {
-    const dialog = $('#account-dialog');
-    $('#account-form').reset();
-    $('#account-feedback').textContent = accountsConfigured ? '' : 'Add Supabase settings to enable accounts.';
-    $('#account-feedback').classList.toggle('error', !accountsConfigured);
-    $('#account-submit').disabled = !accountsConfigured;
-    $('#account-email').disabled = !accountsConfigured;
-    $('#account-password').disabled = !accountsConfigured;
-    $('#account-guest').hidden = Boolean(state.user);
-    setAccountMode(mode);
-    dialog.showModal();
-    if (accountsConfigured) $('#account-email').focus();
-  }
-  function setAccountMode(mode) {
-    const signup = mode === 'signup';
-    $('#account-dialog').dataset.mode = mode;
-    $('#account-heading').textContent = signup ? 'Create account' : 'Sign in';
-    $('#account-submit').textContent = signup ? 'Create account' : 'Sign in';
-    $('#account-switch').textContent = signup ? 'Already have an account? Sign in' : 'New to Rev? Create an account';
-    $('#account-password').autocomplete = signup ? 'new-password' : 'current-password';
-    $('#account-feedback').textContent = accountsConfigured ? '' : 'Add Supabase settings to enable accounts.';
-    $('#account-feedback').classList.toggle('error', !accountsConfigured);
-  }
-  async function submitAccount(event) {
-    event.preventDefault();
-    if (!auth) return;
-    const email = $('#account-email').value.trim();
-    const password = $('#account-password').value;
-    const submit = $('#account-submit');
-    const feedback = $('#account-feedback');
-    submit.disabled = true; feedback.textContent = ''; feedback.classList.remove('error');
-    try {
-      const signup = $('#account-dialog').dataset.mode === 'signup';
-      const result = signup
-        ? await auth.auth.signUp({email, password, options:{emailRedirectTo:location.origin}})
-        : await auth.auth.signInWithPassword({email, password});
-      if (result.error) throw result.error;
-      if (result.data.session?.user) {
-        switchAccount(result.data.session.user);
-        $('#account-dialog').close();
-        toast(signup ? 'Account created.' : 'Signed in.');
-      } else {
-        feedback.textContent = 'Check your email to confirm your account, then sign in.';
-        $('#account-password').value = '';
-      }
-    } catch (error) {
-      feedback.textContent = error.message || 'Could not access your account.';
-      feedback.classList.add('error');
-    } finally { submit.disabled = false; }
-  }
   function clearHash() { if (location.hash) history.replaceState(null, '', location.pathname + location.search); }
   function setMobileNav(open) {
     const wasOpen = document.body.classList.contains('mobile-nav-open');
@@ -757,16 +685,6 @@ Reviewer to convert:
     $('#backup-library').onclick = exportLibraryBackup;
     $('#restore-library').onclick = () => { setMobileNav(false); $('#backup-file').click(); };
     $('#backup-file').onchange = event => { if (event.target.files[0]) restoreLibraryBackup(event.target.files[0]); };
-    $('#account-button').onclick = () => { setMobileNav(false); showAccountDialog(); };
-    $('#account-switch').onclick = () => setAccountMode($('#account-dialog').dataset.mode === 'signup' ? 'signin' : 'signup');
-    $('#account-guest').onclick = () => $('#account-dialog').close();
-    $('#account-form').addEventListener('submit', submitAccount);
-    $('#account-signout').onclick = async () => {
-      if (!auth) return;
-      const {error} = await auth.auth.signOut();
-      if (error) return toast(error.message || 'Could not sign out.');
-      switchAccount(null); setMobileNav(false); toast('Signed out.');
-    };
     $('#cancel-import').onclick = () => $('#import-dialog').close();
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
@@ -780,15 +698,6 @@ Reviewer to convert:
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveSession(); });
     installKeyboardShortcuts();
     render();
-    if (auth) {
-      auth.auth.getUser().then(({data, error}) => {
-        if (!error && data.user) switchAccount(data.user);
-      });
-      auth.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT') queueMicrotask(() => switchAccount(null));
-        if (event === 'SIGNED_IN' && session?.user) queueMicrotask(() => switchAccount(session.user));
-      });
-    }
   }
   initialize();
 })();

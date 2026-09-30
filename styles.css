@@ -195,6 +195,7 @@ button:not(:disabled):active{transform:scale(.975)}
 .dark .missed-item.status-unknown{border-color:#8e6b38}
 @media(max-width:520px){.missed-item{grid-template-columns:30px minmax(0,1fr);gap:7px;padding:9px}.missed-item .result-status{grid-column:2;justify-self:start}.missed-items{max-height:42vh}}
 .account-actions{display:flex;align-items:center;gap:6px;min-width:0;margin-bottom:8px}
+.offline-file .account-actions{display:none}
 .account-button{display:flex;align-items:center;gap:10px;min-width:0;min-height:42px;flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);text-align:left;font-size:12px}
 .account-button:hover,.account-signout:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
 .account-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -208,6 +209,9 @@ button:not(:disabled):active{transform:scale(.975)}
 .account-dialog .modal-head h2{margin:0}
 .account-submit{width:100%;min-height:43px}
 .account-switch{display:block;margin:15px auto 0;border:0;background:none;color:var(--accent);font-size:12px;font-weight:700}
+.account-guest{display:block;margin:12px auto 0;border:0;background:none;color:var(--muted);font-size:12px}
+.account-guest:hover{color:var(--text)}
+.account-guest[hidden]{display:none}
 .account-note{margin:16px 0 0;color:var(--muted);font-size:11px;line-height:1.5;text-align:center}
 .account-dialog .import-feedback{min-height:18px}
 @media(max-width:760px){body.mobile-nav.sidebar-collapsed .account-label{display:initial}body.mobile-nav.sidebar-collapsed .account-button{justify-content:flex-start}body.mobile-nav.sidebar-collapsed .account-signout:not([hidden]){display:block}}

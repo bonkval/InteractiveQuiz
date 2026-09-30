@@ -4,14 +4,16 @@ Rev is a quiz reviewer that runs in the browser. Reviewer questions, progress, a
 
 ## Run locally
 
-Install Node.js, then run:
+For immediate offline studying, open `index.html` directly. It loads the local reviewer without an account. Your existing browser data is kept. The account button is hidden in this file mode.
+
+For the Vercel version or local account development, install Node.js, then run:
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. `npm run build` creates the production site in `dist/`; `npm run preview` serves that build locally. Opening `index.html` directly no longer works because the app uses Vite modules.
+Open the local URL printed by Vite. `npm run build` creates the production site in `dist/`; `npm run preview` serves that build locally. The direct-file path uses `app-local.js`; the Vite path uses `app.js`.
 
 ## Accounts and deployment
 
