@@ -440,7 +440,14 @@ Reviewer to convert:
     load();
     document.body.classList.toggle('sidebar-collapsed', get('rev-sidebar-open') === 'false');
     document.body.classList.toggle('dark', get('rev-theme') === 'dark');
-    $('#theme-state').textContent = document.body.classList.contains('dark') ? 'Dark' : 'Light';
+    const setThemeAppearance = dark => {
+      $('#theme-state').textContent = dark ? 'Dark' : 'Light';
+      $('#theme-icon').innerHTML = dark
+        ? '<path d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"/>'
+        : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';
+      $('#theme-toggle').setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
+    };
+    setThemeAppearance(document.body.classList.contains('dark'));
     $('#sidebar-toggle').onclick = () => {
       const collapsed = document.body.classList.toggle('sidebar-collapsed');
       put('rev-sidebar-open', String(!collapsed));
@@ -448,7 +455,7 @@ Reviewer to convert:
     };
     $('#theme-toggle').onclick = () => {
       const dark = document.body.classList.toggle('dark');
-      put('rev-theme', dark ? 'dark' : 'light'); $('#theme-state').textContent = dark ? 'Dark' : 'Light';
+      put('rev-theme', dark ? 'dark' : 'light'); setThemeAppearance(dark);
     };
     $('#new-reviewer').onclick = () => openImport();
     $('#import-trigger').onclick = () => openImport();
