@@ -314,7 +314,7 @@ Reviewer to convert:
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
       <p class="shortcut-hint">1–9 choose · ↑/↓ choices · ←/→ move · Enter next</p>
-      <article class="question-card" tabindex="-1"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-text" id="question-prompt">${esc(q.text)}</div>
+      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}</div><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibit">Copy all</button></div><div class="question-text" id="question-prompt">${esc(q.text)}</div>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="Exhibit ${i + 1}" loading="lazy">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${status || feedback}</div>
@@ -360,6 +360,24 @@ Reviewer to convert:
       saveSession();
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
+    $('#copy-question').onclick = async () => {
+      const copyText = [`Question ${q.sourceNumber}`, q.text, ...q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`)].join('\n');
+      const images = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])].filter(source => /^data:image\//i.test(source));
+      try {
+        if (images.length && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+          const response = await fetch(images[0]);
+          const blob = await response.blob();
+          await navigator.clipboard.write([new ClipboardItem({'text/plain': new Blob([copyText], {type:'text/plain'}), [blob.type]:blob})]);
+          toast('Question and exhibit copied.');
+        } else {
+          if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(copyText);
+          else { const field = document.createElement('textarea'); field.value = copyText; field.style.position='fixed'; field.style.opacity='0'; document.body.append(field); field.select(); const copied=document.execCommand('copy'); field.remove(); if (!copied) throw new Error('Clipboard unavailable'); }
+          toast(images.length ? 'Question and choices copied. Exhibit image could not be copied here.' : 'Question and choices copied.');
+        }
+      } catch {
+        toast('Could not copy automatically. Check clipboard permissions.');
+      }
+    };
     $('#dont-know').onclick = () => advance(true);
     $('#prev-question').onclick = () => { state.position--; renderQuestion('previous'); };
     $('#next-question').onclick = () => advance(false);
