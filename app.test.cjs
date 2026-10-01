@@ -186,10 +186,8 @@ test('mixed reviewer filters and retry keep a usable reviewer selected', async (
   document.querySelector('#start-quiz').click();
   assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);
   document.querySelector('#study-filter').value = 'all';
-  document.querySelector('#session-count').value = '1';
   document.querySelector('#start-quiz').click();
   document.querySelector('#next-question').click();
-  document.querySelector('#retry-quiz').click();
   assert.ok(document.querySelector('.question-text'));
   document.querySelector('#exit-quiz').click();
   assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);

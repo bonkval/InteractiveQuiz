@@ -432,10 +432,6 @@ Return only the questions in this format, ready to import into Rev.`;
       <p class="sync-status" role="status">${todayDue} questions due across your library · Saved on this device · Backup available</p>
       <progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress>
       ${topicStats ? `<section class="topic-progress"><strong>Progress by topic</strong><div>${topicStats}</div></section>` : ''}
-      <label class="field-label" for="session-count">Questions in this session (blank = all)</label><input id="session-count" class="study-filter" type="number" min="1" max="500" placeholder="${reviewer.questions.length}">
-      <label class="account-consent"><input id="shuffle-session" type="checkbox" ${state.settings.shuffle ? 'checked' : ''}><span>Shuffle questions</span></label>
-      <label class="account-consent"><input id="exam-mode" type="checkbox" ${state.settings.examMode ? 'checked' : ''}><span>Timed exam mode (30 seconds per question)</span></label>
-      <label class="account-consent"><input id="written-mode" type="checkbox" ${state.settings.writtenMode ? 'checked' : ''}><span>Answer by typing, even for multiple choice</span></label>
       <label class="field-label" for="question-search">Find questions in this reviewer</label><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text">
       <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details>
       <button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start reviewing</button>
@@ -443,12 +439,9 @@ Return only the questions in this format, ready to import into Rev.`;
       <div class="welcome-actions"><button class="mini-control" id="edit-reviewer">Edit questions</button>
       <button class="mini-control" id="export-reviewer">Export</button></div></div></div>`;
     $('#daily-goal').onchange = event => { state.settings.dailyGoal = Math.max(1, Math.min(500, Number(event.target.value) || 20)); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
-    $('#shuffle-session').onchange = event => { state.settings.shuffle=event.target.checked;put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
-    $('#exam-mode').onchange = event => { state.settings.examMode=event.target.checked;if(event.target.checked){state.settings.writtenMode=false;$('#written-mode').checked=false;}put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
-    $('#written-mode').onchange = event => { state.settings.writtenMode=event.target.checked;if(event.target.checked){state.settings.examMode=false;$('#exam-mode').checked=false;}put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
     $('#question-search').onchange = event => { state.settings.questionSearch = event.target.value.trim().toLowerCase(); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
-    $('#start-quiz').onclick = () => startQuiz($('#shuffle-session').checked, $('#exam-mode').checked ? 'exam' : $('#written-mode').checked ? 'written' : 'quiz', $('#study-filter').value, Number($('#session-count').value), [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
-    $('#practice-quiz').onclick = () => startQuiz($('#shuffle-session').checked, 'practice', $('#study-filter').value, Number($('#session-count').value), [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
+    $('#start-quiz').onclick = () => startQuiz(false, 'quiz', $('#study-filter').value, 0, [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
+    $('#practice-quiz').onclick = () => startQuiz(false, 'practice', $('#study-filter').value, 0, [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
