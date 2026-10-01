@@ -30,6 +30,8 @@ const RevCore = (() => {
       correctAnswers,
       answer,
       ...(raw?.explanation ? {explanation: cleanReadingText(raw.explanation)} : {}),
+      ...(raw?.topic ? {topic: cleanReadingText(raw.topic)} : {}),
+      ...(raw?.optionExplanations && typeof raw.optionExplanations === 'object' ? {optionExplanations: Object.fromEntries(Object.entries(raw.optionExplanations).map(([i, value]) => [i, cleanReadingText(value)]))} : {}),
       ...(acceptedAnswers.length ? {acceptedAnswers} : {}),
       type: options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
       ...(raw?.image ? { image: String(raw.image) } : {}),
@@ -96,7 +98,9 @@ const RevCore = (() => {
       const notes = lines.slice(explanationAt + 1);
       const explicit = notes.find(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:/i.test(line));
       if (explicit) applyAnswerKey(question, explicit.replace(/^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*/i, ''), warnings, block);
-      const rationale = notes.filter(line => line !== explicit && !/^Also accepted\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, '').trim()).filter(Boolean);
+      const optionExplanations = Object.fromEntries(notes.map(line => { const match = line.match(/^Why\s+([A-Z])\s*:\s*(.+)$/i); return match ? [match[1].toUpperCase().charCodeAt(0)-65, cleanReadingText(match[2])] : null; }).filter(Boolean));
+      if (Object.keys(optionExplanations).length) question.optionExplanations = optionExplanations;
+      const rationale = notes.filter(line => line !== explicit && !/^Also accepted\s*:/i.test(line) && !/^Why\s+[A-Z]\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, '').trim()).filter(Boolean);
       question.explanation = cleanReadingText([question.explanation, ...rationale].filter(Boolean).join('\n'));
       if (!question.correctAnswers.length && !question.answer) {
         const stated = question.explanation.match(/(?:the\s+)?correct answer\s+(?:is\s+)?(?:Choice\s+)?([A-Z]|[^.!?]+?)(?=\s+(?:because|since|as)\b|[.!?]|$)/i);
@@ -123,7 +127,9 @@ const RevCore = (() => {
       if (lines.slice(0, answerAt).some(line => optionLine(line).labeled)) {
         const question = parseBlock({...block, lines: lines.slice(0, answerAt)}, []);
         applyAnswerKey(question, key, warnings, block);
-        question.explanation = cleanReadingText([question.explanation, ...lines.slice(answerAt + 1).filter(line => !/^Also accepted\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, ''))].filter(Boolean).join('\n'));
+        const notes = lines.slice(answerAt + 1), optionExplanations = Object.fromEntries(notes.map(line => { const match=line.match(/^Why\s+([A-Z])\s*:\s*(.+)$/i); return match ? [match[1].toUpperCase().charCodeAt(0)-65,cleanReadingText(match[2])] : null; }).filter(Boolean));
+        if (Object.keys(optionExplanations).length) question.optionExplanations = optionExplanations;
+        question.explanation = cleanReadingText([question.explanation, ...notes.filter(line => !/^Also accepted\s*:/i.test(line) && !/^Why\s+[A-Z]\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, ''))].filter(Boolean).join('\n'));
         return attachImages(question, media);
       }
       return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key, acceptedAnswers }), media);

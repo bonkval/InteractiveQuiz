@@ -7,6 +7,8 @@
   const SEED_KEY = 'rev-starter-seeded-v1';
   const FLAGS_KEY = 'rev-flags-v1';
   const HISTORY_KEY = 'rev-question-history-v1';
+  const SCHEDULE_KEY = 'rev-question-schedule-v1';
+  const SETTINGS_KEY = 'rev-study-settings-v1';
   const scopedKey = key => state.user ? `${key}:user:${state.user.id}` : key;
   const MASTER_KEY = 'rev-master-prompt-v1';
   const IMPORT_KEY = 'rev-import-prompt-v1';
@@ -39,6 +41,7 @@ If theres no duplicate and there is only the wrong one, then just keep it as is 
   const IMPORT = `Convert this reviewer into plain text for Rev.
 
 Preserve the exact wording and order of every question and choice. Preserve every correct answer at its existing choice position. Mark a choice correct only when the source explicitly identifies it as correct. A student's wrong answer is not correct. Keep True/False and identification questions as they are. Remove duplicate questions, page numbers, and unrelated headers. If duplicates disagree, keep the copy with a clear correct answer. Do not invent missing questions, choices, answers, or exhibits.
+Keep any source-provided explanation after the answer as Explanation: text. If the source explains individual choices, preserve those notes as Why A: text, Why B: text, and so on. Never infer a rationale that the source does not support.
 
 For any question that refers to a picture, diagram, topology, screenshot, or exhibit, keep its reference and add a line inside the question block: Exhibit: exact-image-filename.png. Preserve filenames exactly and attach each image only to the question that refers to it. Never replace an exhibit with a description or invent one. If an exhibit file is not available, write Exhibit: missing. If the image is available, add an Alt text: line that briefly describes what is visible. Do not invent details you cannot see.
 
@@ -73,14 +76,17 @@ Choice D: option
 Return only the questions in this format, ready to import into Rev.`;
   let sessionSaveWarningShown = false;
   let pdfLoad = null;
+  let examTicker = null;
   const $ = (s, root = document) => root.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
+    sessionReviewer: null,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
-    flags: {}, history: {}, sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
+    flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null, timerStarted: 0,
+    sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
     reviewerSearch: '', reviewerSort: 'recent'
   };
   function toast(message) {
@@ -106,6 +112,8 @@ Return only the questions in this format, ready to import into Rev.`;
     state.reviewers = [];
     try { state.flags = JSON.parse(get(scopedKey(FLAGS_KEY), '{}')) || {}; } catch { state.flags = {}; }
     try { state.history = JSON.parse(get(scopedKey(HISTORY_KEY), '{}')) || {}; } catch { state.history = {}; }
+    try { state.schedule = JSON.parse(get(scopedKey(SCHEDULE_KEY), '{}')) || {}; } catch { state.schedule = {}; }
+    try { state.settings = {...state.settings, ...JSON.parse(get(scopedKey(SETTINGS_KEY), '{}'))}; } catch {}
     try {
       const saved = JSON.parse(get(scopedKey(KEY), '[]'));
       if (Array.isArray(saved)) state.reviewers = saved.filter(x => x && Array.isArray(x.questions))
@@ -152,7 +160,8 @@ Return only the questions in this format, ready to import into Rev.`;
       localStorage.setItem(scopedKey(SESSION_KEY), JSON.stringify({
         reviewerId: state.activeId, screen: state.screen, order: state.order, sessionIds: state.sessionIds,
         position: state.position, answers: state.answers, results: state.results,
-        revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode
+        revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
+        mixedIds: state.sessionReviewer?.sourceIds || null
       }));
       sessionSaveWarningShown = false;
     } catch {
@@ -163,7 +172,9 @@ Return only the questions in this format, ready to import into Rev.`;
   function restoreSession() {
     try {
       const saved = JSON.parse(get(scopedKey(SESSION_KEY), 'null'));
-      const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId);
+      const sources = Array.isArray(saved?.mixedIds) ? saved.mixedIds.map(id=>state.reviewers.find(item=>item.id===id)).filter(Boolean) : [];
+      const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId) || (sources.length ? {id:saved.reviewerId,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question,sourceReviewer:item.title})))} : null);
+      if (reviewer && !state.reviewers.some(item=>item.id===reviewer.id)) state.sessionReviewer=reviewer;
       const order = Array.isArray(saved?.order) ? saved.order.filter(i => Number.isInteger(i) && i >= 0 && i < (reviewer?.questions.length || 0)) : [];
       if (!reviewer || !order.length || !['study', 'retry-prompt', 'results'].includes(saved.screen)) return clearSession();
       state.activeId = reviewer.id; state.screen = saved.screen; state.order = order;
@@ -173,11 +184,31 @@ Return only the questions in this format, ready to import into Rev.`;
       state.results = saved.results && typeof saved.results === 'object' ? saved.results : {};
       state.revealed = new Set(Array.isArray(saved.revealed) ? saved.revealed : []);
       state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
-      state.retry = Boolean(saved.retry); state.mode = saved.mode === 'practice' ? 'practice' : 'quiz';
+      state.retry = Boolean(saved.retry); state.mode = ['practice','exam','written'].includes(saved.mode) ? saved.mode : 'quiz';
     } catch { clearSession(); }
   }
-  function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId); }
+  function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId) || (state.sessionReviewer?.id === state.activeId ? state.sessionReviewer : null); }
   const questionKey = question => RevCore.normalize(question.text);
+  const localDay = () => { const day=new Date(); return `${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`; };
+  const dueFor = (reviewer, question) => (state.schedule[reviewer.id]?.[questionKey(question)]?.due || 0) <= Date.now();
+  function rateKnowledge(rating) {
+    const reviewer = currentReviewer(), question = reviewer?.questions[state.order[state.position]];
+    if (!reviewer || !question) return;
+    const deck = state.schedule[reviewer.id] || {}, key = questionKey(question), previous = deck[key] || {interval:0};
+    const intervals = {again:0.01, hard:1, good:3, easy:7};
+    const interval=rating === 'again' ? 0.01 : Math.min(3650,Math.max(1,Math.round((previous.interval || 1) * intervals[rating])));
+    deck[key] = {rating, interval, due:Date.now() + (rating === 'again' ? 10 * 60_000 : interval * 86_400_000), reviews:(previous.reviews || 0) + 1};
+    state.schedule[reviewer.id] = deck; put(scopedKey(SCHEDULE_KEY), JSON.stringify(state.schedule));
+    const today=localDay(); if(state.settings.reviewDay!==today){state.settings.reviewDay=today;state.settings.reviewsToday=0;} state.settings.reviewsToday=(state.settings.reviewsToday||0)+1;put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings));
+    toast(`Next review: ${rating === 'again' ? 'in 10 minutes' : `${deck[key].interval} day${deck[key].interval === 1 ? '' : 's'}`}.`);
+  }
+  function isAnswerCorrect(question, answer) {
+    if (state.mode === 'written' && question.options.length) {
+      const typed=RevCore.normalize(answer?.[0]).replace(/[\s.,!?;:]+$/,'');
+      return question.correctAnswers.some(index=>RevCore.normalize(question.options[index]).replace(/[\s.,!?;:]+$/,'')===typed);
+    }
+    return RevCore.isCorrect(question, answer);
+  }
   function isFlagged(question) { return Boolean(state.flags[state.activeId]?.includes(questionKey(question))); }
   function toggleFlag(question) {
     const key = questionKey(question), flags = new Set(state.flags[state.activeId] || []);
@@ -196,15 +227,17 @@ Return only the questions in this format, ready to import into Rev.`;
     const history = state.history[reviewer.id] || {};
     return reviewer.questions.map((question, index) => ({question, index})).filter(({question}) => {
       const status = history[questionKey(question)];
+      if (filter === 'due') return dueFor(reviewer, question);
       if (filter === 'flagged') return Boolean(state.flags[reviewer.id]?.includes(questionKey(question)));
       if (filter === 'unanswered') return !status || status === 'unanswered';
+      if (filter === 'topic') return Boolean(question.topic);
       return filter === 'all' || status === filter;
     }).map(({index}) => index);
   }
   function switchAccount(user) {
     if (state.user?.id === user?.id) return;
     saveSession();
-    state.user = user || null;
+    state.user = user || null; state.sessionReviewer = null;
     state.activeId = null; state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); load();
@@ -300,7 +333,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const selectedFromMobileNav = document.body.classList.contains('mobile-nav-open');
     setMobileNav(false);
     clearSession();
-    clearHash(); state.activeId = id; state.screen = 'home'; state.order = [];
+    clearHash(); state.sessionReviewer = null; state.activeId = id; state.screen = 'home'; state.order = [];
     render();
     if (selectedFromMobileNav) $('#start-quiz')?.focus();
   }
@@ -308,9 +341,10 @@ Return only the questions in this format, ready to import into Rev.`;
     const reviewer = state.reviewers.find(x => x.id === id);
     if (!reviewer || !confirm(`Delete "${reviewer.title}"?`)) return;
     state.reviewers = state.reviewers.filter(x => x.id !== id);
-    delete state.flags[id]; delete state.history[id];
+    delete state.flags[id]; delete state.history[id]; delete state.schedule[id];
     put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
     put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
+    put(scopedKey(SCHEDULE_KEY), JSON.stringify(state.schedule));
     if (state.activeId === id) { clearSession(); state.activeId = null; state.screen = 'home'; clearHash(); }
     saveReviewers(); render();
   }
@@ -337,16 +371,36 @@ Return only the questions in this format, ready to import into Rev.`;
     if (state.screen === 'study') return renderQuestion();
     if (state.screen === 'retry-prompt') return renderRetryPrompt();
     if (state.screen === 'results') return renderResults();
-    const filters = [['all','All questions'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown',"I don't know"],['flagged','Flagged']];
+    const due = reviewer.questions.filter(question => dueFor(reviewer, question)).length;
+    const filters = [['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown',"I don't know"],['flagged','Flagged']];
+    const todayDue = state.reviewers.reduce((total, item) => total + item.questions.filter(question => dueFor(item, question)).length, 0);
+    const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
+    const topicStats = topics.map(topic=>{const questions=reviewer.questions.filter(question=>question.topic===topic);const correct=questions.filter(question=>state.history[reviewer.id]?.[questionKey(question)]==='correct').length;return `<span class="topic-stat"><strong>${esc(topic)}</strong>${correct}/${questions.length} mastered</span>`;}).join('');
     $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${esc(reviewer.title)}</h2>
-      <p>${reviewer.questions.length} questions</p>
+      <p>${reviewer.questions.length} questions · ${due} due today · daily target ${Number(state.settings.dailyGoal) || 20}</p>
+      <label class="field-label" for="daily-goal">Daily review target</label><input id="daily-goal" class="study-filter" type="number" min="1" max="500" value="${Number(state.settings.dailyGoal) || 20}">
       <label class="field-label study-filter-label" for="study-filter">Study</label><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select>
+      ${topics.length ? `<label class="field-label" for="topic-filter">Focus topic</label><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select>` : '<p class="hint">Add topic tags while reviewing questions to see progress by topic.</p>'}
+      <p class="sync-status" role="status">${todayDue} questions due across your library · Saved on this device · Backup available</p>
+      <progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress>
+      ${topicStats ? `<section class="topic-progress"><strong>Progress by topic</strong><div>${topicStats}</div></section>` : ''}
+      <label class="field-label" for="session-count">Questions in this session (blank = all)</label><input id="session-count" class="study-filter" type="number" min="1" max="500" placeholder="${reviewer.questions.length}">
+      <label class="account-consent"><input id="shuffle-session" type="checkbox" ${state.settings.shuffle ? 'checked' : ''}><span>Shuffle questions</span></label>
+      <label class="account-consent"><input id="exam-mode" type="checkbox" ${state.settings.examMode ? 'checked' : ''}><span>Timed exam mode (30 seconds per question)</span></label>
+      <label class="account-consent"><input id="written-mode" type="checkbox" ${state.settings.writtenMode ? 'checked' : ''}><span>Answer by typing, even for multiple choice</span></label>
+      <label class="field-label" for="question-search">Find questions in this reviewer</label><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text">
+      <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details>
       <button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start reviewing</button>
       <div class="welcome-actions"><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice (no score)</button></div>
       <div class="welcome-actions"><button class="mini-control" id="edit-reviewer">Edit questions</button>
       <button class="mini-control" id="export-reviewer">Export</button></div></div></div>`;
-    $('#start-quiz').onclick = () => startQuiz(false, 'quiz', $('#study-filter').value);
-    $('#practice-quiz').onclick = () => startQuiz(false, 'practice', $('#study-filter').value);
+    $('#daily-goal').onchange = event => { state.settings.dailyGoal = Math.max(1, Math.min(500, Number(event.target.value) || 20)); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
+    $('#shuffle-session').onchange = event => { state.settings.shuffle=event.target.checked;put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
+    $('#exam-mode').onchange = event => { state.settings.examMode=event.target.checked;if(event.target.checked){state.settings.writtenMode=false;$('#written-mode').checked=false;}put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
+    $('#written-mode').onchange = event => { state.settings.writtenMode=event.target.checked;if(event.target.checked){state.settings.examMode=false;$('#exam-mode').checked=false;}put(scopedKey(SETTINGS_KEY),JSON.stringify(state.settings)); };
+    $('#question-search').onchange = event => { state.settings.questionSearch = event.target.value.trim().toLowerCase(); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
+    $('#start-quiz').onclick = () => startQuiz($('#shuffle-session').checked, $('#exam-mode').checked ? 'exam' : $('#written-mode').checked ? 'written' : 'quiz', $('#study-filter').value, Number($('#session-count').value), [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
+    $('#practice-quiz').onclick = () => startQuiz($('#shuffle-session').checked, 'practice', $('#study-filter').value, Number($('#session-count').value), [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
@@ -400,13 +454,13 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#egg-back').onclick = () => { clearHash(); render(); };
   }
   function removeLocalStudyData() {
-    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, MASTER_KEY, IMPORT_KEY, PDF_PROMPT_KEY, 'rev-theme', 'rev-sidebar-open'];
+    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, SCHEDULE_KEY, SETTINGS_KEY, MASTER_KEY, IMPORT_KEY, PDF_PROMPT_KEY, 'rev-theme', 'rev-sidebar-open'];
     try {
       for (const key of Object.keys(localStorage)) if (prefixes.some(prefix => key === prefix || key.startsWith(`${prefix}:user:`))) localStorage.removeItem(key);
       localStorage.setItem(KEY, '[]'); localStorage.setItem(SEED_KEY, '1');
       if (state.user) { localStorage.setItem(scopedKey(KEY), '[]'); localStorage.setItem(scopedKey(SEED_KEY), '1'); }
     } catch { toast('Some browser data could not be removed. Check browser site storage.'); }
-    state.reviewers = []; state.flags = {}; state.history = {}; state.activeId = null;
+    state.reviewers = []; state.flags = {}; state.history = {}; state.schedule = {}; state.settings={dailyGoal:20};state.sessionReviewer=null;state.activeId = null;
     state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); render();
@@ -469,14 +523,22 @@ Return only the questions in this format, ready to import into Rev.`;
       toast('Prompt copied.');
     };
   }
-  function startQuiz(shuffle = false, mode = 'quiz', filter = 'all') {
-    const reviewer = currentReviewer(); if (!reviewer?.questions.length) return;
-    state.order = filteredQuestionIds(reviewer, filter);
+  function startQuiz(shuffle = false, mode = 'quiz', filter = 'all', count = 0, mixIds = [], topic = '') {
+    const selectedReviewer = currentReviewer(); if (!selectedReviewer?.questions.length) return;
+    const extras = mixIds.map(id => state.reviewers.find(item => item.id === id)).filter(Boolean);
+    const sources = extras.length ? [selectedReviewer,...extras] : [];
+    const reviewer = extras.length ? {id:`mixed-${selectedReviewer.id}`,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question, sourceReviewer:item.title})))} : selectedReviewer;
+    state.sessionReviewer = extras.length ? reviewer : null;
+    if (extras.length) state.activeId = reviewer.id;
+    const search = state.settings.questionSearch || '';
+    state.order = filteredQuestionIds(reviewer, filter).filter(id => (!search || `${reviewer.questions[id].text} ${reviewer.questions[id].topic || ''}`.toLocaleLowerCase().includes(search)) && (!topic || reviewer.questions[id].topic === topic));
     if (!state.order.length) return toast('No questions match this filter. Choose another study set.');
+    count=Math.max(0,Math.min(500,Math.floor(Number(count)||0)));
+    if (count > 0) state.order = state.order.slice(0, count);
     state.sessionIds = [...state.order];
     if (shuffle) shuffleInPlace(state.order);
     state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; state.mode = mode; state.screen = 'study'; clearSession(); render();
+    state.retry = false; state.mode = mode; state.timerStarted = Date.now(); state.timerQuestionId = null; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
     for (let i = values.length - 1; i > 0; i--) {
@@ -498,6 +560,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
+    if (state.timerQuestionId !== id) { state.timerQuestionId = id; state.questionStarted = Date.now(); state.timerExpired = false; }
     const deck = state.order.map((key, position) => {
       const item = reviewer.questions[key];
       const result = state.results[key];
@@ -508,7 +571,7 @@ Return only the questions in this format, ready to import into Rev.`;
         data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
-    if (q.options.length) {
+    if (q.options.length && state.mode !== 'written') {
       const multi = q.correctAnswers.length > 1;
       input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
         const checked = selected.includes(i);
@@ -522,27 +585,30 @@ Return only the questions in this format, ready to import into Rev.`;
     }
     const knownAnswer = q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
     const explanation = q.explanation && RevCore.normalize(q.explanation) !== RevCore.normalize(knownAnswer) ? `<p class="answer-explanation">${esc(q.explanation)}</p>` : '';
+    const optionExplanations = revealed && q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : '';
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
-    const feedback = revealed ? `${knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>'}${explanation}` : '';
+    const feedback = revealed ? `${knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>'}${explanation}${optionExplanations}` : '';
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
     const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
-      ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : ''}
-      ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
+      ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
+      ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
+      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="read-question" aria-pressed="false">Read aloud</button><button class="mini-control" id="stop-reading">Stop audio</button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
       <p class="shortcut-hint">1–9 choose · ↑/↓ choices · ←/→ move · Enter next</p>
-      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}</div><div class="question-card-actions"><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div>
+      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div><label class="topic-editor">Topic <input id="question-topic" type="text" value="${esc(q.topic || '')}" placeholder="e.g. Routing" aria-label="Topic tag for this question"></label>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${status || feedback}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
+      ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
+      <button class="secondary-button" id="undo-answer" ${state.lastAction ? '' : 'disabled'}>Undo</button>
       <button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question" aria-keyshortcuts="Enter ArrowRight">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
     if (direction && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -583,6 +649,12 @@ Return only the questions in this format, ready to import into Rev.`;
       saveSession();
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
+    $('#question-topic').onchange = event => { q.topic = event.target.value.trim(); reviewer.updatedAt = Date.now(); if(reviewer.sourceIds){const source=state.reviewers.find(item=>item.title===q.sourceReviewer),original=source?.questions.find(item=>RevCore.normalize(item.text)===RevCore.normalize(q.text));if(original){original.topic=q.topic;source.updatedAt=Date.now();}} saveReviewers(); };
+    $('#main-panel').querySelectorAll('[data-rate]').forEach(button => button.onclick = () => rateKnowledge(button.dataset.rate));
+    $('#read-question').onclick = () => { if (!('speechSynthesis' in window)) return toast('Read aloud is not available in this browser.'); if (speechSynthesis.speaking && !speechSynthesis.paused) { speechSynthesis.pause(); $('#read-question').textContent='Resume audio'; return; } if (speechSynthesis.paused) { speechSynthesis.resume(); $('#read-question').textContent='Pause audio'; return; } const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}. ${q.explanation || ''}` : ''].filter(Boolean).join('. '); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); $('#read-question').textContent='Pause audio'; $('#read-question').setAttribute('aria-pressed','true'); };
+    $('#stop-reading').onclick = () => { window.speechSynthesis?.cancel(); $('#read-question').textContent='Read aloud'; $('#read-question').setAttribute('aria-pressed','false'); };
+    $('#print-review').onclick = () => printReviewer(reviewer);
+    $('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
     $('#flag-question').onclick = () => toggleFlag(q);
     $('#copy-question').onclick = async () => {
       const copyText = [`Question ${q.sourceNumber}`, q.text, ...q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`),
@@ -613,6 +685,12 @@ Return only the questions in this format, ready to import into Rev.`;
       }
     });
     $('#dont-know').onclick = () => advance(true);
+    clearInterval(examTicker);
+    if (state.mode === 'exam') examTicker = setInterval(() => {
+      const remaining = Math.max(0, 30 - Math.floor((Date.now() - state.questionStarted) / 1000));
+      const clock = $('#exam-clock'); if (clock) clock.textContent = `${remaining}s`;
+      if (!remaining && !state.timerExpired) { state.timerExpired = true; advance(true); }
+    }, 250);
     $('#prev-question').onclick = () => { state.position--; renderQuestion('previous'); };
     $('#next-question').onclick = () => advance(false);
     $('#main-panel').querySelectorAll('[data-jump]').forEach(b => b.onclick = () => {
@@ -629,6 +707,7 @@ Return only the questions in this format, ready to import into Rev.`;
   function advance(dontKnow) {
     const id = state.order[state.position];
     const question = currentReviewer().questions[id];
+    state.lastAction = {position:state.position, answers:{...state.answers}, results:{...state.results}, unknown:[...state.unknown], revealed:[...state.revealed]};
     const answer = state.answers[id] || [];
     if (dontKnow) {
       state.unknown.add(id);
@@ -637,7 +716,7 @@ Return only the questions in this format, ready to import into Rev.`;
       if (answer.length) state.unknown.delete(id);
       else if (state.revealed.has(id)) state.unknown.add(id);
     } else if (answer.length && (question.correctAnswers.length || question.answer)) {
-      state.results[id] = RevCore.isCorrect(question, answer);
+      state.results[id] = isAnswerCorrect(question, answer);
       showAnswerResult(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
@@ -651,7 +730,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown');
     else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered');
     if (state.position < state.order.length - 1) { state.position++; renderQuestion('next'); return; }
-    state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
+    clearInterval(examTicker); state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function renderRetryPrompt() {
     saveSession();
@@ -666,6 +745,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#finish-now').onclick = () => { state.screen = 'results'; render(); };
   }
   function renderResults() {
+    clearInterval(examTicker);
     saveSession();
     const reviewer = currentReviewer();
     const sessionIds = state.sessionIds.length ? state.sessionIds : reviewer.questions.map((_, i) => i);
@@ -693,7 +773,7 @@ Return only the questions in this format, ready to import into Rev.`;
       ? `<p class="result-sub">Practice complete · ${sessionIds.length} cards</p>`
       : `<div class="result-score">${score}<span class="score-total"> / ${keyed.length}</span></div>
         <p class="result-sub">${keyed.length < sessionIds.length ? `${keyed.length} scored · ${sessionIds.length - keyed.length} without an answer key` : `${sessionIds.length} questions`}</p>`;
-    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice complete' : 'Review complete'}</h2>
+    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice complete' : state.mode === 'exam' ? 'Exam complete' : 'Review complete'}</h2>
       ${completion}${summary}
       <div class="result-actions"><button class="secondary-button" id="back-to-reviewer">Done</button>
       <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Practice again' : 'Review again'}</button></div>
@@ -718,7 +798,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
       return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
         ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
-        : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${q.options.length && !q.correctAnswers.length && q.answer ? `\nAnswer: ${q.answer}` : ''}${q.explanation ? `\nExplanation: ${q.explanation}` : ''}${refs.map((image,index) => `\nExhibit: ${image}${q.imageAlts?.[index] ? `\nAlt text ${index + 1}: ${q.imageAlts[index]}` : ''}`).join('')}`;
+        : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${q.options.length && !q.correctAnswers.length && q.answer ? `\nAnswer: ${q.answer}` : ''}${q.explanation ? `\nExplanation: ${q.explanation}` : ''}${Object.entries(q.optionExplanations || {}).map(([i,note])=>`\nWhy ${String.fromCharCode(65+Number(i))}: ${note}`).join('')}${refs.map((image,index) => `\nExhibit: ${image}${q.imageAlts?.[index] ? `\nAlt text ${index + 1}: ${q.imageAlts[index]}` : ''}`).join('')}`;
     }).join('\n\n');
   }
   function exportReviewer(reviewer) {
@@ -727,8 +807,14 @@ Return only the questions in this format, ready to import into Rev.`;
     a.href = url; a.download = (reviewer.title.replace(/[^a-z0-9-_]+/gi, '-').slice(0, 60) || 'reviewer') + '.json';
     a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  function printReviewer(reviewer) {
+    const printWindow=window.open('','_blank'); if(!printWindow) return toast('Allow popups to print this reviewer.');
+    const questions=reviewer.questions.map((q,index)=>`<article><small>QUESTION ${esc(q.sourceNumber)}${q.topic?` · ${esc(q.topic)}`:''}</small><h2>${esc(q.text)}</h2>${q.options.length?`<ol type="A">${q.options.map((option,i)=>`<li>${esc(option)}${q.correctAnswers.includes(i)?' <strong>(Correct)</strong>':''}</li>`).join('')}</ol>`:''}${q.answer?`<p><strong>Answer:</strong> ${esc(q.answer)}</p>`:''}${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:''}${q.optionExplanations?`<ul>${Object.entries(q.optionExplanations).map(([i,note])=>`<li><strong>${esc(q.options[Number(i)]||`Choice ${Number(i)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>`:''}</article>`).join('');
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(reviewer.title)}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:780px;margin:36px auto;padding:0 20px;color:#23252a}h1{font-size:28px}article{break-inside:avoid;border-top:1px solid #ddd;padding:18px 0}small{color:#5c6270;letter-spacing:.08em}li{margin:5px 0}</style></head><body><h1>${esc(reviewer.title)}</h1><p>${reviewer.questions.length} questions</p>${questions}</body></html>`);
+    printWindow.document.close(); printWindow.focus(); printWindow.print();
+  }
   function exportLibraryBackup() {
-    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers:state.reviewers,flags:state.flags,history:state.history};
+    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers:state.reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings};
     const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
     const a = document.createElement('a'), url = URL.createObjectURL(blob);
     a.href = url; a.download = `rev-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -759,9 +845,12 @@ Return only the questions in this format, ready to import into Rev.`;
         for (const reviewer of restored) {
           if (Array.isArray(data.flags?.[reviewer.id])) state.flags[reviewer.id] = data.flags[reviewer.id].filter(value => typeof value === 'string');
           if (data.history?.[reviewer.id] && typeof data.history[reviewer.id] === 'object') state.history[reviewer.id] = data.history[reviewer.id];
+          if (data.schedule?.[reviewer.id] && typeof data.schedule[reviewer.id] === 'object') state.schedule[reviewer.id] = data.schedule[reviewer.id];
         }
         put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
         put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
+        put(scopedKey(SCHEDULE_KEY), JSON.stringify(state.schedule));
+        if (data.settings && typeof data.settings === 'object') { state.settings = {...state.settings,...data.settings}; put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); }
       }
       clearSession();
       state.screen = 'home'; state.order = []; state.position = 0; state.answers = {}; state.results = {};
@@ -890,7 +979,7 @@ Return only the questions in this format, ready to import into Rev.`;
       }
       if (resolved.unresolved.length) return feedback(`Attach image file(s) matching: ${resolved.unresolved.join(', ')}`, true);
       const title = ($('#reviewer-name').value.trim() || parsed.title || file?.name?.replace(/\.[^.]+$/, '') || 'New reviewer').slice(0, 70);
-      const reviewer = {id: editId || crypto.randomUUID(), title, questions: parsed.questions, updatedAt: Date.now()};
+      const reviewer = {id: editId || crypto.randomUUID(), title, questions: parsed.questions.map(question=>{const old=previousReviewer?.questions.find(item=>RevCore.normalize(item.text)===RevCore.normalize(question.text));return old?{...question,topic:question.topic||old.topic,optionExplanations:question.optionExplanations||old.optionExplanations}:question;}), updatedAt: Date.now()};
       const index = state.reviewers.findIndex(x => x.id === editId);
       const previous = index >= 0 ? state.reviewers[index] : null;
       if (index >= 0) state.reviewers[index] = reviewer; else state.reviewers.unshift(reviewer);

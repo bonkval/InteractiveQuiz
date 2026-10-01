@@ -285,6 +285,20 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .answer-option.correct .option-letter{color:var(--muted-on-color)}
 .help-option.picked-wrong .help-option-letter{color:#94383d}
 .dark .help-option.picked-wrong .help-option-letter{color:#f0c0c1}
+.topic-editor{display:flex;align-items:center;gap:9px;margin-top:12px;color:var(--muted);font-size:11px}
+.topic-editor input{width:min(260px,70%);min-height:34px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
+.confidence-ratings{display:flex;align-items:center;gap:5px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+.answer-explanations{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:12px;line-height:1.55}
+.sync-status{font-size:11px!important;color:var(--muted)!important}
+.daily-progress{display:block;width:100%;height:7px;margin:8px 0 12px;accent-color:var(--accent)}
+.topic-progress{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;text-align:left;font-size:12px}
+.topic-progress>div{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.topic-stat{display:grid;gap:3px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--accent) 7%,var(--surface));color:var(--muted);font-size:10px}
+.topic-stat strong{color:var(--text);font-size:11px}
+.session-reviewers{margin:10px 0;text-align:left;color:var(--muted);font-size:12px}
+.session-reviewers summary{cursor:pointer;padding:8px 0;color:var(--text)}
+.session-reviewers>div{max-height:150px;overflow:auto;padding:6px 0}
+@media print{.sidebar,.study-controls,.question-deck,.question-footer,.shortcut-hint,.question-card-actions,.topic-editor{display:none!important}.main-area{padding:0!important}.question-card{box-shadow:none!important;border:0!important}}
 .dark .answer-option.correct,.dark .answer-option.correct .option-letter,.dark .feedback.good,.dark .feedback.neutral,.dark .import-feedback,.dark .help-option.help-correct,.dark .help-option.help-correct .help-option-letter{color:#bce6cc}
 .dark .help-option.picked-wrong .help-option-letter{color:#f0c0c1}
 @media(max-width:760px){.mobile-nav-toggle{top:calc(10px + env(safe-area-inset-top))}.main-area{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
