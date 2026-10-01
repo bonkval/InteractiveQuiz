@@ -10,6 +10,7 @@
   const scopedKey = key => state.user ? `${key}:user:${state.user.id}` : key;
   const MASTER_KEY = 'rev-master-prompt-v1';
   const IMPORT_KEY = 'rev-import-prompt-v1';
+  const PDF_PROMPT_KEY = 'rev-pdf-question-prompt-v1';
   const MASTER = `I want you to create an interactive quiz reviewer for me a local web app would suffice
 Put this at the prompt section so every time, the reviewer is the same
 Master prompt: Keep everything word for word, do not change the position of the correct answer, if its on the 1st, 2nd, 3rd, or 4th option then keep it there. If its identification then no need to do anything since its already organized by the reviewer. The most important thing I want you to do is organize and just make the reviewer easy to read and to remove all the duplicates since i will just copy 100 question with correct answers multiple times in this file. Do not do something that is not mentioned here. All the correct answers is in letter A or the first option. Thats a problem since i want this to serve as a reviewer. Shuffle the position of the correct answers for example. For number 1
@@ -58,6 +59,18 @@ For multiple correct answers, prefix each correct choice with Correct!. Do not a
 
 Reviewer to convert:
 [PASTE REVIEWER HERE]`;
+  const PDF_QUESTION_PROMPT = `Read the attached module PDF and create a concise quiz reviewer based only on its content.
+
+Cover the key concepts. Do not invent facts. Write clear questions with four distinct choices and exactly one correct answer. Vary the correct answer position. Use this format:
+
+Question 1
+Question text
+Choice A: option
+Correct! Choice B: option
+Choice C: option
+Choice D: option
+
+Return only the questions in this format, ready to import into Rev.`;
   let sessionSaveWarningShown = false;
   let pdfLoad = null;
   const $ = (s, root = document) => root.querySelector(s);
@@ -279,6 +292,7 @@ Reviewer to convert:
     $('#reviewer-list').querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteReviewer(b.dataset.delete));
     $('#prompt-link').classList.toggle('active', location.hash === '#prompt');
     $('#import-prompt-link').classList.toggle('active', location.hash === '#import-prompt');
+    $('#pdf-prompt-link').classList.toggle('active', location.hash === '#pdf-prompt');
     $('#data-link').classList.toggle('active', location.hash === '#data');
     $('#help-link').classList.toggle('active', location.hash === '#help');
   }
@@ -301,7 +315,7 @@ Reviewer to convert:
     saveReviewers(); render();
   }
   function render() {
-    const prompt = location.hash === '#prompt' || location.hash === '#import-prompt';
+    const prompt = location.hash === '#prompt' || location.hash === '#import-prompt' || location.hash === '#pdf-prompt';
     const easterEgg = location.hash === '#easter-egg';
     const dataScreen = location.hash === '#data';
     const helpScreen = location.hash === '#help';
@@ -312,7 +326,7 @@ Reviewer to convert:
     $('#intro').hidden = prompt || studying || dataScreen || helpScreen || !!currentReviewer();
     renderLibrary();
     if (easterEgg) return renderEasterEgg();
-    if (prompt) return renderPrompt(location.hash === '#import-prompt');
+    if (prompt) return renderPrompt(location.hash === '#import-prompt', location.hash === '#pdf-prompt');
     if (dataScreen) return renderDataSettings();
     if (helpScreen) return renderHelp();
     const reviewer = currentReviewer();
@@ -386,7 +400,7 @@ Reviewer to convert:
     $('#egg-back').onclick = () => { clearHash(); render(); };
   }
   function removeLocalStudyData() {
-    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, MASTER_KEY, IMPORT_KEY, 'rev-theme', 'rev-sidebar-open'];
+    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, MASTER_KEY, IMPORT_KEY, PDF_PROMPT_KEY, 'rev-theme', 'rev-sidebar-open'];
     try {
       for (const key of Object.keys(localStorage)) if (prefixes.some(prefix => key === prefix || key.startsWith(`${prefix}:user:`))) localStorage.removeItem(key);
       localStorage.setItem(KEY, '[]'); localStorage.setItem(SEED_KEY, '1');
@@ -429,9 +443,10 @@ Reviewer to convert:
       } catch (error) { status.textContent = error.message || 'Could not delete account.'; button.disabled = false; }
     });
   }
-  function renderPrompt(importPrompt) {
-    const key = importPrompt ? IMPORT_KEY : MASTER_KEY;
-    $('#main-panel').innerHTML = `<section class="prompt-editor"><div class="prompt-top"><h1>${importPrompt ? 'Import prompt' : 'Master prompt'}</h1>
+  function renderPrompt(importPrompt, pdfPrompt = false) {
+    const key = pdfPrompt ? PDF_PROMPT_KEY : importPrompt ? IMPORT_KEY : MASTER_KEY;
+    const title = pdfPrompt ? 'PDF question prompt' : importPrompt ? 'Import prompt' : 'Master prompt';
+    $('#main-panel').innerHTML = `<section class="prompt-editor"><div class="prompt-top"><h1>${title}</h1>
       <span class="prompt-saved" id="prompt-saved">Saved on this device</span></div>
       <div class="prompt-workspace"><div class="prompt-code-wrap"><div class="prompt-code-head"><span class="vscode-dots"><i></i><i></i><i></i></span><span>reviewer.txt</span><span class="prompt-language">PLAIN TEXT</span></div><div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div><pre><span class="code-heading">Question 1</span>
 <span class="code-question">What does a switch use to learn MAC addresses?</span>
@@ -440,11 +455,12 @@ Reviewer to convert:
 <span class="code-choice">Choice C: DNS records</span>
 <span class="code-choice">Choice D: IP subnet masks</span>
 <span class="code-answer">Answer: source MAC addresses</span></pre></div></div>
-      <div class="prompt-rendered"><div class="prompt-rendered-head"><span class="rendered-icon">✦</span><div><strong>Rev study card</strong><small>${importPrompt ? 'After using the Import prompt' : 'After using the Master prompt'}</small></div></div><div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">✓</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div></div></div>
-      <label class="prompt-editor-label" for="master-prompt">${importPrompt ? 'Import prompt text' : 'Master prompt text'}</label><textarea id="master-prompt" spellcheck="true"></textarea><div class="prompt-actions">
+      <div class="prompt-rendered"><div class="prompt-rendered-head"><span class="rendered-icon">✦</span><div><strong>Rev study card</strong><small>${pdfPrompt ? 'Generated from your module PDF' : importPrompt ? 'After using the Import prompt' : 'After using the Master prompt'}</small></div></div><div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">✓</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div></div></div>
+      ${pdfPrompt ? '<p class="pdf-prompt-tip">Attach your module PDF in your AI tool, paste this prompt, then copy the generated questions into Rev.</p>' : ''}
+      <label class="prompt-editor-label" for="master-prompt">${title} text</label><textarea id="master-prompt" spellcheck="true"></textarea><div class="prompt-actions">
       <button class="secondary-button" id="copy-prompt">Copy prompt</button>
       <button class="primary-button" id="save-prompt">Save changes</button></div></section>`;
-    const field = $('#master-prompt'); field.value = get(key, importPrompt ? IMPORT : MASTER);
+    const field = $('#master-prompt'); field.value = get(key, pdfPrompt ? PDF_QUESTION_PROMPT : importPrompt ? IMPORT : MASTER);
     field.oninput = () => $('#prompt-saved').textContent = 'Unsaved changes';
     $('#save-prompt').onclick = () => { if (put(key, field.value)) $('#prompt-saved').textContent = 'Saved'; };
     $('#copy-prompt').onclick = async () => {
@@ -981,6 +997,7 @@ Reviewer to convert:
     $('#import-trigger').onclick = () => { setMobileNav(false); openImport(); };
     $('#prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#import-prompt-link').addEventListener('click', () => setMobileNav(false));
+    $('#pdf-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#data-link').addEventListener('click', () => setMobileNav(false));
     $('#help-link').addEventListener('click', () => setMobileNav(false));
     $('#reviewer-search').oninput = event => { state.reviewerSearch = event.target.value; renderLibrary(); };
