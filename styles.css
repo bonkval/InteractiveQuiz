@@ -430,3 +430,6 @@ body{min-width:0;min-height:100vh;min-height:100dvh;overflow-x:hidden}
 @keyframes revvy-guide-arrive{0%{transform:translate3d(0,7px,0) rotateY(-12deg) rotateZ(-5deg)}32%{transform:translate3d(-5px,-12px,16px) rotateY(13deg) rotateZ(4deg)}62%{transform:translate3d(2px,3px,5px) rotateY(-5deg) rotateZ(-2deg)}82%{transform:translate3d(0,-3px,0) rotateY(5deg) rotateZ(1deg)}100%{transform:translate3d(0,0,0) rotateY(0) rotateZ(0)}}
 @keyframes revvy-ground-breathe{0%,100%{transform:scaleX(1);opacity:.72}50%{transform:scaleX(.88);opacity:.42}}
 @media(prefers-reduced-motion:reduce){.help-guide .revvy-avatar,.help-guide .revvy-shadow{animation:none!important;will-change:auto}.help-guide.revvy-guiding .revvy-avatar{animation:none!important}.help-guide .revvy-avatar,.help-guide .revvy-shadow{transition:none!important}.help-guide[data-pose] .revvy-arm{transition:none!important}}
+.audio-icon-button{width:34px;min-width:34px;height:34px;padding:7px;display:grid;place-items:center}
+.audio-icon-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.audio-icon-button[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
