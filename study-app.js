@@ -70,6 +70,17 @@ T Reducing congestion can improve throughput.
 Explanation: A concise explanation for the statements.
 Do not turn the statements into separate Question blocks. Rev grades each statement for one point.
 
+For matching or drag-and-drop questions, keep all pairs in one activity. Put the available answer tiles on separate "Word:" lines, then list one target per line with its correct answer label first:
+Question 5
+Move each service model to its correct example.
+Word: IaaS
+Word: SaaS
+Word: PaaS
+Example 1: A company develops an application using cloud-based resources and tools. — PaaS
+Example 2: Virtual machines are connected by a virtual network in the cloud. — IaaS
+Example 3: A user accesses a web-based graphics design application for a monthly fee. — SaaS
+Rev will make one draggable answer bank and award one point per correctly matched example.
+
 For identification, calculation, or a question without choices:
 Question 3
 Question text
@@ -236,13 +247,14 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function isAnswerCorrect(question, answer) {
     if (question.type === 'grouped-boolean') return RevCore.isCorrect(question, answer);
+    if (question.type === 'matching') return RevCore.isCorrect(question, answer);
     if (state.mode === 'written' && question.correctAnswers.length) {
       const typed=RevCore.normalize(answer?.[0]).replace(/[\s.,!?;:]+$/,'');
       return question.correctAnswers.some(index=>RevCore.normalize(question.options[index]).replace(/[\s.,!?;:]+$/,'')===typed);
     }
     return RevCore.isCorrect(question, answer);
   }
-  function isQuestionKeyed(question) { return question.type==='grouped-boolean' ? question.statementAnswers.length>0 : Boolean(question.correctAnswers.length||question.answer); }
+  function isQuestionKeyed(question) { return question.type==='grouped-boolean' ? question.statementAnswers.length>0 : question.type==='matching' ? question.matches.length>0 : Boolean(question.correctAnswers.length||question.answer); }
   function isFlagged(question) { return Boolean(state.flags[state.activeId]?.includes(questionKey(question))); }
   function toggleFlag(question) {
     const key = questionKey(question), flags = new Set(state.flags[state.activeId] || []);
@@ -612,7 +624,9 @@ Return only the questions in this format, ready to import into Rev.`;
         data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
-    if (q.type === 'grouped-boolean') {
+    if (q.type === 'matching') {
+      input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
+    } else if (q.type === 'grouped-boolean') {
       input = `<div class="statement-list" role="group" aria-labelledby="question-prompt">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<fieldset class="statement-item"><legend><span>${index+1}.</span> ${esc(statement)}</legend><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></fieldset>`}).join('')}</div>`;
     } else if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
       const multi = q.correctAnswers.length > 1;
@@ -626,7 +640,7 @@ Return only the questions in this format, ready to import into Rev.`;
     } else {
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
-    const knownAnswer = q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
+    const knownAnswer = q.type==='matching' ? q.matches.map(match=>`${match.answer} → ${match.prompt}`).join(' · ') : q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
     const explanationPanel = state.explanationsVisible ? `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>` : '';
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
@@ -689,6 +703,19 @@ Return only the questions in this format, ready to import into Rev.`;
       const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
       $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});syncCurrentCard(answers.length===q.statements.length);saveSession();
     });
+    if(q.type==='matching'){
+      let activeTile='';
+      const placeMatch=(targetIndex,tile)=>{if(!tile)return;const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');const old=answers.indexOf(tile);if(old>=0)answers[old]='';answers[targetIndex]=tile;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);renderQuestion();};
+      $('#main-panel').querySelectorAll('[data-match-tile]').forEach(tile=>{
+        tile.onclick=()=>{activeTile=tile.dataset.matchTile;$('#main-panel').querySelectorAll('[data-match-tile]').forEach(button=>{button.classList.toggle('is-picked',button===tile);button.setAttribute('aria-pressed',String(button===tile));});$('.matching-feedback').textContent=`${activeTile} selected. Choose its matching example.`;};
+        tile.ondragstart=event=>{activeTile=tile.dataset.matchTile;event.dataTransfer?.setData('text/plain',activeTile);if(event.dataTransfer)event.dataTransfer.effectAllowed='move';};
+      });
+      $('#main-panel').querySelectorAll('[data-match-target]').forEach(target=>{
+        target.onclick=()=>{if(activeTile){placeMatch(Number(target.dataset.matchTarget),activeTile);activeTile='';}};
+        target.ondragover=event=>{event.preventDefault();target.classList.add('is-over');};target.ondragleave=()=>target.classList.remove('is-over');
+        target.ondrop=event=>{event.preventDefault();target.classList.remove('is-over');placeMatch(Number(target.dataset.matchTarget),event.dataTransfer?.getData('text/plain')||activeTile);activeTile='';};
+      });
+    }
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
@@ -765,9 +792,10 @@ Return only the questions in this format, ready to import into Rev.`;
     } else if (state.mode === 'practice') {
       if (answer.length) state.unknown.delete(id);
       else if (state.revealed.has(id)) state.unknown.add(id);
-    } else if (answer.length && (question.correctAnswers.length || question.answer || question.type==='grouped-boolean')) {
+    } else if (answer.length && (question.correctAnswers.length || question.answer || question.type==='grouped-boolean' || question.type==='matching')) {
       state.results[id] = isAnswerCorrect(question, answer);
       if(question.type==='grouped-boolean') state.statementPoints=state.statementPoints||{},state.statementPoints[id]=answer.reduce((total,value,index)=>total+(value===question.statementAnswers[index]?1:0),0);
+      if(question.type==='matching') state.statementPoints=state.statementPoints||{},state.statementPoints[id]=answer.reduce((total,value,index)=>total+(RevCore.normalize(value)===RevCore.normalize(question.matches[index]?.answer)?1:0),0);
       showAnswerResult(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
@@ -809,16 +837,16 @@ Return only the questions in this format, ready to import into Rev.`;
     const reviewer = currentReviewer();
     const sessionIds = state.sessionIds.length ? state.sessionIds : reviewer.questions.map((_, i) => i);
     const keyed = sessionIds.filter(i => isQuestionKeyed(reviewer.questions[i]));
-    const maxScore = keyed.reduce((sum,i)=>sum+(reviewer.questions[i].type==='grouped-boolean'?reviewer.questions[i].statementAnswers.length:1),0);
-    const score = keyed.reduce((sum,i)=>sum+(reviewer.questions[i].type==='grouped-boolean'?(state.statementPoints?.[i]||0):(state.results[i]===true?1:0)),0);
+    const maxScore = keyed.reduce((sum,i)=>sum+(reviewer.questions[i].type==='grouped-boolean'?reviewer.questions[i].statementAnswers.length:reviewer.questions[i].type==='matching'?reviewer.questions[i].matches.length:1),0);
+    const score = keyed.reduce((sum,i)=>sum+(['grouped-boolean','matching'].includes(reviewer.questions[i].type)?(state.statementPoints?.[i]||0):(state.results[i]===true?1:0)),0);
     const outcomes = sessionIds.map(i => {
       const q = reviewer.questions[i];
       const hasKey = isQuestionKeyed(q);
       const correct = state.results[i] === true;
-      const partial = q.type==='grouped-boolean' && state.statementPoints?.[i] > 0 && !correct;
+      const partial = ['grouped-boolean','matching'].includes(q.type) && state.statementPoints?.[i] > 0 && !correct;
       const status = state.unknown.has(i) ? 'I don\'t know'
         : state.mode === 'practice' ? (state.answers[i]?.length || state.revealed.has(i) ? 'Practiced' : 'Not practiced')
-          : !hasKey ? 'No key' : correct ? 'Correct' : partial ? `${state.statementPoints[i]} / ${q.statementAnswers.length} points` : state.results[i] === false ? 'Incorrect' : 'Not answered';
+          : !hasKey ? 'No key' : correct ? 'Correct' : partial ? `${state.statementPoints[i]} / ${q.type==='matching'?q.matches.length:q.statementAnswers.length} points` : state.results[i] === false ? 'Incorrect' : 'Not answered';
       const missed = state.mode === 'practice' ? state.unknown.has(i) : state.unknown.has(i) || (hasKey && !correct);
       const tone = status === 'Correct' ? 'correct' : status === 'Incorrect' ? 'incorrect' : partial ? 'unknown'
         : status === 'I don\'t know' || status === 'Not answered' ? 'unknown' : 'neutral';
@@ -857,6 +885,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const readableImages = images.filter(image => !/^data:image\//i.test(image));
       const hasEmbeddedImage = images.some(image => /^data:image\//i.test(image));
       const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
+      if(q.type==='matching') return `Question ${q.sourceNumber}\n${q.text}\n${q.answerTiles.map(tile=>`Word: ${tile}`).join('\n')}\n${q.matches.map((match,index)=>`Example ${index+1}: ${match.prompt} | ${match.answer}`).join('\n')}${q.explanation?`\nExplanation: ${q.explanation}`:''}`;
       if(q.type==='grouped-boolean') return `Question ${q.sourceNumber}\n${q.text.split('\n').slice(0,1)[0]}\n${q.statements.map((statement,index)=>`${index+1}. ${statement} — ${q.statementAnswers[index]}`).join('\n')}${q.explanation?`\nExplanation: ${q.explanation}`:''}`;
       return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
         ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
@@ -950,11 +979,11 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#import-submit').textContent = 'Preview questions'; feedback('');
   }
   function renderImportPreview(preview) {
-    const questions=preview.parsed.questions, keyed=questions.filter(q=>q.correctAnswers.length||q.answer).length;
-    const rows=questions.map((q,index)=>{const notes=[];if(q.options.length&&q.options.length<4&&q.type!=='boolean')notes.push(`${q.options.length} choices`);if(!q.correctAnswers.length&&!q.answer)notes.push('no answer key');if(q.imageRefs?.length)notes.push('missing exhibit');notes.push(...preview.parsed.warnings.filter(note=>note.startsWith(`Question ${q.sourceNumber}:`)));return {q,index,notes};});
-    $('#import-preview').innerHTML=`<h3>Import preview</h3><p>${questions.length} questions ? ${keyed} answer keys</p><div class="preview-list">${rows.map(({q,index,notes})=>`<details class="preview-question ${notes.length?'has-issue':''}"><summary><strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.options.length} choices ${esc(notes.join(' ? '))}</small></summary><div class="preview-editor"><label>Question<textarea data-edit="text">${esc(q.text)}</textarea></label><label>Choices, one per line; prefix correct choices with *<textarea data-edit="options">${q.options.map((o,i)=>`${q.correctAnswers.includes(i)?'* ':''}${o}`).join('\n')}</textarea></label><label>Answer/input key<input data-edit="answer" value="${esc(q.answer||q.correctAnswers.map(i=>String.fromCharCode(65+i)).join(', '))}"></label><label>Explanation<textarea data-edit="explanation">${esc(q.explanation||'')}</textarea></label><div class="preview-actions"><button class="secondary-button" type="button" data-apply="${index}">Apply edits</button><button class="secondary-button" type="button" data-open-split="${index}">Split into cards</button></div><section class="preview-split" hidden><label>Paste complete Rev question blocks<textarea data-split-source placeholder="Question 1&#10;First question&#10;Answer: ...&#10;&#10;Question 2&#10;Second question&#10;Answer: ..."></textarea></label><p>Each split card needs its own answer and explanation.</p><button class="secondary-button" type="button" data-split="${index}">Create split cards</button></section></div></details>`).join('')}</div><p class="preview-help">Edit each parsed card directly. Split multi-part questions into separate complete question blocks.</p>`;
+    const questions=preview.parsed.questions, keyed=questions.filter(q=>q.type==='matching'?q.matches.length>0:q.type==='grouped-boolean'?q.statementAnswers.length>0:q.correctAnswers.length||q.answer).length;
+    const rows=questions.map((q,index)=>{const notes=[];if(q.options.length&&q.options.length<4&&q.type!=='boolean')notes.push(`${q.options.length} choices`);if(q.type==='matching'?!q.matches.length:q.type==='grouped-boolean'?!q.statementAnswers.length:!q.correctAnswers.length&&!q.answer)notes.push('no answer key');if(q.imageRefs?.length)notes.push('missing exhibit');notes.push(...preview.parsed.warnings.filter(note=>note.startsWith(`Question ${q.sourceNumber}:`)));return {q,index,notes};});
+    $('#import-preview').innerHTML=`<h3>Import preview</h3><p>${questions.length} questions ? ${keyed} answer keys</p><div class="preview-list">${rows.map(({q,index,notes})=>`<details class="preview-question ${notes.length?'has-issue':''}"><summary><strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.type==='matching'?`${q.matches.length} matching pairs`:q.options.length?`${q.options.length} choices`:q.type==='grouped-boolean'?`${q.statements.length} true/false statements`:'Text answer'} ${esc(notes.join(' ? '))}</small></summary><div class="preview-editor"><label>Question<textarea data-edit="text">${esc(q.text)}</textarea></label>${q.type==='matching'?`<label>Answer tiles, one per line<textarea data-edit="tiles">${q.answerTiles.map(esc).join('\n')}</textarea></label><label>Matching pairs: one example | answer per line<textarea data-edit="matches">${q.matches.map(match=>`${esc(match.prompt)} | ${esc(match.answer)}`).join('\n')}</textarea></label>`:q.type==='grouped-boolean'?`<label>Statements, one per line; prefix with T or F<textarea data-edit="statements">${q.statements.map((statement,i)=>`${q.statementAnswers[i]==='True'?'T':'F'} ${esc(statement)}`).join('\n')}</textarea></label>`:`<label>Choices, one per line; prefix correct choices with *<textarea data-edit="options">${q.options.map((o,i)=>`${q.correctAnswers.includes(i)?'* ':''}${o}`).join('\n')}</textarea></label><label>Answer/input key<input data-edit="answer" value="${esc(q.answer||q.correctAnswers.map(i=>String.fromCharCode(65+i)).join(', '))}"></label>`}<label>Explanation<textarea data-edit="explanation">${esc(q.explanation||'')}</textarea></label><div class="preview-actions"><button class="secondary-button" type="button" data-apply="${index}">Apply edits</button><button class="secondary-button" type="button" data-open-split="${index}">Split into cards</button></div><section class="preview-split" hidden><label>Paste complete Rev question blocks<textarea data-split-source placeholder="Question 1&#10;First question&#10;Answer: ...&#10;&#10;Question 2&#10;Second question&#10;Answer: ..."></textarea></label><p>Each split card needs its own answer and explanation.</p><button class="secondary-button" type="button" data-split="${index}">Create split cards</button></section></div></details>`).join('')}</div><p class="preview-help">Edit each parsed card directly. Split multi-part questions into separate complete question blocks.</p>`;
     $('#import-preview').hidden=false;
-    $('#import-preview').querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.apply),card=button.closest('.preview-question'),q=questions[index];q.text=card.querySelector('[data-edit="text"]').value.trim();const lines=card.querySelector('[data-edit="options"]').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);q.options=lines.map(s=>s.replace(/^\*\s*/,''));q.correctAnswers=lines.flatMap((s,i)=>/^\*\s*/.test(s)?[i]:[]);q.answer=card.querySelector('[data-edit="answer"]').value.trim();q.explanation=card.querySelector('[data-edit="explanation"]').value.trim();if(q.correctAnswers.length)q.answer='';if(!q.text)return feedback('Question text cannot be empty.',true);renderImportPreview(preview);feedback('Edits applied. Review the answer and explanation.');});
+    $('#import-preview').querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.apply),card=button.closest('.preview-question'),q=questions[index];q.text=card.querySelector('[data-edit="text"]').value.trim();q.explanation=card.querySelector('[data-edit="explanation"]').value.trim();if(q.type==='matching'){q.answerTiles=card.querySelector('[data-edit="tiles"]').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);q.matches=card.querySelector('[data-edit="matches"]').value.split(/\r?\n/).map(line=>{const [prompt,...answer]=line.split('|');return {prompt:prompt.trim(),answer:answer.join('|').trim(),correct:true};}).filter(pair=>pair.prompt&&pair.answer);}else if(q.type==='grouped-boolean'){const entries=card.querySelector('[data-edit="statements"]').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);q.statements=entries.map(s=>s.replace(/^[TF]\s+/i,''));q.statementAnswers=entries.map(s=>/^T\s/i.test(s)?'True':'False');}else{const lines=card.querySelector('[data-edit="options"]').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);q.options=lines.map(s=>s.replace(/^\*\s*/,''));q.correctAnswers=lines.flatMap((s,i)=>/^\*\s*/.test(s)?[i]:[]);q.answer=card.querySelector('[data-edit="answer"]').value.trim();if(q.correctAnswers.length)q.answer='';}if(!q.text)return feedback('Question text cannot be empty.',true);renderImportPreview(preview);feedback('Edits applied. Review the answer and explanation.');});
     $('#import-preview').querySelectorAll('[data-open-split]').forEach(button=>button.onclick=()=>{const section=button.closest('.preview-question').querySelector('.preview-split');section.hidden=!section.hidden;});
     $('#import-preview').querySelectorAll('[data-split]').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.split),source=button.closest('.preview-editor').querySelector('[data-split-source]').value.trim(),parsed=RevCore.parseImport(source);if(!source||parsed.questions.length<2||parsed.questions.some(q=>!q.text))return feedback('Add at least two complete question blocks before splitting.',true);questions.splice(index,1,...parsed.questions);preview.parsed.warnings.push(...parsed.warnings);renderImportPreview(preview);feedback('Split into cards. Review each answer before saving.');});
   }

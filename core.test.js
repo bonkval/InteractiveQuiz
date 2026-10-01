@@ -41,6 +41,16 @@ test('imports a multi-statement true-false question as one three-point card', ()
   assert.equal(core.isCorrect(parsed.questions[0],['True','True','True']),false);
 });
 
+test('imports answer-bank matching activities as one point-per-pair card',()=>{
+  const imported=core.parseImport('Question 1: Move each cloud computing service model from the list on the left to the correct example. IaaS SaaS PaaS\nPAAS - A company develops an application using cloud-based resources and tools.\nIAAS - Virtual machines are connected by a virtual network in the cloud.\nSAAS - User accesses a web-based graphics design application for a monthly fee.');
+  const q=imported.questions[0];
+  assert.equal(q.type,'matching');
+  assert.equal(q.matches.length,3);
+  assert.equal(q.answerTiles.length,3);
+  assert.equal(core.isCorrect(q,['PaaS','IaaS','SaaS']),true);
+  assert.equal(core.isCorrect(q,['IaaS','IaaS','SaaS']),false);
+});
+
 test('deduplicates and prefers the copy with a key', () => {
   const input = 'Question 1\nSame question?\nChoice A: one\nChoice B: two\n\nQuestion 2\nSame question?\nCorrect! Choice A: one\nChoice B: two';
   const {questions} = core.parseImport(input);

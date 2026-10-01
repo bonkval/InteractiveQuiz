@@ -146,7 +146,7 @@ test('a corrected PDF answer is entered as text and can be graded', async () => 
 test('grouped true-false statements stay on one card and score three points', async () => {
   const dom=openApp(),{document}=dom.window;
   document.querySelector('#new-reviewer').click();
-  document.querySelector('#paste-text').value='Question 1\nFor each statement, select True or False.\nF High latency decreases bandwidth.\nT Low bandwidth can increase latency.\nT Less congestion can increase throughput.';
+  document.querySelector('#paste-text').value='Question 1: For each statement, select True or False.\nF High latency decreases bandwidth.\nT Low bandwidth can increase latency.\nT Less congestion can increase throughput.';
   document.querySelector('#import-submit').click(); await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(document.querySelectorAll('.preview-question').length,1);
   document.querySelector('#import-submit').click(); await new Promise(resolve=>setTimeout(resolve,0));
@@ -155,6 +155,20 @@ test('grouped true-false statements stay on one card and score three points', as
   [['False','True'],['True','True'],['True','True']].forEach((pair,index)=>document.querySelector(`[data-statement="${index}"][data-value="${pair[0]}"]`).click());
   document.querySelector('#next-question').click();
   assert.match(document.querySelector('.result-score').textContent,/3\s*\/\s*3/);
+  dom.window.close();
+});
+
+test('matching answer tiles can be selected and dropped onto one-card targets',async()=>{
+  const dom=openApp(),{document}=dom.window;
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value='Question 1: Move each term to its correct example.\nWord: IaaS\nWord: SaaS\nWord: PaaS\nExample 1: Cloud virtual machines | IaaS\nExample 2: Web app subscription | SaaS\nExample 3: Build software using a cloud platform | PaaS';
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelectorAll('.preview-question').length,1);
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();assert.equal(document.querySelectorAll('.matching-row').length,3);
+  const placements=[['IaaS',0],['SaaS',1],['PaaS',2]];
+  for(const [tile,index] of placements){document.querySelector(`[data-match-tile="${tile}"]`).click();document.querySelector(`[data-match-target="${index}"]`).click();}
+  document.querySelector('#next-question').click();assert.match(document.querySelector('.result-score').textContent,/3\s*\/\s*3/);
   dom.window.close();
 });
 

@@ -27,6 +27,7 @@ const RevCore = (() => {
       sourceNumber: String(raw?.sourceNumber ?? index + 1),
       text: cleanReadingText(raw?.text),
       ...(Array.isArray(raw?.statements) ? {statements:raw.statements.map(cleanReadingText),statementAnswers:Array.isArray(raw?.statementAnswers)?raw.statementAnswers.map(value=>/^(?:T|True)$/i.test(String(value))?'True':'False'):[],type:'grouped-boolean'} : {}),
+      ...(Array.isArray(raw?.matches) ? {matches:raw.matches.map(pair=>({answer:cleanReadingText(pair.answer),prompt:cleanReadingText(pair.prompt),correct:Boolean(pair.correct)})),answerTiles:Array.isArray(raw?.answerTiles)?raw.answerTiles.map(cleanReadingText):[],type:'matching'} : {}),
       options,
       correctAnswers,
       answer,
@@ -194,6 +195,24 @@ const RevCore = (() => {
     if(groupedHeading && groupedRows.length>=2) {
       const rationale=inlineNotes.filter(line=>/^(?:Explanation|Rationale|Reasoning|Solution)\s*:/i.test(line)).map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,''));
       return attachImages({sourceNumber:String(block.number),text:cleanReadingText([block.heading,...groupedRows.map((row,i)=>`${i+1}. ${row.statement}`)].join('\n')),options:[],correctAnswers:[],answer:'',type:'grouped-boolean',statements:groupedRows.map(row=>row.statement),statementAnswers:groupedRows.map(row=>row.answer),explanation:cleanReadingText(rationale.join('\n')),...media},media);
+    }
+    const matchingText=[block.heading,...lines].join(' ');
+    const matchingHeading=/\b(?:move|drag|match|connect|pair|list\s+on\s+the\s+left)\b.*\b(?:correct|appropriate|respective|example|item|description|right)\b/i.test(matchingText)||/\b(?:move|drag|match|connect|pair)\b/i.test(matchingText)&&/\b(?:example|item|description|model|term|service)\b/i.test(matchingText);
+    const answerTiles=[],matchRows=[];
+    const addTiles=value=>String(value||'').split(/[,;|]/).map(item=>cleanReadingText(item.replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu,''))).filter(item=>item&&item.length<45).forEach(item=>{if(!answerTiles.some(tile=>normalize(tile)===normalize(item)))answerTiles.push(item);});
+    const labels=[];
+    for(const line of lines){
+      const tile=line.match(/^(?:Word|Term|Model|Service|Answer|Choices?|Word\s+bank)\s*:\s*(.+)$/i);
+      if(tile){addTiles(tile[1]);continue;}
+      const labeled=line.match(/^(?:Example|Item|Match|Description)\s*\d*\s*[:.)-]\s*(.+?)\s*[|:]\s*([A-Z][A-Z0-9_-]{1,15})\s*$/i);
+      if(labeled){matchRows.push({prompt:cleanReadingText(labeled[1]),answer:cleanReadingText(labeled[2])});labels.push(labeled[2]);continue;}
+      const row=line.match(/^([A-Z][A-Z0-9_-]{1,15})\s+(.+?)\s*$/);
+      if(row){const prompt=row[2].replace(/^[^\p{L}\p{N}]+/u,'').trim();if(prompt.length>8){matchRows.push({prompt:cleanReadingText(prompt),answer:cleanReadingText(row[1])});labels.push(row[1]);}}
+    }
+    if(matchingHeading&&!answerTiles.length){const source=`${block.heading} ${lines.join(' ')}`;const words=source.match(/\b[A-Z][A-Z0-9_-]{1,15}\b/g)||[];addTiles(words.filter(word=>labels.some(label=>normalize(label)===normalize(word))));}
+    if(matchingHeading&&answerTiles.length>=2&&matchRows.length>=2){
+      const matches=matchRows.map(row=>({prompt:row.prompt,answer:row.answer,correct:true}));
+      return attachImages({sourceNumber:String(block.number),text:cleanReadingText(block.heading),options:[],correctAnswers:[],answer:'',type:'matching',matches,answerTiles,explanation:cleanReadingText(inlineNotes.map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,'')).join('\n')),...media},media);
     }
 
     if (!lines.length) return null;
@@ -462,6 +481,7 @@ const RevCore = (() => {
   function isCorrect(question, answer) {
     if (!Array.isArray(answer) || !answer.length) return false;
     if(question.type==='grouped-boolean') return answer.length===question.statements.length&&answer.every((value,index)=>normalize(value)===normalize(question.statementAnswers[index]));
+    if(question.type==='matching') return answer.length===question.matches.length&&answer.every((value,index)=>normalize(value)===normalize(question.matches[index].answer));
     if (question.options.length && question.correctAnswers.length) {
       return answer.length === question.correctAnswers.length && answer.every(i => question.correctAnswers.includes(i));
     }
