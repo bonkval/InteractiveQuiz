@@ -29,6 +29,7 @@ const RevCore = (() => {
       options,
       correctAnswers,
       answer,
+      ...(raw?.explanation ? {explanation: cleanReadingText(raw.explanation)} : {}),
       ...(acceptedAnswers.length ? {acceptedAnswers} : {}),
       type: options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
       ...(raw?.image ? { image: String(raw.image) } : {}),
@@ -83,19 +84,46 @@ const RevCore = (() => {
     const media = imageSources(block.lines);
     const lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image|Alt text(?:\s+\d+)?)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
     if (!lines.length) return null;
-    const answerAt = lines.findIndex(line => /^Answer\s*:\s*\S/i.test(line));
+    const explanationAt = lines.findIndex(line => /^ANSWER\s*\+\s*EXPLANATION(?:\s*\|\s*PAGE\s+\d+)?\s*$/i.test(line));
+    if (explanationAt >= 0) {
+      const sourceLines = lines.slice(0, explanationAt);
+      const question = parseBlock({...block, lines:sourceLines}, []);
+      const hasChoiceMarkers = sourceLines.some(line => optionLine(line).labeled || optionLine(line).marked);
+      if (!hasChoiceMarkers && question.options.length) {
+        question.options = []; question.correctAnswers = [];
+        question.text = cleanReadingText([block.heading, ...sourceLines].filter(Boolean).join('\n'));
+      }
+      const notes = lines.slice(explanationAt + 1);
+      const explicit = notes.find(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:/i.test(line));
+      if (explicit) applyAnswerKey(question, explicit.replace(/^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*/i, ''), warnings, block);
+      const rationale = notes.filter(line => line !== explicit && !/^Also accepted\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, '').trim()).filter(Boolean);
+      question.explanation = cleanReadingText([question.explanation, ...rationale].filter(Boolean).join('\n'));
+      if (!question.correctAnswers.length && !question.answer) {
+        const stated = question.explanation.match(/(?:the\s+)?correct answer\s+(?:is\s+)?(?:Choice\s+)?([A-Z]|[^.!?]+?)(?=\s+(?:because|since|as)\b|[.!?]|$)/i);
+        if (stated) {
+          const token = stated[1].trim().replace(/["“”]/g, '');
+          const index = /^[A-Z]$/i.test(token) ? token.toUpperCase().charCodeAt(0) - 65 : question.options.findIndex(option => normalize(option) === normalize(token));
+          if (index >= 0 && index < question.options.length) question.correctAnswers = [index];
+          else if (!/^[A-Z]$/i.test(token)) question.answer = token;
+        }
+        const correctedResult = question.explanation.match(/\bresult\s+is\s+([^.;!?]+)/i);
+        const noListedAnswer = /no (?:correct )?(?:listed )?answer|no correct option|no listed answer/i.test(question.explanation);
+        if (correctedResult && noListedAnswer && !question.answer) question.answer = cleanReadingText(correctedResult[1]);
+        else if (!question.options.length && question.explanation && !question.answer) question.answer = question.explanation;
+        else if (noListedAnswer && !question.answer) question.answer = question.explanation;
+      }
+      return attachImages(question, media);
+    }
+    const answerAt = lines.findIndex(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*\S/i.test(line));
     if (answerAt >= 0) {
-      const key = lines[answerAt].replace(/^Answer\s*:\s*/i, '').trim();
+      const key = lines[answerAt].replace(/^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*/i, '').trim();
       const acceptedAnswers = lines.slice(answerAt + 1)
         .filter(line => /^Also accepted\s*:/i.test(line))
         .flatMap(line => line.replace(/^Also accepted\s*:\s*/i, '').split(/\s*[|;]\s*/).map(value => value.trim()).filter(Boolean));
       if (lines.slice(0, answerAt).some(line => optionLine(line).labeled)) {
         const question = parseBlock({...block, lines: lines.slice(0, answerAt)}, []);
-        const letter = key.match(/^(?:Choice\s+)?([A-Z])\s*[.)]?$/i);
-        const index = letter ? letter[1].toUpperCase().charCodeAt(0) - 65
-          : question.options.findIndex(option => normalize(option) === normalize(key));
-        if (index >= 0 && index < question.options.length) question.correctAnswers = [index];
-        else warnings.push(`Question ${block.number}: answer key did not match a choice.`);
+        applyAnswerKey(question, key, warnings, block);
+        question.explanation = cleanReadingText([question.explanation, ...lines.slice(answerAt + 1).filter(line => !/^Also accepted\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, ''))].filter(Boolean).join('\n'));
         return attachImages(question, media);
       }
       return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key, acceptedAnswers }), media);
@@ -137,6 +165,37 @@ const RevCore = (() => {
     }
     if (!text) warnings.push(`Question ${block.number}: question text is empty.`);
     return attachImages(normalizeQuestion({ sourceNumber: block.number, text, options, correctAnswers }), media);
+  }
+
+  function applyAnswerKey(question, rawKey, warnings, block) {
+    const key = String(rawKey || '').trim();
+    const letters = key.match(/^((?:Choice\s+)?[A-Z](?:\s*(?:,|and|&)\s*[A-Z])*)(?:\s*\([^)]*\))?(?:\s*[-–—:.]\s*(.*)|\s+(.+)|$)/i);
+    const indices = letters ? [...letters[1].replace(/^Choice\s+/i, '').matchAll(/[A-Z]/gi)].map(([letter]) => letter.toUpperCase().charCodeAt(0) - 65) : [];
+    const index = indices.length === 1 ? indices[0] : -1;
+    const exactIndex = index < 0 && !indices.length ? question.options.findIndex(option => normalize(option) === normalize(key)) : -1;
+    if (question.options.length && indices.length && indices.every(i => i >= 0 && i < question.options.length)) {
+      question.correctAnswers = unique(indices);
+      const rest = (letters[2] || letters[3] || '').trim();
+      const firstOption = question.options[indices[0]] || '';
+      question.explanation = rest && normalize(rest).startsWith(normalize(firstOption))
+        ? rest.slice(firstOption.length).replace(/^[\s.\-–—:]+/, '').trim() : rest;
+      return;
+    }
+    const matchedIndex = index >= 0 ? index : exactIndex;
+    if (matchedIndex >= 0 && matchedIndex < question.options.length) {
+      question.correctAnswers = [matchedIndex];
+      const rest = (letters?.[2] || letters?.[3] || '').trim();
+      const option = question.options[matchedIndex];
+      question.explanation = rest && normalize(rest).startsWith(normalize(option))
+        ? rest.slice(option.length).replace(/^[\s.\-–—:]+/, '').trim() : rest;
+      return;
+    }
+    const text = (letters?.[2] || letters?.[3] || '').trim();
+    if (!question.options.length) { question.answer = key; return; }
+    const matchedText = text && question.options.findIndex(option => normalize(option) === normalize(text));
+    if (matchedText >= 0) question.correctAnswers = [matchedText];
+    else if (text) { question.answer = text; question.explanation = text; warnings.push(`Question ${block.number}: answer text did not match a choice; kept it as a written answer.`); }
+    else warnings.push(`Question ${block.number}: answer key did not match a choice.`);
   }
 
   function attachImages(question, media) {
@@ -214,7 +273,17 @@ const RevCore = (() => {
   function formatPdfRows(pages) {
     const flat = pages.flatMap((rows, page) => rows.map(row => ({...row, page})));
     const headings = flat.filter(row => /^Question\s+\d+\s*$/i.test(row.text));
-    if (!headings.length) return pages.map(rows => rows.map(row => row.text).join('\n')).join('\n');
+    if (!headings.length) {
+      const questionPages = pages.map((rows, page) => {
+        const text = rows.map(row => row.text).filter(line => !/^ANSWER\s*\+\s*EXPLANATION\s*\|\s*PAGE\s+\d+$/i.test(line)).join('\n');
+        const lines = text.split('\n');
+        const hasChoices = lines.some(line => /^(?:[A-H])[.)]\s*\S/.test(line.trim()));
+        const hasExplanation = rows.some(row => /ANSWER\s*\+\s*EXPLANATION/i.test(row.text));
+        return hasExplanation || hasChoices
+          ? `Question ${page + 1}\n${rows.map(row => row.text).join('\n')}` : '';
+      }).filter(Boolean);
+      return questionPages.join('\n\n');
+    }
     const baseX = Math.min(...headings.map(row => row.x));
     const indented = flat.filter(row => row.x > baseX + 8 && row.x < baseX + 80).length;
     if (indented < headings.length) return pages.map(rows => rows.map(row => row.text).join('\n')).join('\n');

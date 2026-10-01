@@ -520,10 +520,11 @@ Return only the questions in this format, ready to import into Rev.`;
     } else {
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
-    const knownAnswer = q.options.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer;
+    const knownAnswer = q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
+    const explanation = q.explanation && RevCore.normalize(q.explanation) !== RevCore.normalize(knownAnswer) ? `<p class="answer-explanation">${esc(q.explanation)}</p>` : '';
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
-    const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
+    const feedback = revealed ? `${knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>'}${explanation}` : '';
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
@@ -717,7 +718,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
       return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
         ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
-        : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${refs.map((image,index) => `\nExhibit: ${image}${q.imageAlts?.[index] ? `\nAlt text ${index + 1}: ${q.imageAlts[index]}` : ''}`).join('')}`;
+        : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${q.options.length && !q.correctAnswers.length && q.answer ? `\nAnswer: ${q.answer}` : ''}${q.explanation ? `\nExplanation: ${q.explanation}` : ''}${refs.map((image,index) => `\nExhibit: ${image}${q.imageAlts?.[index] ? `\nAlt text ${index + 1}: ${q.imageAlts[index]}` : ''}`).join('')}`;
     }).join('\n\n');
   }
   function exportReviewer(reviewer) {

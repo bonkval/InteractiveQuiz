@@ -334,4 +334,5 @@ body{min-width:0;min-height:100vh;min-height:100dvh;overflow-x:hidden}
 @container app-pane (max-width: 760px){.prompt-workspace{grid-template-columns:1fr}.prompt-code pre{font-size:10px}.prompt-rendered{max-width:none}.prompt-rendered-card{max-width:560px}}
 .dark .rendered-correct{background:#25372e;border-color:#548966;color:#bce6cc}.dark .rendered-correct b{background:#294433;border-color:#548966;color:#bce6cc}.dark .prompt-rendered{background:linear-gradient(145deg,#292832,var(--surface) 58%)}
 .pdf-prompt-tip{padding:11px 13px;border-radius:10px;background:color-mix(in srgb,var(--accent) 6%,var(--surface));color:var(--muted);font-size:12px;line-height:1.5}
+.answer-explanation{max-width:900px;margin:7px 0 0;color:var(--muted);font-size:12px;line-height:1.55}
 @supports(padding:env(safe-area-inset-bottom)){.main-area{padding-bottom:calc(12px + env(safe-area-inset-bottom))}.is-studying .main-area{padding-bottom:calc(12px + env(safe-area-inset-bottom))}.sidebar{padding-top:calc(14px + env(safe-area-inset-top));padding-bottom:calc(14px + env(safe-area-inset-bottom))}.mobile-nav-toggle{top:calc(10px + env(safe-area-inset-top))}}
