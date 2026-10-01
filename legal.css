@@ -14,3 +14,4 @@ p,li{max-width:72ch}
 footer{border-top:1px solid #d5d8e1;margin-top:50px;padding-top:18px;display:flex;flex-wrap:wrap;gap:10px 18px;font-size:14px}
 footer a{color:#4137bd}
 @media(prefers-color-scheme:dark){body{background:#17181d;color:#edeef3}.updated{color:#bdc0ca}.legal-nav a,footer a{color:#b8b3ff}.callout{background:#292839;border-color:#575174}footer{border-color:#454651}}
+@media(prefers-color-scheme:dark){.legal-nav a,footer a{color:#d0ccff}}

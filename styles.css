@@ -216,8 +216,8 @@ button:not(:disabled):active{transform:scale(.975)}
 @media(max-width:760px){body.mobile-nav.sidebar-collapsed .account-label{display:initial}body.mobile-nav.sidebar-collapsed .account-button{justify-content:flex-start}body.mobile-nav.sidebar-collapsed .account-signout:not([hidden]){display:block}}
 .skip-link{position:fixed;top:-70px;left:12px;z-index:50;padding:10px 14px;border-radius:8px;background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .skip-link:focus{top:12px}
-:root{--muted:#5c6270}
-body.dark{--muted:#bcc0cc}
+:root{--muted:#5c6270;--muted-on-color:#174f35}
+body.dark{--muted:#bcc0cc;--muted-on-color:#bce6cc}
 body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
 .intro h1,.welcome h2,.result-title,.prompt-editor h1,.easter-egg-page p{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
 .side-heading,.intro-copy,.progress-copy,.study-label,.reviewer-meta,.theme-state,.hint,.shortcut-hint,.welcome p,.sidebar-toggle,.theme-button,.mini-control,.secondary-button,.account-note{color:var(--muted)}
@@ -279,6 +279,14 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .preview-notes summary{cursor:pointer;font-weight:600}
 .preview-notes ul{margin:6px 0 0;padding-left:20px;max-height:100px;overflow:auto}
 .modal{overscroll-behavior:contain}
+.boot-screen>p{color:var(--muted)}
+.empty-list{color:var(--muted)}
+.answer-option.correct,.feedback.good,.feedback.neutral,.import-feedback,.help-option.help-correct,.help-option.help-correct .help-option-letter{color:var(--muted-on-color)}
+.answer-option.correct .option-letter{color:var(--muted-on-color)}
+.help-option.picked-wrong .help-option-letter{color:#94383d}
+.dark .help-option.picked-wrong .help-option-letter{color:#f0c0c1}
+.dark .answer-option.correct,.dark .answer-option.correct .option-letter,.dark .feedback.good,.dark .feedback.neutral,.dark .import-feedback,.dark .help-option.help-correct,.dark .help-option.help-correct .help-option-letter{color:#bce6cc}
+.dark .help-option.picked-wrong .help-option-letter{color:#f0c0c1}
 @media(max-width:760px){.mobile-nav-toggle{top:calc(10px + env(safe-area-inset-top))}.main-area{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
 @media(max-width:760px){body.mobile-nav .site-links,body.mobile-nav.sidebar-collapsed .site-links{display:flex}.question-card-top{align-items:flex-start}.question-card-actions{max-width:75%}.copy-question-button{min-height:40px}.site-links a{min-height:36px;display:inline-flex;align-items:center}}
 .sidebar-brand-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:18px;padding:0 4px}
