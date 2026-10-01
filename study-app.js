@@ -470,7 +470,6 @@ Return only the questions in this format, ready to import into Rev.`;
         stage.style.setProperty('--revvy-x', `${x}px`); stage.style.setProperty('--revvy-y', `${y}px`);
       }
       guide.classList.remove('revvy-talk'); void guide.offsetWidth; guide.classList.add('revvy-talk'); stage.classList.add('revvy-guiding');
-      avatar?.animate([{transform:'translate3d(0,0,0) rotateY(-8deg) scale(1)'},{transform:'translate3d(-8px,-13px,24px) rotateY(12deg) scale(1.08)'},{transform:'translate3d(0,0,0) rotateY(5deg) scale(1)'}],{duration:650,easing:'cubic-bezier(.2,.8,.2,1)'});
     };
     let step = 1, done = false;
     const finishSample = message => { done = true; status.textContent = message; $('#help-next').disabled = false; };
