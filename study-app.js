@@ -96,7 +96,8 @@ Return only the questions in this format, ready to import into Rev.`;
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
-    flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null, timerStarted: 0,
+    flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null,
+    timerQuestionId:null, questionStarted:0, timerExpired:false,
     sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
     reviewerSearch: '', reviewerSort: 'recent'
   };
@@ -172,7 +173,8 @@ Return only the questions in this format, ready to import into Rev.`;
         reviewerId: state.activeId, screen: state.screen, order: state.order, sessionIds: state.sessionIds,
         position: state.position, answers: state.answers, results: state.results,
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
-        mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible
+        mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible,
+        timerQuestionId:state.timerQuestionId, questionStarted:state.questionStarted
       }));
       sessionSaveWarningShown = false;
     } catch {
@@ -197,6 +199,8 @@ Return only the questions in this format, ready to import into Rev.`;
       state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
       state.explanationsVisible = Boolean(saved.explanationsVisible);
       state.retry = Boolean(saved.retry); state.mode = ['practice','exam','written'].includes(saved.mode) ? saved.mode : 'quiz';
+      state.timerQuestionId = Number.isInteger(saved.timerQuestionId) ? saved.timerQuestionId : null;
+      state.questionStarted = Number.isFinite(saved.questionStarted) ? saved.questionStarted : 0;
     } catch { clearSession(); }
   }
   function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId) || (state.sessionReviewer?.id === state.activeId ? state.sessionReviewer : null); }
@@ -215,7 +219,7 @@ Return only the questions in this format, ready to import into Rev.`;
     toast(`Next review: ${rating === 'again' ? 'in 10 minutes' : `${deck[key].interval} day${deck[key].interval === 1 ? '' : 's'}`}.`);
   }
   function isAnswerCorrect(question, answer) {
-    if (state.mode === 'written' && question.options.length) {
+    if (state.mode === 'written' && question.correctAnswers.length) {
       const typed=RevCore.normalize(answer?.[0]).replace(/[\s.,!?;:]+$/,'');
       return question.correctAnswers.some(index=>RevCore.normalize(question.options[index]).replace(/[\s.,!?;:]+$/,'')===typed);
     }
@@ -352,13 +356,15 @@ Return only the questions in this format, ready to import into Rev.`;
   function deleteReviewer(id) {
     const reviewer = state.reviewers.find(x => x.id === id);
     if (!reviewer || !confirm(`Delete "${reviewer.title}"?`)) return;
+    const previous = state.reviewers;
     state.reviewers = state.reviewers.filter(x => x.id !== id);
+    if (!saveReviewers()) { state.reviewers = previous; return toast('Could not delete this reviewer from device storage.'); }
     delete state.flags[id]; delete state.history[id]; delete state.schedule[id];
     put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
     put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
     put(scopedKey(SCHEDULE_KEY), JSON.stringify(state.schedule));
     if (state.activeId === id) { clearSession(); state.activeId = null; state.screen = 'home'; clearHash(); }
-    saveReviewers(); render();
+    render();
   }
   function render() {
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt' || location.hash === '#pdf-prompt';
@@ -540,17 +546,18 @@ Return only the questions in this format, ready to import into Rev.`;
     const extras = mixIds.map(id => state.reviewers.find(item => item.id === id)).filter(Boolean);
     const sources = extras.length ? [selectedReviewer,...extras] : [];
     const reviewer = extras.length ? {id:`mixed-${selectedReviewer.id}`,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question, sourceReviewer:item.title})))} : selectedReviewer;
-    state.sessionReviewer = extras.length ? reviewer : null;
-    if (extras.length) state.activeId = reviewer.id;
     const search = state.settings.questionSearch || '';
-    state.order = filteredQuestionIds(reviewer, filter).filter(id => (!search || `${reviewer.questions[id].text} ${reviewer.questions[id].topic || ''}`.toLocaleLowerCase().includes(search)) && (!topic || reviewer.questions[id].topic === topic));
-    if (!state.order.length) return toast('No questions match this filter. Choose another study set.');
+    const order = filteredQuestionIds(reviewer, filter).filter(id => (!search || `${reviewer.questions[id].text} ${reviewer.questions[id].topic || ''}`.toLocaleLowerCase().includes(search)) && (!topic || reviewer.questions[id].topic === topic));
+    if (!order.length) return toast('No questions match this filter. Choose another study set.');
+    state.sessionReviewer = extras.length ? reviewer : selectedReviewer === state.sessionReviewer ? selectedReviewer : null;
+    if (extras.length) state.activeId = reviewer.id;
+    state.order = order;
     count=Math.max(0,Math.min(500,Math.floor(Number(count)||0)));
     if (count > 0) state.order = state.order.slice(0, count);
     state.sessionIds = [...state.order];
     if (shuffle) shuffleInPlace(state.order);
     state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; state.mode = mode; state.timerStarted = Date.now(); state.timerQuestionId = null; state.screen = 'study'; clearSession(); render();
+    state.retry = false; state.mode = mode; state.timerQuestionId = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
     for (let i = values.length - 1; i > 0; i--) {
@@ -583,7 +590,7 @@ Return only the questions in this format, ready to import into Rev.`;
         data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
-    if (q.options.length && state.mode !== 'written') {
+    if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
       const multi = q.correctAnswers.length > 1;
       input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
         const checked = selected.includes(i);
@@ -602,6 +609,8 @@ Return only the questions in this format, ready to import into Rev.`;
     const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
     const feedbackContent = `${status || feedback}${explanationPanel}`;
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
+    const unmatchedChoices = q.options.length && !q.correctAnswers.length && q.answer
+      ? `<div class="unmatched-choices"><strong>Corrected answer needed</strong><p>The source choices do not contain the stated answer. Type the corrected answer below.</p><ol type="A">${q.options.map(option => `<li>${esc(option)}</li>`).join('')}</ol></div>` : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
     const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
@@ -616,7 +625,7 @@ Return only the questions in this format, ready to import into Rev.`;
       <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div><label class="topic-editor">Topic <input id="question-topic" type="text" value="${esc(q.topic || '')}" placeholder="e.g. Routing" aria-label="Topic tag for this question"></label>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
-      ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
+      ${selectionHint}${unmatchedChoices}${input}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
@@ -648,7 +657,7 @@ Return only the questions in this format, ready to import into Rev.`;
         choice.classList.toggle('selected', isSelected);
         choice.setAttribute('aria-pressed', String(isSelected));
       });
-      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = explanationPanel;
       syncCurrentCard(answer.length > 0);
       saveSession();
     });
@@ -656,7 +665,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
       delete state.results[id];
-      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.textContent = '';
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = explanationPanel;
       syncCurrentCard(state.answers[id].length > 0);
       saveSession();
     });
@@ -710,7 +719,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const target = Number(b.dataset.jump), direction = target > state.position ? 'next' : 'previous';
       state.position = target; renderQuestion(direction);
     });
-    $('#exit-quiz').onclick = () => { clearSession(); state.screen = 'home'; render(); };
+    $('#exit-quiz').onclick = () => { leaveStudy(); render(); };
     $('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
@@ -744,6 +753,14 @@ Return only the questions in this format, ready to import into Rev.`;
     else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered');
     if (state.position < state.order.length - 1) { state.position++; renderQuestion('next'); return; }
     clearInterval(examTicker); state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
+  }
+  function leaveStudy() {
+    clearSession();
+    state.screen = 'home';
+    if (state.sessionReviewer?.id === state.activeId) {
+      state.activeId = state.sessionReviewer.sourceIds?.[0] || null;
+      state.sessionReviewer = null;
+    }
   }
   function renderRetryPrompt() {
     saveSession();
@@ -792,7 +809,7 @@ Return only the questions in this format, ready to import into Rev.`;
       <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Practice again' : 'Review again'}</button></div>
       <div class="review-list">${outcomes.map(({q, i, status, tone}) => `<button class="review-row result-jump status-${tone}" data-result-jump="${i}">
       <span>${esc(q.sourceNumber)}. ${esc(q.text.slice(0, 100))}</span><span class="result-status">${status}</span></button>`).join('')}</div></div></div>`;
-    $('#back-to-reviewer').onclick = () => { clearSession(); state.screen = 'home'; render(); };
+    $('#back-to-reviewer').onclick = () => { leaveStudy(); render(); };
     $('#retry-quiz').onclick = () => startQuiz(false, state.mode);
     $('#review-missed')?.addEventListener('click', () => {
       state.order = missed.map(result => result.i); state.position = 0;
@@ -822,9 +839,15 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function printReviewer(reviewer) {
     const printWindow=window.open('','_blank'); if(!printWindow) return toast('Allow popups to print this reviewer.');
-    const questions=reviewer.questions.map((q,index)=>`<article><small>QUESTION ${esc(q.sourceNumber)}${q.topic?` · ${esc(q.topic)}`:''}</small><h2>${esc(q.text)}</h2>${q.options.length?`<ol type="A">${q.options.map((option,i)=>`<li>${esc(option)}${q.correctAnswers.includes(i)?' <strong>(Correct)</strong>':''}</li>`).join('')}</ol>`:''}${q.answer?`<p><strong>Answer:</strong> ${esc(q.answer)}</p>`:''}${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:''}${q.optionExplanations?`<ul>${Object.entries(q.optionExplanations).map(([i,note])=>`<li><strong>${esc(q.options[Number(i)]||`Choice ${Number(i)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>`:''}</article>`).join('');
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(reviewer.title)}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:780px;margin:36px auto;padding:0 20px;color:#23252a}h1{font-size:28px}article{break-inside:avoid;border-top:1px solid #ddd;padding:18px 0}small{color:#5c6270;letter-spacing:.08em}li{margin:5px 0}</style></head><body><h1>${esc(reviewer.title)}</h1><p>${reviewer.questions.length} questions</p>${questions}</body></html>`);
-    printWindow.document.close(); printWindow.focus(); printWindow.print();
+    const questions=reviewer.questions.map(q=>{
+      const images=[...new Set([...(q.images||[]),...(q.image?[q.image]:[])])];
+      return `<article><small>QUESTION ${esc(q.sourceNumber)}${q.topic?` · ${esc(q.topic)}`:''}</small><h2>${esc(q.text)}</h2>${images.map((image,i)=>`<img src="${esc(image)}" alt="${esc(q.imageAlts?.[i]||`Exhibit ${i+1}`)}">`).join('')}${(q.imageRefs||[]).map(ref=>`<p>Exhibit not attached: ${esc(ref)}</p>`).join('')}${q.options.length?`<ol type="A">${q.options.map((option,i)=>`<li>${esc(option)}${q.correctAnswers.includes(i)?' <strong>(Correct)</strong>':''}</li>`).join('')}</ol>`:''}${q.answer?`<p><strong>Answer:</strong> ${esc(q.answer)}</p>`:''}${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:''}${q.optionExplanations?`<ul>${Object.entries(q.optionExplanations).map(([i,note])=>`<li><strong>${esc(q.options[Number(i)]||`Choice ${Number(i)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>`:''}</article>`;
+    }).join('');
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(reviewer.title)}</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:780px;margin:36px auto;padding:0 20px;color:#23252a}h1{font-size:28px}article{break-inside:avoid;border-top:1px solid #ddd;padding:18px 0}small{color:#5c6270;letter-spacing:.08em}li{margin:5px 0}img{display:block;max-width:100%;max-height:420px;object-fit:contain;margin:12px 0}</style></head><body><h1>${esc(reviewer.title)}</h1><p>${reviewer.questions.length} questions</p>${questions}</body></html>`);
+    printWindow.document.close();
+    const images=[...printWindow.document.images];
+    const loaded=Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})));
+    Promise.race([loaded,new Promise(resolve=>setTimeout(resolve,3000))]).then(()=>{if(!printWindow.closed){printWindow.focus();printWindow.print();}});
   }
   function exportLibraryBackup() {
     const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers:state.reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings};
@@ -932,17 +955,18 @@ Return only the questions in this format, ready to import into Rev.`;
     const el = $('#import-feedback'); el.textContent = message; el.classList.toggle('error', error);
   }
   async function extractPdf(file) {
+    const pdfBase = location.protocol === 'file:' ? 'public/vendor/' : '/vendor/';
     if (!window.pdfjsLib) {
       pdfLoad ||= new Promise((resolve, reject) => {
-        const script = document.createElement('script'); script.src = 'vendor/pdf.min.js';
+        const script = document.createElement('script'); script.src = `${pdfBase}pdf.min.js`;
         script.onload = resolve; script.onerror = () => reject(Error('PDF reader could not load from this app.'));
         document.head.append(script);
       });
       await pdfLoad;
     }
     if (!window.pdfjsLib) throw Error('PDF reader is unavailable. Reload and try again.');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `${pdfBase}pdf.worker.min.js`;
+    const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer(), isEvalSupported:false}).promise;
     const pages = [];
     for (let number = 1; number <= pdf.numPages; number++) {
       const page = await pdf.getPage(number), content = await page.getTextContent();

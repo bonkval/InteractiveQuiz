@@ -300,6 +300,9 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .explanation-panel p{margin:5px 0 0;color:var(--muted)}
 .explanation-panel .explanation-answer{color:var(--text)}
 .explanation-panel .answer-explanations{margin-top:7px}
+.unmatched-choices{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);font-size:12px;line-height:1.5;color:var(--text)}
+.unmatched-choices p{margin:4px 0 8px;color:var(--muted)}
+.unmatched-choices ol{margin:0;padding-left:20px;color:var(--muted)}
 .sync-status{font-size:11px!important;color:var(--muted)!important}
 .daily-progress{display:block;width:100%;height:7px;margin:8px 0 12px;accent-color:var(--accent)}
 .topic-progress{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;text-align:left;font-size:12px}

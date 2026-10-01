@@ -38,6 +38,14 @@ test('deduplicates and prefers the copy with a key', () => {
   assert.deepEqual(questions[0].correctAnswers, [0]);
 });
 
+test('deduplication keeps an available explanation with the retained answer key', () => {
+  const input = 'Question 1\nSame question?\nChoice A: one\nChoice B: two\nExplanation: The second choice follows the rule.\nQuestion 2\nSame question?\nChoice A: one\nCorrect! Choice B: two';
+  const {questions} = core.parseImport(input);
+  assert.equal(questions.length, 1);
+  assert.deepEqual(questions[0].correctAnswers, [1]);
+  assert.equal(questions[0].explanation, 'The second choice follows the rule.');
+});
+
 test('imports exported JSON', () => {
   const input = JSON.stringify({title:'My review',questions:[{text:'Name it',answer:'STP'}]});
   const result = core.parseImport(input);
@@ -68,6 +76,40 @@ test('matches a separate answer key to a labeled choice', () => {
   const q = core.parseImport(input).questions[0];
   assert.deepEqual(q.options, ['first', 'second']);
   assert.deepEqual(q.correctAnswers, [1]);
+});
+
+test('matches true false text and multi-choice answer keys without treating words as letters', () => {
+  const boolean = core.parseImport('Question 1\nIs the link up?\nChoice A: True\nChoice B: False\nAnswer: False\nExplanation: The interface is down.').questions[0];
+  assert.deepEqual(boolean.correctAnswers, [1]);
+  assert.equal(boolean.explanation, 'The interface is down.');
+  const multiple = core.parseImport('Question 2\nChoose two.\nChoice A: One\nChoice B: Two\nChoice C: Three\nChoice D: Four\nAnswers: A and D. These are valid.').questions[0];
+  assert.deepEqual(multiple.correctAnswers, [0, 3]);
+  assert.equal(multiple.explanation, 'These are valid.');
+  const described = core.parseImport('Question 3\nIs the link up?\nChoice A: True\nChoice B: False\nAnswer: False - The interface is down.').questions[0];
+  assert.deepEqual(described.correctAnswers, [1]);
+  assert.equal(described.explanation, 'The interface is down.');
+});
+
+test('keeps a corrected computed answer when no listed option is valid', () => {
+  const q = core.parseImport('Question 1\nCompute the CIDR.\nChoice A: 1/20\nChoice B: 1/21\nANSWER + EXPLANATION\nNo listed answer is fully correct. The result is 1/22.').questions[0];
+  assert.equal(q.answer, '1/22');
+  assert.deepEqual(q.correctAnswers, []);
+  assert.equal(core.isCorrect(q, ['1/22']), true);
+  assert.equal(core.isCorrect(q, [0]), false);
+});
+
+test('infers multiple correct choices when only the explanation gives their letters', () => {
+  const q = core.parseImport('Question 1\nChoose two.\nChoice A: one\nChoice B: two\nChoice C: three\nChoice D: four\nExplanation: The correct answers are A and D because both meet the rule.').questions[0];
+  assert.deepEqual(q.correctAnswers, [0, 3]);
+});
+
+test('explanation-only PDF blocks do not retain a choice question type', () => {
+  const parsed = core.parseImport('Question 1\nMatch the items.\nAlpha\nBeta\nANSWER + EXPLANATION\nAlpha: first. Beta: second.');
+  const q = parsed.questions[0];
+  assert.equal(q.type, 'text');
+  assert.deepEqual(q.options, []);
+  assert.match(q.explanation, /Alpha: first/);
+  assert.ok(parsed.warnings.some(warning => /no single answer/.test(warning)));
 });
 
 test('keeps exhibit references with the question and accepts embedded image data', () => {
@@ -121,6 +163,18 @@ test('joins PDF-wrapped choice lines into readable phrases', () => {
   const q = core.parseImport(core.formatPdfRows(pages)).questions[0];
   assert.deepEqual(q.options, ['First choice spans two lines','Second choice','Third choice','Fourth choice']);
   assert.deepEqual(q.correctAnswers, [1]);
+});
+
+test('keeps pages with unlabeled marked PDF choices when no question headings exist', () => {
+  const pages = [[
+    {x:40,y:720,text:'Which link is active?'},
+    {x:40,y:700,text:'The first link'},
+    {x:40,y:680,text:'Correct! The second link'},
+    {x:40,y:660,text:'The third link'}
+  ]];
+  const questions = core.parseImport(core.formatPdfRows(pages)).questions;
+  assert.equal(questions.length, 1);
+  assert.deepEqual(questions[0].correctAnswers, [1]);
 });
 
 test('bundled reviewer has complete questions and answer keys', () => {

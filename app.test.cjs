@@ -103,3 +103,77 @@ test('copy fallback includes every exhibit reference', async () => {
   assert.match(copied, /Exhibit 2: attached image/);
   dom.window.close();
 });
+
+test('explanation toggle stays visible while answering and across cards', () => {
+  const dom = openApp(), {document} = dom.window;
+  document.querySelector('[data-reviewer]').click();
+  document.querySelector('#start-quiz').click();
+  document.querySelector('#toggle-explanations').click();
+  assert.ok(document.querySelector('.explanation-panel'));
+  document.querySelector('[data-option="1"]').click();
+  assert.ok(document.querySelector('.explanation-panel'));
+  document.querySelector('#next-question').click();
+  assert.ok(document.querySelector('.explanation-panel'));
+  assert.equal(document.querySelector('#toggle-explanations').getAttribute('aria-pressed'), 'true');
+  document.querySelector('#toggle-explanations').click();
+  assert.equal(document.querySelector('.explanation-panel'), null);
+  dom.window.close();
+});
+
+test('a corrected PDF answer is entered as text and can be graded', async () => {
+  const dom = openApp(), {document} = dom.window;
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value = 'Question 1\nCompute the CIDR.\nChoice A: 1/20\nChoice B: 1/21\nANSWER + EXPLANATION\nNo listed answer is fully correct. The result is 1/22.';
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.querySelector('#start-quiz').click();
+  assert.ok(document.querySelector('.unmatched-choices'));
+  const answer = document.querySelector('#short-answer');
+  answer.value = '1/22';
+  answer.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
+  document.querySelector('#next-question').click();
+  assert.match(document.querySelector('.result-score').textContent, /1\s*\/\s*1/);
+  dom.window.close();
+});
+
+test('mixed reviewer filters and retry keep a usable reviewer selected', async () => {
+  const dom = openApp(), {document} = dom.window;
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value = 'Question 1\nOther topic?\nCorrect! Choice A: Yes\nChoice B: No';
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  document.querySelector('[data-reviewer="reviewer-s2-it0015"]').click();
+  document.querySelector('[data-mix-reviewer]').checked = true;
+  document.querySelector('#study-filter').value = 'flagged';
+  document.querySelector('#start-quiz').click();
+  assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);
+  document.querySelector('#study-filter').value = 'all';
+  document.querySelector('#session-count').value = '1';
+  document.querySelector('#start-quiz').click();
+  document.querySelector('#next-question').click();
+  document.querySelector('#retry-quiz').click();
+  assert.ok(document.querySelector('.question-text'));
+  document.querySelector('#exit-quiz').click();
+  assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);
+  dom.window.close();
+});
+
+test('print view includes reviewer exhibits before opening the print dialog', async () => {
+  const dom = openApp(), {document} = dom.window;
+  let html = '', printed = false;
+  dom.window.open = () => ({
+    document:{write(value){html += value;},close(){},images:[]},
+    focus(){},print(){printed = true;},closed:false
+  });
+  document.querySelector('[data-reviewer]').click();
+  document.querySelector('#start-quiz').click();
+  document.querySelector('#print-review').click();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(html, /<img src="data:image\//);
+  assert.equal(printed, true);
+  dom.window.close();
+});

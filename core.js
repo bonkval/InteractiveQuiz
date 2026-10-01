@@ -131,6 +131,19 @@ const RevCore = (() => {
   function inferAnswerFromExplanation(question) {
     if (!question?.explanation || question.correctAnswers.length || question.answer) return question;
     const explanation = question.explanation;
+    const noListedChoice = /no (?:fully )?(?:correct |listed )?(?:answer|option)|no listed answer/i.test(explanation);
+    if (noListedChoice) {
+      const corrected = explanation.match(/\b(?:result|correct(?:ed)? answer)\s+(?:is|was|=)\s+(.+?)(?=\.(?:\s|$)|[!?]|$)/i);
+      if (corrected) question.answer = cleanReadingText(corrected[1]);
+      return question;
+    }
+    const multiLetter = explanation.match(/\b(?:correct\s+answers?|answers?)\s*(?:are|is|were|was|=|:)\s*((?:Choice\s+)?[A-H](?:\s*(?:,|and|&)\s*[A-H])+)(?=$|[\s.):\-–—])/i);
+    if (multiLetter && question.options.length) {
+      const indices = multiLetter[1].replace(/^Choice\s+/i, '').split(/\s*(?:,|and|&)\s*/i)
+        .map(letter => letter.toUpperCase().charCodeAt(0) - 65);
+      if (indices.every(i => i >= 0 && i < question.options.length)) question.correctAnswers = unique(indices);
+    }
+    if (question.correctAnswers.length) return question;
     const labeled = explanation.match(/(?:correct\s+answer|answer|result|computed\s+answer)\s*(?:is|was|=|:)?\s*(?:Choice\s+)?([A-H])(?:\b|\s*[:.)-])/i);
     if (labeled && question.options.length) {
       const index = labeled[1].toUpperCase().charCodeAt(0) - 65;
@@ -143,7 +156,7 @@ const RevCore = (() => {
       if(index>=0&&index<question.options.length) question.correctAnswers=[index];
     }
     if (question.correctAnswers.length) return question;
-    const statement = explanation.match(/(?:the\s+)?(?:correct\s+)?(?:answer|result)\s+(?:is|was|=)\s+(.+?)(?=\s+(?:because|since|as)\b|[.!?]|$)/i);
+    const statement = explanation.match(/(?:the\s+)?(?:correct\s+)?(?:answer|result)\s+(?:is|was|=)\s+(.+?)(?=\s+(?:because|since|as)\b|[.!?](?:\s|$)|$)/i);
     if (statement) {
       const value = cleanReadingText(statement[1].replace(/^Choice\s+/i, '').replace(/^['"“”]|['"“”]$/g, ''));
       const option = question.options.findIndex(choice => normalize(choice) === normalize(value));
@@ -153,6 +166,12 @@ const RevCore = (() => {
     const computed = explanation.match(/(?:computed|calculated)\s+answer\s*(?:is|=|:)?\s*([^.;\n]+)/i);
     if (!question.answer && !question.correctAnswers.length && !question.options.length && computed) question.answer = cleanReadingText(computed[1]);
     return question;
+  }
+
+  function warnIfUnkeyed(question, warnings, block) {
+    if (question && !question.correctAnswers.length && !question.answer && question.explanation) {
+      warnings.push(`Question ${block.number}: explanation found, but no single answer could be identified. Split multi-part questions or add an Answer: line.`);
+    }
   }
 
   function parseBlock(block, warnings) {
@@ -165,14 +184,16 @@ const RevCore = (() => {
     const explanationAt = lines.findIndex(line => /^ANSWER\s*(?:\+|AND)\s*EXPLANATION(?:\s*\|\s*PAGE\s+\d+)?\s*$/i.test(line));
     if (explanationAt >= 0) {
       const sourceLines = lines.slice(0, explanationAt);
-      const question = parseBlock({...block, lines:sourceLines}, []);
+      const question = parseBlock({...block, lines:sourceLines}, []) || normalizeQuestion({sourceNumber:block.number,text:block.heading});
       const hasChoiceMarkers = sourceLines.some(line => optionLine(line).labeled || optionLine(line).marked);
       if (!hasChoiceMarkers && question.options.length) {
         question.options = []; question.correctAnswers = [];
+        question.type = 'text';
         question.text = cleanReadingText([block.heading, ...sourceLines].filter(Boolean).join('\n'));
       }
       attachExplanationNotes(question, lines.slice(explanationAt + 1), warnings, block);
       attachExplanationNotes(question, inlineNotes, warnings, block);
+      warnIfUnkeyed(question, warnings, block);
       return attachImages(question, media);
     }
     const answerAt = lines.findIndex(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*\S/i.test(line));
@@ -186,11 +207,13 @@ const RevCore = (() => {
         if (!isUnknownAnswer(key)) applyAnswerKey(question, key, warnings, block);
         attachExplanationNotes(question, lines.slice(answerAt + 1).filter(line=>!/^Also accepted\s*:/i.test(line)), warnings, block);
         attachExplanationNotes(question, inlineNotes, warnings, block);
+        warnIfUnkeyed(question, warnings, block);
         return attachImages(question, media);
       }
       const question = normalizeQuestion({sourceNumber:block.number,text:[block.heading,...lines.slice(0,answerAt)].filter(Boolean).join('\n'),answer:isUnknownAnswer(key)?'':key,acceptedAnswers});
       attachExplanationNotes(question, lines.slice(answerAt + 1).filter(line=>!/^Also accepted\s*:/i.test(line)), warnings, block);
       attachExplanationNotes(question, inlineNotes, warnings, block);
+      warnIfUnkeyed(question, warnings, block);
       return attachImages(question, media);
     }
     const firstLabeled = lines.findIndex(line => optionLine(line).labeled);
@@ -224,38 +247,43 @@ const RevCore = (() => {
     if (!text) warnings.push(`Question ${block.number}: question text is empty.`);
     const question=normalizeQuestion({sourceNumber:block.number,text,options,correctAnswers});
     attachExplanationNotes(question,inlineNotes,warnings,block);
+    warnIfUnkeyed(question, warnings, block);
     return attachImages(question,media);
   }
 
   function applyAnswerKey(question, rawKey, warnings, block) {
     const key = String(rawKey || '').trim();
-    const letters = key.match(/^((?:Choice\s+)?[A-Z](?:\s*(?:,|and|&)\s*[A-Z])*)(?:\s*\([^)]*\))?(?:\s*[-–—:.]\s*(.*)|\s+(.+)|$)/i);
-    const indices = letters ? [...letters[1].replace(/^Choice\s+/i, '').matchAll(/[A-Z]/gi)].map(([letter]) => letter.toUpperCase().charCodeAt(0) - 65) : [];
-    const index = indices.length === 1 ? indices[0] : -1;
-    const exactIndex = index < 0 && !indices.length ? question.options.findIndex(option => normalize(option) === normalize(key)) : -1;
-    if (question.options.length && indices.length && indices.every(i => i >= 0 && i < question.options.length)) {
-      question.correctAnswers = unique(indices);
-      const rest = (letters[2] || letters[3] || '').trim();
-      const firstOption = question.options[indices[0]] || '';
-      question.explanation = rest && normalize(rest).startsWith(normalize(firstOption))
-        ? rest.slice(firstOption.length).replace(/^[\s.\-–—:]+/, '').trim() : rest;
-      return;
-    }
-    const matchedIndex = index >= 0 ? index : exactIndex;
-    if (matchedIndex >= 0 && matchedIndex < question.options.length) {
-      question.correctAnswers = [matchedIndex];
-      const rest = (letters?.[2] || letters?.[3] || '').trim();
-      const option = question.options[matchedIndex];
-      question.explanation = rest && normalize(rest).startsWith(normalize(option))
-        ? rest.slice(option.length).replace(/^[\s.\-–—:]+/, '').trim() : rest;
-      return;
-    }
-    const text = (letters?.[2] || letters?.[3] || '').trim();
     if (!question.options.length) { question.answer = key; return; }
-    const matchedText = text && question.options.findIndex(option => normalize(option) === normalize(text));
-    if (matchedText >= 0) question.correctAnswers = [matchedText];
-    else if (text) { question.answer = text; question.explanation = text; warnings.push(`Question ${block.number}: answer text did not match a choice; kept it as a written answer.`); }
-    else warnings.push(`Question ${block.number}: answer key did not match a choice.`);
+    const exactIndex = question.options.findIndex(option => normalize(option) === normalize(key));
+    if (exactIndex >= 0) { question.correctAnswers = [exactIndex]; return; }
+    const letterKey = key.match(/^(?:(?:Choice|Option)\s+)?([A-H](?:\s*(?:,|and|&)\s*[A-H])*)(?=$|[\s.):\-–—])(?:\s*\([^)]*\))?(?:\s*[-–—:.]\s*(.*)|\s+(.+)|$)/i);
+    if (letterKey) {
+      const indices = letterKey[1].split(/\s*(?:,|and|&)\s*/i).map(letter => letter.toUpperCase().charCodeAt(0) - 65);
+      if (indices.every(i => i >= 0 && i < question.options.length)) {
+        question.correctAnswers = unique(indices);
+        const rest = (letterKey[2] || letterKey[3] || '').trim();
+        const firstOption = question.options[indices[0]];
+        const rationale = rest && normalize(rest).startsWith(normalize(firstOption))
+          ? rest.slice(firstOption.length).replace(/^[\s.\-–—:]+/, '').trim() : rest;
+        if (rationale) question.explanation = cleanReadingText([question.explanation, rationale].filter(Boolean).join('\n'));
+        return;
+      }
+    }
+    const prefixedOption = question.options.findIndex(option => {
+      const suffix = key.slice(option.length);
+      return key.slice(0, option.length).toLocaleLowerCase() === option.toLocaleLowerCase() &&
+        /^(?:\s*[-–—:.]\s*|\s+because\b)/i.test(suffix);
+    });
+    if (prefixedOption >= 0) {
+      question.correctAnswers = [prefixedOption];
+      const rationale = key.slice(question.options[prefixedOption].length).replace(/^[\s.\-–—:]+/, '').trim();
+      if (rationale) question.explanation = cleanReadingText([question.explanation, rationale].filter(Boolean).join('\n'));
+      return;
+    }
+    const matchedText = question.options.findIndex(option => normalize(option) === normalize(key.replace(/^["“”]|["“”]$/g, '')));
+    if (matchedText >= 0) { question.correctAnswers = [matchedText]; return; }
+    question.answer = key;
+    warnings.push(`Question ${block.number}: answer text did not match a choice; kept it as a written answer.`);
   }
 
   function attachImages(question, media) {
@@ -276,7 +304,19 @@ const RevCore = (() => {
       const existing = result[prior];
       const keyed = q.correctAnswers.length > 0 || !!q.answer;
       const existingKeyed = existing.correctAnswers.length > 0 || !!existing.answer;
-      if (keyed && !existingKeyed) result[prior] = q;
+      const preferred = keyed && !existingKeyed ? q : existing;
+      const alternate = preferred === q ? existing : q;
+      const sameKey = !keyed || !existingKeyed ||
+        (normalize(existing.answer) === normalize(q.answer) &&
+          existing.correctAnswers.join(',') === q.correctAnswers.join(','));
+      if (sameKey) {
+        if (!preferred.explanation && alternate.explanation) preferred.explanation = alternate.explanation;
+        if (!preferred.optionExplanations && alternate.optionExplanations) preferred.optionExplanations = alternate.optionExplanations;
+        if (!preferred.images?.length && alternate.images?.length) preferred.images = [...alternate.images];
+        if (!preferred.imageAlts?.length && alternate.imageAlts?.length) preferred.imageAlts = [...alternate.imageAlts];
+        if (!preferred.imageRefs?.length && alternate.imageRefs?.length) preferred.imageRefs = [...alternate.imageRefs];
+      } else warnings.push(`Question ${q.sourceNumber}: duplicate has a conflicting answer; check the retained key.`);
+      result[prior] = preferred;
       warnings.push(`Duplicate question ${q.sourceNumber} was removed.`);
     }
     return result;
@@ -335,10 +375,10 @@ const RevCore = (() => {
     const headings = flat.filter(row => /^Question\s+\d+\s*$/i.test(row.text));
     if (!headings.length) {
       const questionPages = pages.map((rows, page) => {
-        const text = rows.map(row => row.text).filter(line => !/^ANSWER\s*\+\s*EXPLANATION\s*\|\s*PAGE\s+\d+$/i.test(line)).join('\n');
+        const text = rows.map(row => row.text).filter(line => !/^ANSWER\s*(?:\+|AND)\s*EXPLANATION\s*\|\s*PAGE\s+\d+$/i.test(line)).join('\n');
         const lines = text.split('\n');
-        const hasChoices = lines.some(line => /^(?:[A-H])[.)]\s*\S/.test(line.trim()));
-        const hasExplanation = rows.some(row => /ANSWER\s*\+\s*EXPLANATION/i.test(row.text));
+        const hasChoices = lines.some(line => /^(?:(?:[A-H])[.)]\s*|(?:Choice|Option)\s+[A-H]\s*[:.)-]|Correct!\s*|You Answered\s+)/i.test(line.trim()));
+        const hasExplanation = rows.some(row => /ANSWER\s*(?:\+|AND)\s*EXPLANATION/i.test(row.text));
         return hasExplanation || hasChoices
           ? `Question ${page + 1}\n${rows.map(row => row.text).join('\n')}` : '';
       }).filter(Boolean);
@@ -405,7 +445,7 @@ const RevCore = (() => {
 
   function isCorrect(question, answer) {
     if (!Array.isArray(answer) || !answer.length) return false;
-    if (question.options.length) {
+    if (question.options.length && question.correctAnswers.length) {
       return answer.length === question.correctAnswers.length && answer.every(i => question.correctAnswers.includes(i));
     }
     const cleanAnswer = value => normalize(value).replace(/[\s.,!?;:]+$/, '');
