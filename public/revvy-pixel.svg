@@ -22,8 +22,8 @@
   <path fill="#62f3ff" d="M22 37h3v-2h6v2h-3v2h-6zM36 37h4v-2h3v3h-3v2h-4z"/>
   <path fill="#d2ffff" d="M24 36h2v1h-2zM39 36h2v1h-2z"/>
   <path fill="#54dce9" d="M31 40h3v4h-1v3h-1v-3h-1z"/>
-  <!-- tiny smile and cheek pixels -->
-  <path fill="#e7c5ff" d="M27 45h2v1h-2zM35 45h2v1h-2zM30 48h5v1h-1v1h-3v-1h-1z"/>
+  <!-- tiny smile -->
+  <path fill="#e7c5ff" d="M30 48h5v1h-1v1h-3v-1h-1z"/>
   <!-- dangling hood ties -->
   <path fill="#31294d" d="M16 51h3v8h-2v4h-3v-3h2zM45 51h3v8h2v4h-3v-3h-2z"/>
   <path fill="#9380ed" d="M17 54h1v5h-1zM46 54h1v5h-1z"/>
