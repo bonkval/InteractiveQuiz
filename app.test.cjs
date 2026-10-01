@@ -45,11 +45,16 @@ test('import previews before saving and local deletion clears the library', asyn
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(document.querySelector('#import-preview').hidden, false);
   assert.match(document.querySelector('#import-preview').textContent, /4 choices/);
+  document.querySelector('.preview-question summary').click();
+  const questionEditor = document.querySelector('[data-edit="text"]');
+  assert.ok(questionEditor, 'import preview has a direct question editor');
   document.querySelector('#import-submit').click();
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(JSON.parse(localStorage.getItem('recall-reviewers-v1')).length, 2);
   dom.window.location.hash = '#data';
   dom.window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));
+  assert.match(document.querySelector('#main-panel').textContent, /Browser compatibility/);
+  assert.match(document.querySelector('#main-panel').textContent, /Local storage/);
   document.querySelector('#delete-local-data').click();
   assert.deepEqual(JSON.parse(localStorage.getItem('recall-reviewers-v1')), []);
   dom.window.close();

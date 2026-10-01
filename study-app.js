@@ -91,13 +91,14 @@ Return only the questions in this format, ready to import into Rev.`;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
+  const storageStatus = () => { try { const key=`rev-storage-check-${Date.now()}`; localStorage.setItem(key,'1'); localStorage.removeItem(key); return true; } catch { return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
     flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null,
-    timerQuestionId:null, questionStarted:0, timerExpired:false,
+    timerQuestionId:null, timerQuestionKey:null, questionStarted:0, timerExpired:false,
     sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
     reviewerSearch: '', reviewerSort: 'recent'
   };
@@ -174,7 +175,7 @@ Return only the questions in this format, ready to import into Rev.`;
         position: state.position, answers: state.answers, results: state.results,
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
         mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible,
-        timerQuestionId:state.timerQuestionId, questionStarted:state.questionStarted
+        timerQuestionId:state.timerQuestionId, timerQuestionKey:state.timerQuestionKey || null, questionStarted:state.questionStarted, savedAt:Date.now()
       }));
       sessionSaveWarningShown = false;
     } catch {
@@ -200,7 +201,12 @@ Return only the questions in this format, ready to import into Rev.`;
       state.explanationsVisible = Boolean(saved.explanationsVisible);
       state.retry = Boolean(saved.retry); state.mode = ['practice','exam','written'].includes(saved.mode) ? saved.mode : 'quiz';
       state.timerQuestionId = Number.isInteger(saved.timerQuestionId) ? saved.timerQuestionId : null;
-      state.questionStarted = Number.isFinite(saved.questionStarted) ? saved.questionStarted : 0;
+      const restoredQuestion=reviewer.questions[order[state.position]];
+      state.timerQuestionKey=typeof saved.timerQuestionKey==='string'?saved.timerQuestionKey:null;
+      const timerMatches=state.mode!=='exam'||(state.timerQuestionId===order[state.position]&&(!state.timerQuestionKey||state.timerQuestionKey===questionKey(restoredQuestion)));
+      state.questionStarted=timerMatches&&Number.isFinite(saved.questionStarted)&&saved.questionStarted>0?Math.min(saved.questionStarted,Date.now()):0;
+      state.timerExpired=state.mode==='exam'&&state.questionStarted>0&&Date.now()-state.questionStarted>=30_000;
+      if(!timerMatches){state.timerQuestionId=null;state.timerQuestionKey=null;}
     } catch { clearSession(); }
   }
   function currentReviewer() { return state.reviewers.find(x => x.id === state.activeId) || (state.sessionReviewer?.id === state.activeId ? state.sessionReviewer : null); }
@@ -485,14 +491,18 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function renderDataSettings() {
     saveSession();
+    const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+    const checks=[['PDF import',Boolean(window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
       <p>Reviewers, exhibits, study progress, flags, and prompts are stored on this device. Accounts do not sync reviewers between devices yet.</p>
+      <div class="data-card"><h2>Browser compatibility</h2><ul class="compatibility-list">${checks.map(([name,ok,detail])=>`<li><i class="compat-indicator ${ok?'is-ok':'is-warning'}"></i><strong>${esc(name)}</strong><small>${esc(detail)}</small></li>`).join('')}</ul><p id="storage-estimate">Checking browser storage...</p></div>
       <div class="data-card"><h2>Back up your reviewers</h2><p>Download a copy before deleting or moving devices.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
       <div class="data-card"><h2>Delete study data on this device</h2><p>Removes all Rev reviewers, answers, progress, flags, prompts, and preferences stored in this browser. Exported backup files are unaffected. Your Supabase account remains active.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
       ${state.user ? `<div class="data-card"><h2>Delete account</h2><p>Permanently removes the signed-in Supabase account and local Rev study data on this device. This requires the hosted deletion service.</p><button class="danger-button" id="delete-account">Delete account</button></div>` : ''}
       <p><a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms</a> · <a href="cookies.html">Cookie Policy</a></p>
       <button class="secondary-button" id="data-back">Back to reviewer</button><p class="import-feedback" id="data-feedback" role="status" aria-live="polite"></p></section>`;
     $('#data-backup').onclick = exportLibraryBackup;
+    if(navigator.storage?.estimate) navigator.storage.estimate().then(({usage,quota})=>{const el=$('#storage-estimate');if(el&&Number.isFinite(quota))el.textContent=`About ${Math.max(0,Math.round((quota-(usage||0))/1048576))} MB browser storage available.`;}).catch(()=>{});
     $('#data-back').onclick = () => { clearHash(); render(); };
     $('#delete-local-data').onclick = () => {
       if (!confirm('Delete all Rev study data stored in this browser? Export a backup first if you want to keep it.')) return;
@@ -557,7 +567,7 @@ Return only the questions in this format, ready to import into Rev.`;
     state.sessionIds = [...state.order];
     if (shuffle) shuffleInPlace(state.order);
     state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; state.mode = mode; state.timerQuestionId = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
+    state.retry = false; state.mode = mode; state.timerQuestionId = null; state.timerQuestionKey = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
     for (let i = values.length - 1; i > 0; i--) {
@@ -579,7 +589,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
-    if (state.timerQuestionId !== id) { state.timerQuestionId = id; state.questionStarted = Date.now(); state.timerExpired = false; }
+    if (state.timerQuestionId !== id || (state.timerQuestionKey && state.timerQuestionKey !== questionKey(q))) { state.timerQuestionId = id; state.timerQuestionKey = questionKey(q); state.questionStarted = Date.now(); state.timerExpired = false; }
     const deck = state.order.map((key, position) => {
       const item = reviewer.questions[key];
       const result = state.results[key];
@@ -902,7 +912,7 @@ Return only the questions in this format, ready to import into Rev.`;
     state.sourceText = ''; state.selectedFiles = []; state.importBusy = false; state.importPreview = null;
     $('#reviewer-name').value = reviewer?.title || '';
     $('#paste-text').value = reviewer ? reviewerToText(reviewer) : '';
-    $('#file-input').value = ''; $('#file-status').textContent = 'PDF text is extracted locally. Attach image files and reference each filename with Exhibit: filename.png.';
+    $('#file-input').value = ''; $('#file-status').textContent = 'PDF text and OCR run locally. Scanned PDFs download the English model once.';
     $('#import-feedback').textContent = '';
     $('#import-preview').hidden = true; $('#import-submit').textContent = 'Preview questions';
     showImportTab('paste'); dialog.showModal(); $('#reviewer-name').focus();
@@ -918,86 +928,46 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#import-submit').textContent = 'Preview questions'; feedback('');
   }
   function renderImportPreview(preview) {
-    const questions = preview.parsed.questions;
-    const keyed = questions.filter(q => q.correctAnswers.length || q.answer).length;
-    const issues = questions.map(q => {
-      const notes = [];
-      if (q.options.length && q.options.length < 4 && q.type !== 'boolean') notes.push(`${q.options.length} choices`);
-      if (!q.correctAnswers.length && !q.answer) notes.push('no answer key');
-      if (q.imageRefs?.length) notes.push('missing exhibit');
-      const imageCount = (q.images?.length || (q.image ? 1 : 0)) + (q.imageRefs?.length || 0);
-      if (imageCount && (!q.imageAlts || q.imageAlts.length < imageCount || q.imageAlts.some(alt => /^(?:exhibit|image|diagram|figure)(?:\s+\d+)?$/i.test(alt)))) notes.push('image description needed');
-      notes.push(...preview.parsed.warnings.filter(note => note.startsWith(`Question ${q.sourceNumber}:`)).map(note => note.replace(/^Question \d+:\s*/, '')));
-      return {q, notes};
-    });
-    const duplicates = preview.parsed.warnings.filter(note => /duplicate/i.test(note)).length;
-    const exhibits = questions.reduce((total,q) => total + (q.images?.length || 0), 0);
-    $('#import-preview').innerHTML = `<h3>Import preview</h3><p>${questions.length} questions · ${keyed} answer keys · ${exhibits} attached exhibits · ${duplicates} duplicates removed</p>
-      ${preview.resolved.unresolved.length ? `<p class="preview-warning">Attach: ${esc(preview.resolved.unresolved.join(', '))}</p>` : ''}
-      ${preview.parsed.warnings.length ? `<p class="preview-warning">${preview.parsed.warnings.length} formatting notes. Review flagged questions below.</p>` : ''}
-      ${preview.parsed.warnings.length ? `<details class="preview-notes"><summary>Formatting notes</summary><ul>${preview.parsed.warnings.map(note => `<li>${esc(note)}</li>`).join('')}</ul></details>` : ''}
-      <div class="preview-list">${issues.map(({q,notes}) => `<button type="button" class="preview-row ${notes.length ? 'has-issue' : ''}" data-preview-question="${esc(q.sourceNumber)}" title="Edit question ${esc(q.sourceNumber)}">
-        <strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.options.length ? `${q.options.length} choices` : 'Typed answer'}${notes.length ? ` · ${esc(notes.join(' · '))}` : ''}</small></button>`).join('')}</div>
-      <p class="preview-help">Select a question to edit its source text. Preview again before saving.</p>`;
-    $('#import-preview').hidden = false;
-    $('#import-preview').querySelectorAll('[data-preview-question]').forEach(button => button.onclick = () => {
-      const number = button.dataset.previewQuestion;
-      $('#paste-text').value = preview.source;
-      showImportTab('paste');
-      const field = $('#paste-text');
-      const match = new RegExp(`(?:Question|Q)\\s*#?\\s*${number.replace(/[^0-9]/g,'')}\\b`, 'i').exec(field.value);
-      const at = match?.index ?? 0;
-      field.focus(); field.setSelectionRange(at, at + (match?.[0].length || 0));
-      field.scrollTop = Math.max(0, field.scrollHeight * at / Math.max(field.value.length, 1) - field.clientHeight / 3);
-    });
+    const questions=preview.parsed.questions, keyed=questions.filter(q=>q.correctAnswers.length||q.answer).length;
+    const rows=questions.map((q,index)=>{const notes=[];if(q.options.length&&q.options.length<4&&q.type!=='boolean')notes.push(`${q.options.length} choices`);if(!q.correctAnswers.length&&!q.answer)notes.push('no answer key');if(q.imageRefs?.length)notes.push('missing exhibit');notes.push(...preview.parsed.warnings.filter(note=>note.startsWith(`Question ${q.sourceNumber}:`)));return {q,index,notes};});
+    $('#import-preview').innerHTML=`<h3>Import preview</h3><p>${questions.length} questions ? ${keyed} answer keys</p><div class="preview-list">${rows.map(({q,index,notes})=>`<details class="preview-question ${notes.length?'has-issue':''}"><summary><strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.options.length} choices ${esc(notes.join(' ? '))}</small></summary><div class="preview-editor"><label>Question<textarea data-edit="text">${esc(q.text)}</textarea></label><label>Choices, one per line; prefix correct choices with *<textarea data-edit="options">${q.options.map((o,i)=>`${q.correctAnswers.includes(i)?'* ':''}${o}`).join('\n')}</textarea></label><label>Answer/input key<input data-edit="answer" value="${esc(q.answer||q.correctAnswers.map(i=>String.fromCharCode(65+i)).join(', '))}"></label><label>Explanation<textarea data-edit="explanation">${esc(q.explanation||'')}</textarea></label><div class="preview-actions"><button class="secondary-button" type="button" data-apply="${index}">Apply edits</button><button class="secondary-button" type="button" data-open-split="${index}">Split into cards</button></div><section class="preview-split" hidden><label>Paste complete Rev question blocks<textarea data-split-source placeholder="Question 1&#10;First question&#10;Answer: ...&#10;&#10;Question 2&#10;Second question&#10;Answer: ..."></textarea></label><p>Each split card needs its own answer and explanation.</p><button class="secondary-button" type="button" data-split="${index}">Create split cards</button></section></div></details>`).join('')}</div><p class="preview-help">Edit each parsed card directly. Split multi-part questions into separate complete question blocks.</p>`;
+    $('#import-preview').hidden=false;
+    $('#import-preview').querySelectorAll('[data-apply]').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.apply),card=button.closest('.preview-question'),q=questions[index];q.text=card.querySelector('[data-edit="text"]').value.trim();const lines=card.querySelector('[data-edit="options"]').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);q.options=lines.map(s=>s.replace(/^\*\s*/,''));q.correctAnswers=lines.flatMap((s,i)=>/^\*\s*/.test(s)?[i]:[]);q.answer=card.querySelector('[data-edit="answer"]').value.trim();q.explanation=card.querySelector('[data-edit="explanation"]').value.trim();if(q.correctAnswers.length)q.answer='';if(!q.text)return feedback('Question text cannot be empty.',true);renderImportPreview(preview);feedback('Edits applied. Review the answer and explanation.');});
+    $('#import-preview').querySelectorAll('[data-open-split]').forEach(button=>button.onclick=()=>{const section=button.closest('.preview-question').querySelector('.preview-split');section.hidden=!section.hidden;});
+    $('#import-preview').querySelectorAll('[data-split]').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.split),source=button.closest('.preview-editor').querySelector('[data-split-source]').value.trim(),parsed=RevCore.parseImport(source);if(!source||parsed.questions.length<2||parsed.questions.some(q=>!q.text))return feedback('Add at least two complete question blocks before splitting.',true);questions.splice(index,1,...parsed.questions);preview.parsed.warnings.push(...parsed.warnings);renderImportPreview(preview);feedback('Split into cards. Review each answer before saving.');});
   }
+
   function feedback(message, error = false) {
     const el = $('#import-feedback'); el.textContent = message; el.classList.toggle('error', error);
   }
-  async function extractPdf(file) {
-    const pdfBase = location.protocol === 'file:' ? 'public/vendor/' : '/vendor/';
-    if (!window.pdfjsLib) {
-      pdfLoad ||= new Promise((resolve, reject) => {
-        const script = document.createElement('script'); script.src = `${pdfBase}pdf.min.js`;
-        script.onload = resolve; script.onerror = () => reject(Error('PDF reader could not load from this app.'));
-        document.head.append(script);
-      });
-      await pdfLoad;
-    }
-    if (!window.pdfjsLib) throw Error('PDF reader is unavailable. Reload and try again.');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `${pdfBase}pdf.worker.min.js`;
-    const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer(), isEvalSupported:false}).promise;
-    const pages = [];
-    for (let number = 1; number <= pdf.numPages; number++) {
-      const page = await pdf.getPage(number), content = await page.getTextContent();
-      const rows = [];
-      for (const item of content.items) {
-        if (!item.str?.trim()) continue;
-        const y = Math.round(item.transform[5] * 2) / 2;
-        const last = rows.at(-1);
-        if (last && Math.abs(last.y - y) <= 2) {
-          const gap = item.transform[4] - last.end;
-          last.text += (gap > 2 ? ' ' : '') + item.str;
-          last.end = item.transform[4] + (item.width || 0);
-        } else rows.push({x:item.transform[4], y, text:item.str, end:item.transform[4] + (item.width || 0)});
-      }
-      pages.push(rows.map(r => ({x:r.x,y:r.y,text:r.text.trim()})).filter(r => r.text));
-    }
-    const text = RevCore.formatPdfRows(pages);
-    if (!text.trim()) throw Error('This PDF has no selectable text. Use the Import prompt with copied text.');
+  async function getPdfJs() {
+    if(location.protocol!=='file:'&&window.RevPdfJs)return {lib:window.RevPdfJs,worker:window.RevPdfWorkerUrl};
+    const base='public/vendor/';
+    if(!window.pdfjsLib){pdfLoad ||= new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=base+'pdf.min.js';script.onload=resolve;script.onerror=()=>reject(Error('PDF reader could not load.'));document.head.append(script);});await pdfLoad;}
+    if(!window.pdfjsLib)throw Error('PDF reader is unavailable. Reload and try again.');
+    return {lib:window.pdfjsLib,worker:base+'pdf.worker.min.js'};
+  }
+  async function extractPdf(file,onProgress=()=>{},forceOcr=false) {
+    const {lib,worker}=await getPdfJs();lib.GlobalWorkerOptions.workerSrc=worker;
+    const pdf=await lib.getDocument({data:await file.arrayBuffer(),isEvalSupported:false}).promise,pages=[];let chars=0;
+    for(let number=1;number<=pdf.numPages;number++){onProgress(`Reading PDF text: page ${number} of ${pdf.numPages}...`);const page=await pdf.getPage(number),content=await page.getTextContent(),rows=[];for(const item of content.items){if(!item.str?.trim())continue;chars+=item.str.trim().length;const y=Math.round(item.transform[5]*2)/2,last=rows.at(-1);if(last&&Math.abs(last.y-y)<=2){const gap=item.transform[4]-last.end;last.text+=(gap>2?' ':'')+item.str;last.end=item.transform[4]+(item.width||0);}else rows.push({x:item.transform[4],y,text:item.str,end:item.transform[4]+(item.width||0)});}pages.push(rows.map(r=>({x:r.x,y:r.y,text:r.text.trim()})).filter(r=>r.text));}
+    const text=RevCore.formatPdfRows(pages);
+    if(forceOcr||chars<20||!text.trim()){onProgress('OCR runs on this device. The English model downloads once and is cached.');const {createWorker}=await import('tesseract.js'),workerInstance=await createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text')onProgress('OCR '+Math.round((m.progress||0)*100)+'%...');}}),ocrPages=[];try{for(let number=1;number<=pdf.numPages;number++){onProgress('Rendering scan '+number+' for OCR...');const page=await pdf.getPage(number),viewport=page.getViewport({scale:1.35}),canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;const result=await workerInstance.recognize(canvas);ocrPages.push({x:0,y:0,text:result.data.text.trim()});canvas.width=canvas.height=0;}}finally{await workerInstance.terminate();}const scanned=RevCore.formatPdfRows(ocrPages.map(page=>page.text?[page]:[]));if(!scanned.trim())throw Error('OCR could not read this scan. Try a clearer copy or use the Import prompt.');return scanned;}
     return text;
   }
-  async function submitImport() {
+  async function submitImport(forceOcr=false) {
     if (state.importBusy) return;
     state.importBusy = true; $('#import-submit').disabled = true;
     try {
       const tab = $('.import-tab.active').dataset.tab, files = state.selectedFiles;
       const file = files.find(x => !x.type.startsWith('image/'));
       const exhibitFiles = files.filter(x => x.type.startsWith('image/'));
+      if (forceOcr && (!file || !/\.pdf$/i.test(file.name))) return feedback('Choose a PDF before starting OCR.', true);
       let source = state.importPreview?.source || $('#paste-text').value;
-      if (!state.importPreview && tab === 'file' && file) source = /\.pdf$/i.test(file.name) ? await extractPdf(file) : await file.text();
-      else if (tab === 'file' && !source.trim()) return feedback('Choose a reviewer file or paste text, then attach any exhibit images.', true);
+      if ((!state.importPreview||forceOcr) && tab === 'file' && file) source = /\.pdf$/i.test(file.name) ? await extractPdf(file,message=>{ $('#file-status').textContent=message; },forceOcr) : await file.text();
+      else if (tab === 'file' && !source.trim() && !forceOcr) return feedback('Choose a reviewer file or paste text, then attach any exhibit images.', true);
       if (!source.trim()) return feedback('Paste questions or choose a file.', true);
+      if(forceOcr&&state.importPreview){state.importPreview=null;$('#import-preview').hidden=true;$('#import-submit').textContent='Preview questions';}
       const parsed = state.importPreview?.parsed || RevCore.parseImport(source);
       if (!parsed.questions.length) return feedback('No questions found. Use Question 1 headings or the Import prompt.', true);
       const empty = parsed.questions.filter(q => !q.text);
@@ -1146,11 +1116,12 @@ Return only the questions in this format, ready to import into Rev.`;
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
       state.selectedFiles = [...e.target.files];
-      $('#file-status').textContent = state.selectedFiles.map(x => x.name).join(', ') || 'PDF text is extracted locally. Attach image files and reference them with Exhibit: filename.png.';
+      $('#file-status').textContent = state.selectedFiles.map(x => x.name).join(', ') || 'PDF text and OCR run locally. Scanned PDFs download the English model once.';
       resetImportPreview();
     };
     $('#paste-text').addEventListener('input', resetImportPreview);
-    $('#import-submit').onclick = submitImport;
+    $('#import-submit').onclick = () => submitImport(false);
+    $('#ocr-import').onclick = () => submitImport(true);
     window.addEventListener('hashchange', render);
     window.addEventListener('pagehide', saveSession);
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveSession(); });
