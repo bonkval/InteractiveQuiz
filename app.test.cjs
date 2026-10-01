@@ -113,15 +113,45 @@ test('explanation toggle stays visible while answering and across cards', () => 
   const dom = openApp(), {document} = dom.window;
   document.querySelector('[data-reviewer]').click();
   document.querySelector('#start-quiz').click();
+  const card = document.querySelector('.question-card');
   document.querySelector('#toggle-explanations').click();
   assert.ok(document.querySelector('.explanation-panel'));
+  assert.equal(document.querySelector('.question-card'), card, 'toggling does not rebuild the question');
   document.querySelector('[data-option="1"]').click();
   assert.ok(document.querySelector('.explanation-panel'));
   document.querySelector('#next-question').click();
   assert.ok(document.querySelector('.explanation-panel'));
-  assert.equal(document.querySelector('#toggle-explanations').getAttribute('aria-pressed'), 'true');
+  assert.equal(document.querySelector('#toggle-explanations').getAttribute('aria-checked'), 'true');
   document.querySelector('#toggle-explanations').click();
   assert.equal(document.querySelector('.explanation-panel'), null);
+  assert.equal(document.querySelector('#toggle-explanations').getAttribute('aria-checked'), 'false');
+  dom.window.close();
+});
+
+test('audio can pause, resume, stop, and start again after changing cards', () => {
+  const dom = openApp(), {document} = dom.window;
+  const synth = {speaking:false, paused:false, utterances:[], cancel() { this.speaking=false; this.paused=false; }, speak(utterance) { this.utterances.push(utterance); this.speaking=true; }, pause() { this.paused=true; }, resume() { this.paused=false; }};
+  dom.window.speechSynthesis = synth;
+  dom.window.SpeechSynthesisUtterance = class { constructor(text) { this.text=text; } };
+  document.querySelector('[data-reviewer]').click();
+  document.querySelector('#start-quiz').click();
+  document.querySelector('#read-question').click();
+  assert.equal(document.querySelector('#read-question').textContent, 'Pause audio');
+  document.querySelector('#read-question').click();
+  assert.equal(synth.paused, true);
+  assert.equal(document.querySelector('#read-question').textContent, 'Resume audio');
+  document.querySelector('#toggle-explanations').click();
+  assert.equal(document.querySelector('#read-question').textContent, 'Resume audio');
+  document.querySelector('#read-question').click();
+  assert.equal(synth.paused, false);
+  assert.equal(document.querySelector('#read-question').textContent, 'Pause audio');
+  document.querySelector('#stop-reading').click();
+  assert.equal(document.querySelector('#read-question').textContent, 'Use audio');
+  document.querySelector('#read-question').click();
+  assert.equal(synth.utterances.length, 2);
+  document.querySelector('#next-question').click();
+  assert.equal(synth.speaking, false);
+  assert.equal(document.querySelector('#read-question').textContent, 'Use audio');
   dom.window.close();
 });
 

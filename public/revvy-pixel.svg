@@ -1,31 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" shape-rendering="crispEdges">
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80" shape-rendering="crispEdges">
   <defs>
     <linearGradient id="hood" x2=".85" y2="1"><stop stop-color="#9c83ff"/><stop offset=".55" stop-color="#6750bb"/><stop offset="1" stop-color="#342c62"/></linearGradient>
     <linearGradient id="face" x2="0" y2="1"><stop stop-color="#29263d"/><stop offset="1" stop-color="#14151f"/></linearGradient>
   </defs>
-  <!-- soft pixel shadow -->
   <path fill="#160f2a" opacity=".42" d="M17 75h30v2H17zM12 72h40v2H12z"/>
-  <!-- little hood peak and antenna tuft -->
   <path fill="#24213b" d="M28 9h8v4h4v5h-4v4h-8v-4h-4v-5h4z"/>
   <path fill="#9b88ff" d="M29 10h7v3h-7zM26 14h4v5h-4z"/>
   <path fill="#423773" d="M37 13h3v4h-3z"/>
-  <!-- hood body -->
   <path fill="#201b36" d="M19 17h26v3h5v4h4v7h3v18h-3v7h-4v5h-5v4H19v-4h-5v-5h-4v-7H7V31h3v-7h4v-4h5z"/>
   <path fill="url(#hood)" d="M20 20h25v3h5v5h3v20h-3v7h-5v5H19v-5h-5v-7h-3V29h3v-5h6z"/>
   <path fill="#b6a4ff" d="M20 20h17v2H20zM15 25h3v5h-2v8h-2v-9h2z" opacity=".7"/>
   <path fill="#52428d" d="M45 23h4v5h3v16h-2v8h-5v5H28v-2h11v-3h6v-5h3V31h-2v-5h-3z"/>
-  <!-- faceplate -->
   <path fill="#161520" d="M20 29h24v3h4v15h-4v4H20v-4h-4V32h4z"/>
   <path fill="url(#face)" d="M21 31h22v2h3v12h-3v3H21v-3h-3V33h3z"/>
   <path fill="#332d4d" d="M20 31h8v1h-7v4h-1zM43 31h2v4h-1v-2h-1z"/>
-  <!-- three face marks only: two eyes and one mouth -->
-  <path fill="#62f3ff" d="M21 37h9v2h-9zM37 37h7v2h-7zM30 47h5v2h-5z"/>
-  <!-- dangling hood ties -->
+  <!-- Fine one-unit pixel steps shape three tapered, claw-like slashes. -->
+  <path fill="#28f4ee" d="M23 36h3v1h-1v1h-1v2h1v1h1v1h-3v-1h-1v-3h1v-1h1zM38 36h3v1h1v3h-1v1h-1v1h-3v-1h1v-1h1v-2h-1v-1h-1z"/>
+  <path fill="#28f4ee" d="M30 35h4v1h-1v2h1v1h1v2h-1v1h-1v2h1v1h-4v-1h1v-2h-1v-1h-1v-2h1v-1h1v-2h-1z"/>
   <path fill="#31294d" d="M16 51h3v8h-2v4h-3v-3h2zM45 51h3v8h2v4h-3v-3h-2z"/>
   <path fill="#9380ed" d="M17 54h1v5h-1zM46 54h1v5h-1z"/>
-  <!-- feet -->
   <path fill="#24213a" d="M21 62h8v4h-2v5h-4v2h-7v-3h4v-6h1zM37 62h8v4h2v4h5v3H40v-3h-2v-5h-1z"/>
   <path fill="#61539b" d="M22 63h5v2h-5zM38 63h5v2h-5z"/>
-  <!-- pixel sparkle -->
-  <path fill="#6af4ff" d="M53 19h2v2h2v2h-2v2h-2v-2h-2v-2h2z"/>
 </svg>

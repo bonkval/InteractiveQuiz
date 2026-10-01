@@ -107,6 +107,9 @@ Return only the questions in this format, ready to import into Rev.`;
   let sessionSaveWarningShown = false;
   let pdfLoad = null;
   let examTicker = null;
+  let audioQuestion = null;
+  let audioUtterance = null;
+  let audioStatus = 'idle';
   const $ = (s, root = document) => root.querySelector(s);
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
@@ -126,6 +129,20 @@ Return only the questions in this format, ready to import into Rev.`;
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
     el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
     document.body.append(el); setTimeout(() => el.remove(), 3200);
+  }
+  function updateAudioButton() {
+    const button = $('#read-question');
+    if (!button) return;
+    button.textContent = audioStatus === 'playing' ? 'Pause audio' : audioStatus === 'paused' ? 'Resume audio' : 'Use audio';
+    button.setAttribute('aria-label', button.textContent);
+    button.setAttribute('aria-pressed', String(audioStatus !== 'idle'));
+  }
+  function stopAudio() {
+    audioUtterance = null;
+    audioQuestion = null;
+    audioStatus = 'idle';
+    window.speechSynthesis?.cancel();
+    updateAudioButton();
   }
   function showAnswerResult(correct) {
     document.querySelectorAll('.answer-result-overlay').forEach(item => item.remove());
@@ -604,6 +621,8 @@ Return only the questions in this format, ready to import into Rev.`;
   function renderQuestion(direction = '') {
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
+    const audioKey = `${reviewer.id}:${id}`;
+    if (audioQuestion && audioQuestion !== audioKey) stopAudio();
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
     if (state.timerQuestionId !== id || (state.timerQuestionKey && state.timerQuestionKey !== questionKey(q))) { state.timerQuestionId = id; state.timerQuestionKey = questionKey(q); state.questionStarted = Date.now(); state.timerExpired = false; }
     const deck = state.order.map((key, position) => {
@@ -633,11 +652,11 @@ Return only the questions in this format, ready to import into Rev.`;
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
     const knownAnswer = q.type==='matching' ? q.matches.map(match=>`${match.answer} → ${match.prompt}`).join(' · ') : q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
-    const explanationPanel = state.explanationsVisible ? `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>` : '';
+    const explanationPanel = `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>`;
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
     const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
-    const feedbackContent = `${status || feedback}${explanationPanel}`;
+    const feedbackContent = `${status || feedback}`;
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const unmatchedChoices = q.options.length && !q.correctAnswers.length && q.answer
       ? `<div class="unmatched-choices"><strong>Corrected answer needed</strong><p>The source choices do not contain the stated answer. Type the corrected answer below.</p><ol type="A">${q.options.map(option => `<li>${esc(option)}</li>`).join('')}</ol></div>` : '';
@@ -647,12 +666,12 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control explanation-toggle" id="toggle-explanations" aria-pressed="${state.explanationsVisible}" aria-label="${state.explanationsVisible ? 'Hide explanations' : 'Show explanations'}">${state.explanationsVisible ? 'Explanations on' : 'Explanations off'}</button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
+      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control explanation-toggle" id="toggle-explanations" role="switch" aria-checked="${state.explanationsVisible}" aria-label="Show explanations"><span>Explanations</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
       <p class="shortcut-hint">1–9 choose · ↑/↓ choices · ←/→ move · Enter next</p>
-      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><button type="button" class="copy-question-button audio-icon-button" id="read-question" aria-label="Read question aloud" title="Read aloud" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button><button type="button" class="copy-question-button audio-icon-button" id="stop-reading" aria-label="Stop audio" title="Stop audio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg></button><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div>
+      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button audio-text-button" id="read-question" aria-label="Use audio to read question aloud" title="Read aloud" aria-pressed="false">Use audio</button><button type="button" class="copy-question-button audio-text-button" id="stop-reading" aria-label="Stop audio" title="Stop audio">Stop audio</button></div><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div>${state.explanationsVisible ? explanationPanel : ''}
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${unmatchedChoices}${input}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
@@ -674,6 +693,7 @@ Return only the questions in this format, ready to import into Rev.`;
     }
     if (direction) $('.question-card').focus({preventScroll:true});
     if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
+    updateAudioButton();
     $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
       const option = Number(b.dataset.option), multi = q.correctAnswers.length > 1;
@@ -687,7 +707,7 @@ Return only the questions in this format, ready to import into Rev.`;
         choice.classList.toggle('selected', isSelected);
         choice.setAttribute('aria-pressed', String(isSelected));
       });
-      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = explanationPanel;
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = '';
       syncCurrentCard(answer.length > 0);
       saveSession();
     });
@@ -712,15 +732,36 @@ Return only the questions in this format, ready to import into Rev.`;
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
       delete state.results[id];
-      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = explanationPanel;
+      const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = '';
       syncCurrentCard(state.answers[id].length > 0);
       saveSession();
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
-    $('#toggle-explanations').onclick = () => { state.explanationsVisible=!state.explanationsVisible; renderQuestion(); };
+    $('#toggle-explanations').onclick = () => {
+      state.explanationsVisible = !state.explanationsVisible;
+      const toggle = $('#toggle-explanations');
+      toggle.setAttribute('aria-checked', String(state.explanationsVisible));
+      if (state.explanationsVisible) $('#question-prompt').insertAdjacentHTML('afterend', explanationPanel);
+      else $('.explanation-panel')?.remove();
+      saveSession();
+    };
     $('#main-panel').querySelectorAll('[data-rate]').forEach(button => button.onclick = () => rateKnowledge(button.dataset.rate));
-    $('#read-question').onclick = () => { if (!('speechSynthesis' in window)) return toast('Read aloud is not available in this browser.'); if (speechSynthesis.speaking && !speechSynthesis.paused) { speechSynthesis.pause(); $('#read-question').textContent='Resume audio'; return; } if (speechSynthesis.paused) { speechSynthesis.resume(); $('#read-question').textContent='Pause audio'; return; } const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}` : '', state.explanationsVisible ? `Explanation: ${q.explanation || 'No explanation was imported.'}` : ''].filter(Boolean).join('. '); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); $('#read-question').textContent='Pause audio'; $('#read-question').setAttribute('aria-pressed','true'); };
-    $('#stop-reading').onclick = () => { window.speechSynthesis?.cancel(); $('#read-question').textContent='Read aloud'; $('#read-question').setAttribute('aria-pressed','false'); };
+    $('#read-question').onclick = () => {
+      const synth = window.speechSynthesis;
+      if (!synth || !window.SpeechSynthesisUtterance) return toast('Read aloud is not available in this browser.');
+      if (audioStatus === 'playing') { synth.pause(); audioStatus = 'paused'; updateAudioButton(); return; }
+      if (audioStatus === 'paused' && synth.paused) { synth.resume(); audioStatus = 'playing'; updateAudioButton(); return; }
+      stopAudio();
+      const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}` : '', state.explanationsVisible ? `Explanation: ${q.explanation || 'No explanation was imported.'}` : ''].filter(Boolean).join('. ');
+      const utterance = new window.SpeechSynthesisUtterance(text);
+      audioQuestion = audioKey;
+      audioUtterance = utterance;
+      utterance.onend = utterance.onerror = () => { if (audioUtterance === utterance) stopAudio(); };
+      synth.speak(utterance);
+      audioStatus = 'playing';
+      updateAudioButton();
+    };
+    $('#stop-reading').onclick = stopAudio;
     $('#print-review').onclick = () => printReviewer(reviewer);
     $('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
     $('#flag-question').onclick = () => toggleFlag(q);
@@ -765,7 +806,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const target = Number(b.dataset.jump), direction = target > state.position ? 'next' : 'previous';
       state.position = target; renderQuestion(direction);
     });
-    $('#exit-quiz').onclick = () => { leaveStudy(); render(); };
+    $('#exit-quiz').onclick = () => { stopAudio(); leaveStudy(); render(); };
     $('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
@@ -800,7 +841,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown');
     else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered');
     if (state.position < state.order.length - 1) { state.position++; renderQuestion('next'); return; }
-    clearInterval(examTicker); state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
+    stopAudio(); clearInterval(examTicker); state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function leaveStudy() {
     clearSession();

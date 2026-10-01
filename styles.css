@@ -233,7 +233,9 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .study-filter-label{text-align:left;margin:0 0 5px}
 .study-filter{display:block;width:100%;min-height:44px;margin:0 0 14px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--text)}
 .study-filter:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.question-card-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
+.question-card-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:12px}
+.audio-actions{display:flex;align-items:center;gap:7px;padding-right:12px;border-right:1px solid var(--line)}
+.audio-text-button{white-space:nowrap;min-width:105px;text-align:center}
 .flag-question-button.is-flagged{border-color:#a46818;background:#fff2d9;color:#775017}
 .dark .flag-question-button.is-flagged{border-color:#8e6b38;background:#493922;color:#f1d09a}
 .question-index-card.flagged::after{content:"";display:block;position:absolute;right:5px;bottom:4px;width:5px;height:5px;border:0;border-radius:50%;background:#a46818;opacity:1;inset:auto 5px 4px auto;z-index:1}
@@ -293,9 +295,13 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .confidence-ratings{display:flex;align-items:center;gap:5px;flex-wrap:wrap;color:var(--muted);font-size:11px}
 .answer-explanations{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:12px;line-height:1.55}
 .study-controls{flex-wrap:wrap;justify-content:flex-end}
-.explanation-toggle[aria-pressed="true"]{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--accent)}
+.explanation-toggle{display:inline-flex;align-items:center;gap:9px}
+.switch-track{width:32px;height:18px;padding:2px;border-radius:99px;background:#d9dbe3;display:inline-flex;align-items:center;transition:background .16s ease}
+.switch-thumb{width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .16s ease}
+.explanation-toggle[aria-checked="true"] .switch-track{background:var(--accent)}
+.explanation-toggle[aria-checked="true"] .switch-thumb{transform:translateX(14px)}
 .feedback-area{flex:1;min-width:min(100%,250px)}
-.explanation-panel{margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));color:var(--text);font-size:12px;line-height:1.55;text-align:left}
+.explanation-panel{margin-top:20px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));color:var(--text);font-size:12px;line-height:1.55;text-align:left}
 .explanation-panel>strong{display:block;color:var(--accent);font-size:11px;letter-spacing:.04em}
 .explanation-panel p{margin:5px 0 0;color:var(--muted)}
 .explanation-panel .explanation-answer{color:var(--text)}
@@ -316,7 +322,7 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .dark .answer-option.correct,.dark .answer-option.correct .option-letter,.dark .feedback.good,.dark .feedback.neutral,.dark .import-feedback,.dark .help-option.help-correct,.dark .help-option.help-correct .help-option-letter{color:#bce6cc}
 .dark .help-option.picked-wrong .help-option-letter{color:#f0c0c1}
 @media(max-width:760px){.mobile-nav-toggle{top:calc(10px + env(safe-area-inset-top))}.main-area{padding-bottom:calc(12px + env(safe-area-inset-bottom))}}
-@media(max-width:760px){body.mobile-nav .site-links,body.mobile-nav.sidebar-collapsed .site-links{display:flex}.question-card-top{align-items:flex-start}.question-card-actions{max-width:75%}.copy-question-button{min-height:40px}.site-links a{min-height:36px;display:inline-flex;align-items:center}}
+@media(max-width:760px){body.mobile-nav .site-links,body.mobile-nav.sidebar-collapsed .site-links{display:flex}.question-card-top{align-items:flex-start;flex-direction:column}.question-card-actions{max-width:100%;justify-content:flex-start}.audio-actions{padding-right:8px}.copy-question-button{min-height:40px}.site-links a{min-height:36px;display:inline-flex;align-items:center}}
 .sidebar-brand-row{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:18px;padding:0 4px}
 .sidebar-brand-row .sidebar-brand{margin:0;min-width:0;flex:1}
 .help-button{width:36px;height:36px;flex:none;display:grid;place-items:center;border:1px solid transparent;border-radius:10px;color:var(--muted);text-decoration:none;transition:background .18s,color .18s,transform .18s}
@@ -366,6 +372,7 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 /* Viewport resilience for iOS Safari, Android, split-screen and floating windows. */
 html{min-height:100%;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{min-width:0;min-height:100vh;min-height:100dvh;overflow-x:hidden}
+html{scrollbar-gutter:stable}
 .sidebar{height:100vh;height:100dvh;min-height:100vh;min-height:100dvh}
 .main-area{min-height:100vh;min-height:100dvh;container-type:inline-size;container-name:app-pane}
 .main-panel{min-width:0;overflow-wrap:anywhere}
