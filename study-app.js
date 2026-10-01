@@ -338,14 +338,49 @@ Reviewer to convert:
   }
   function renderHelp() {
     saveSession();
-    $('#main-panel').innerHTML = `<section class="help-page" aria-labelledby="help-title"><div class="help-head"><div><p class="eyebrow">QUICK GUIDE</p><h1 id="help-title">How to use Rev</h1></div><button class="secondary-button" id="help-back" type="button">Back to reviewer</button></div>
-      <ol class="help-steps"><li><strong>Add a reviewer</strong><p>Choose <b>Import reviewer</b> in the sidebar. Paste your questions or select a file and its exhibit images. Check the preview, then save.</p></li>
-      <li><strong>Start studying</strong><p>Select a reviewer in the sidebar, choose a question set, and press <b>Start reviewing</b>. You can also use <b>Practice</b> to study without a score.</p></li>
-      <li><strong>Work through cards</strong><p>Choose an answer, then press <b>Next</b>. Use <b>Show answer</b> if you need help, <b>I don’t know</b> to revisit a card, or <b>Back</b> and the numbered cards to return to a question. Flag a confusing card for later.</p></li>
-      <li><strong>Review and keep your work</strong><p>At the end, review missed cards or start a set of incorrect, unanswered, flagged, or <b>I don’t know</b> questions. Progress saves on this device; use <b>Backup</b> to move reviewers to another device.</p></li></ol></section>`;
+    const reviewer = currentReviewer();
+    $('#main-panel').innerHTML = `<section class="help-page" aria-labelledby="help-title"><div class="help-head"><div><p class="eyebrow">TRY A SAMPLE</p><h1 id="help-title">See how a study card works</h1><p class="help-lede">Pick an answer or reveal it. This sample won’t affect your score or saved progress.</p></div><button class="secondary-button" id="help-back" type="button">Back</button></div>
+      <div class="help-stage"><div class="help-orbit orbit-a"></div><div class="help-orbit orbit-b"></div><span class="help-spark spark-a">✦</span><span class="help-spark spark-b">✧</span><div class="help-demo"><div class="help-demo-top"><span class="study-chip" id="help-count">SAMPLE · 1 OF 2</span><span class="help-demo-status" id="help-status" aria-live="polite">Choose an answer to try it.</span></div>
+      <h2 id="help-question">Which choice is the correct one?</h2><div class="help-options" id="help-options"><button class="help-option" data-correct="false"><span class="help-option-letter">A</span><span>A plausible distractor</span></button><button class="help-option" data-correct="true"><span class="help-option-letter">B</span><span>The marked correct answer</span></button><button class="help-option" data-correct="false"><span class="help-option-letter">C</span><span>Another distractor</span></button></div>
+      <div class="help-demo-actions"><button class="secondary-button" id="help-reveal" type="button">Show answer</button><button class="secondary-button" id="help-unknown" type="button">I don’t know</button><button class="primary-button" id="help-next" type="button" disabled>Next question <span>→</span></button></div></div>
+      </div><div class="help-guide" id="help-revvy"><div class="revvy-stage" aria-hidden="true"><div class="revvy-shadow"></div><div class="revvy-avatar"><svg viewBox="0 0 120 140"><defs><linearGradient id="revvyBody" x1="20" y1="12" x2="94" y2="116" gradientUnits="userSpaceOnUse"><stop stop-color="#d0c5ff"/><stop offset=".42" stop-color="#9d85f3"/><stop offset="1" stop-color="#6745ca"/></linearGradient><linearGradient id="revvySide" x1="68" y1="48" x2="103" y2="100" gradientUnits="userSpaceOnUse"><stop stop-color="#8c70e5"/><stop offset="1" stop-color="#5133a8"/></linearGradient><radialGradient id="revvyShine" cx="0" cy="0" r="1" gradientTransform="matrix(26 3 -2 20 37 32)" gradientUnits="userSpaceOnUse"><stop stop-color="#fff" stop-opacity=".6"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><ellipse cx="61" cy="125" rx="31" ry="8" fill="#291b4b" opacity=".16"/><path class="revvy-arm revvy-arm-left" d="M37 83c-16 4-17 18-27 19" fill="none" stroke="#8062de" stroke-width="12" stroke-linecap="round"/><path class="revvy-arm revvy-arm-right" d="M83 79c13-3 17-17 25-24" fill="none" stroke="#7757d5" stroke-width="12" stroke-linecap="round"/><path d="M22 73c-6-23 2-48 24-56 21-8 47 1 55 22 9 25-2 53-25 61-23 9-47-3-54-27Z" fill="url(#revvyBody)" stroke="#fff" stroke-opacity=".45" stroke-width="2"/><path d="M68 19c17 2 29 12 33 28 6 21-3 42-20 51 11-20 7-51-13-79Z" fill="url(#revvySide)" opacity=".55"/><ellipse cx="39" cy="34" rx="24" ry="17" fill="url(#revvyShine)"/><ellipse cx="47" cy="52" rx="4" ry="6" fill="#29213e"/><ellipse cx="70" cy="51" rx="4" ry="6" fill="#29213e"/><circle cx="48" cy="50" r="1.6" fill="white"/><circle cx="71" cy="49" r="1.6" fill="white"/><path d="M51 66c5 6 13 6 18 0" fill="none" stroke="#482d83" stroke-width="3" stroke-linecap="round"/><path d="m92 11 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" fill="#ffd27c" stroke="#fff" stroke-width="1.5"/><path d="M8 105c-4 1-6 4-6 8" fill="none" stroke="#b29afa" stroke-width="5" stroke-linecap="round"/></svg></div></div><div class="revvy-talk-wrap"><div class="revvy-speech" aria-live="polite"><span class="speech-tail"></span><strong>Revvy <span>your study buddy</span></strong><p id="revvy-message">Pick an answer and I’ll show you how feedback works.</p></div><div class="revvy-nudge">I’ll point out what to try <span>✦</span></div></div></div>
+      <div class="help-next-step"><div class="help-tip-copy"><strong>Tip: adapt a reviewer with the Import prompt</strong><p>Open <b>Prompts → Import prompt</b> in the sidebar and give it to your AI tool with your existing reviewer. It will reformat the questions to match Rev’s parser, ready for import.</p><button class="text-button help-prompt-link" id="help-open-import-prompt" type="button">Open Import prompt <span>↗</span></button></div><div class="help-real-feature"><div><strong>Ready to study for real?</strong><p>${reviewer ? `Continue with ${esc(reviewer.title)} or pick a question set to start.` : 'Add a reviewer from a file or paste your questions to get started.'}</p></div><button class="primary-button" id="help-go-feature" type="button">${reviewer ? 'Open reviewer' : 'Import reviewer'} <span>→</span></button></div></div></section>`;
     $('#help-back').onclick = () => { clearHash(); render(); };
-  }
-  function renderEasterEgg() {
+    $('#help-open-import-prompt').onclick = () => { location.hash = '#import-prompt'; };
+    const status = $('#help-status'), options = $('#help-options'), revvy = $('#revvy-message');
+    const say = (message, target = '#help-question', pose = 'point') => {
+      revvy.textContent = message;
+      const guide = $('#help-revvy'), stage = $('.help-stage'), avatar = $('.revvy-avatar');
+      guide.dataset.pose = pose;
+      stage.classList.remove('revvy-guiding');
+      const targetEl = document.querySelector(target);
+      if (targetEl) {
+        const stageRect = stage.getBoundingClientRect(), targetRect = targetEl.getBoundingClientRect();
+        const x = Math.max(42, Math.min(stageRect.width - 42, targetRect.left + targetRect.width * .72 - stageRect.left));
+        const y = Math.max(68, Math.min(stageRect.height - 35, targetRect.top + targetRect.height * .5 - stageRect.top));
+        stage.style.setProperty('--revvy-x', `${x}px`); stage.style.setProperty('--revvy-y', `${y}px`);
+      }
+      guide.classList.remove('revvy-talk'); void guide.offsetWidth; guide.classList.add('revvy-talk'); stage.classList.add('revvy-guiding');
+      avatar?.animate([{transform:'translate3d(0,0,0) rotateY(-8deg) scale(1)'},{transform:'translate3d(-8px,-13px,24px) rotateY(12deg) scale(1.08)'},{transform:'translate3d(0,0,0) rotateY(5deg) scale(1)'}],{duration:650,easing:'cubic-bezier(.2,.8,.2,1)'});
+    };
+    let step = 1, done = false;
+    const finishSample = message => { done = true; status.textContent = message; $('#help-next').disabled = false; };
+    options.onclick = event => {
+      const choice = event.target.closest('.help-option'); if (!choice || done) return;
+      options.querySelectorAll('.help-option').forEach(button => { button.classList.toggle('help-correct', button.dataset.correct === 'true'); button.disabled = true; });
+      choice.classList.add(choice.dataset.correct === 'true' ? 'picked-correct' : 'picked-wrong');
+      const correct = choice.dataset.correct === 'true'; finishSample(correct ? 'Correct! Rev shows the answer right away.' : 'Not quite. Rev shows the correct answer after your choice.'); say(correct ? 'Nice! The green highlight confirms your answer is right.' : 'That one’s a distractor. Look at the green answer.', '.help-option.help-correct', 'answers');
+    };
+    const revealSample = () => { options.querySelectorAll('.help-option').forEach(button => { button.classList.toggle('help-correct', button.dataset.correct === 'true'); button.disabled = true; }); };
+    $('#help-reveal').onclick = () => { revealSample(); finishSample('Answer revealed. Use this whenever you need a hint.'); say('Show answer is your hint. The correct choice lights up, then you can keep going.', '#help-reveal', 'reveal'); };
+    $('#help-unknown').onclick = () => { revealSample(); finishSample('Marked to revisit. “I don’t know” brings this card back later.'); say('I don’t know saves this card for another pass. No pressure, you can learn it next time.', '#help-unknown', 'unknown'); };
+    $('#help-next').onclick = () => {
+      if (!done) return;
+      if (step === 1) { step = 2; done = false; say('Next card! When the set ends, I’ll show you how to review missed questions.', '#help-next', 'next'); const card = document.querySelector('.help-demo'); card.classList.add('is-changing'); setTimeout(() => { $('#help-count').textContent = 'SAMPLE · 2 OF 2'; $('#help-question').textContent = 'What happens when you finish a study set?'; options.innerHTML = '<button class="help-option" data-correct="false"><span class="help-option-letter">A</span><span>Your progress is deleted</span></button><button class="help-option" data-correct="true"><span class="help-option-letter">B</span><span>You can review missed cards</span></button><button class="help-option" data-correct="false"><span class="help-option-letter">C</span><span>You must start over</span></button>'; status.textContent = 'Try this second sample question.'; $('#help-next').disabled = true; $('#help-next').innerHTML = 'Finish sample <span>✓</span>'; card.classList.remove('is-changing'); say('Answer this one to see how Rev helps you review a set.', '#help-question', 'answers'); }, 190); }
+      else { status.textContent = 'That’s the flow: answer, move on, then review what you missed.'; say('You did it! Try the real reviewer now, or open the Import prompt to prep your questions.'); $('#help-next').disabled = true; document.querySelector('.help-demo').classList.add('sample-complete'); }
+    };
+    $('#help-go-feature').onclick = () => { clearHash(); if (reviewer) render(); else openImport(); };
+  }  function renderEasterEgg() {
     $('#intro').hidden = true;
     $('#main-panel').innerHTML = `<section class="easter-egg-page"><p>09655236422 - alam nyo na gagawin</p><button class="secondary-button" id="egg-back">Back to reviewer</button></section>`;
     $('#egg-back').onclick = () => { clearHash(); render(); };
@@ -398,7 +433,15 @@ Reviewer to convert:
     const key = importPrompt ? IMPORT_KEY : MASTER_KEY;
     $('#main-panel').innerHTML = `<section class="prompt-editor"><div class="prompt-top"><h1>${importPrompt ? 'Import prompt' : 'Master prompt'}</h1>
       <span class="prompt-saved" id="prompt-saved">Saved on this device</span></div>
-      <textarea id="master-prompt" spellcheck="true"></textarea><div class="prompt-actions">
+      <div class="prompt-workspace"><div class="prompt-code-wrap"><div class="prompt-code-head"><span class="vscode-dots"><i></i><i></i><i></i></span><span>reviewer.txt</span><span class="prompt-language">PLAIN TEXT</span></div><div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div><pre><span class="code-heading">Question 1</span>
+<span class="code-question">What does a switch use to learn MAC addresses?</span>
+<span class="code-choice">Choice A: routing table</span>
+<span class="code-correct">Correct! Choice B: source MAC addresses</span>
+<span class="code-choice">Choice C: DNS records</span>
+<span class="code-choice">Choice D: IP subnet masks</span>
+<span class="code-answer">Answer: source MAC addresses</span></pre></div></div>
+      <div class="prompt-rendered"><div class="prompt-rendered-head"><span class="rendered-icon">✦</span><div><strong>Rev study card</strong><small>${importPrompt ? 'After using the Import prompt' : 'After using the Master prompt'}</small></div></div><div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">✓</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div></div></div>
+      <label class="prompt-editor-label" for="master-prompt">${importPrompt ? 'Import prompt text' : 'Master prompt text'}</label><textarea id="master-prompt" spellcheck="true"></textarea><div class="prompt-actions">
       <button class="secondary-button" id="copy-prompt">Copy prompt</button>
       <button class="primary-button" id="save-prompt">Save changes</button></div></section>`;
     const field = $('#master-prompt'); field.value = get(key, importPrompt ? IMPORT : MASTER);
@@ -903,6 +946,7 @@ Reviewer to convert:
     });
   }
   function initialize() {
+    const bootStarted = performance.now();
     load();
     const mobileLayout = window.matchMedia('(max-width:760px)');
     const applySidebarLayout = () => {
@@ -968,15 +1012,37 @@ Reviewer to convert:
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveSession(); });
     installKeyboardShortcuts();
     render();
+    installLavaLamp();
+    const finishBoot = () => {
+      const overlay = $('#boot-screen');
+      if (!overlay) return;
+      const delay = Math.max(0, 420 - (performance.now() - bootStarted));
+      setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), 520); }, delay);
+    };
     if (auth) {
       auth.auth.getUser().then(({data, error}) => {
         if (!error && data.user) switchAccount(data.user);
-      });
+      }).catch(() => {}).finally(finishBoot);
       auth.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT') queueMicrotask(() => switchAccount(null));
         if (event === 'SIGNED_IN' && session?.user) queueMicrotask(() => switchAccount(session.user));
       });
-    }
+    } else finishBoot();
+  }
+  function installLavaLamp() {
+    const field = $('#lava-field');
+    if (!field || !window.matchMedia('(pointer:fine)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const blobs = [...field.querySelectorAll('.lava-blob')];
+    let targetX = innerWidth * .52, targetY = innerHeight * .42, x = targetX, y = targetY, frame = 0;
+    const move = event => { targetX = event.clientX; targetY = event.clientY; };
+    const animate = () => {
+      x += (targetX - x) * .035; y += (targetY - y) * .035;
+      field.style.setProperty('--pointer-x', `${x}px`); field.style.setProperty('--pointer-y', `${y}px`);
+      frame = requestAnimationFrame(animate);
+    };
+    window.addEventListener('pointermove', move, {passive:true});
+    frame = requestAnimationFrame(animate);
+    window.addEventListener('pagehide', () => { cancelAnimationFrame(frame); window.removeEventListener('pointermove', move); }, {once:true});
   }
   initialize();
 })();
