@@ -26,6 +26,7 @@ const RevCore = (() => {
     return {
       sourceNumber: String(raw?.sourceNumber ?? index + 1),
       text: cleanReadingText(raw?.text),
+      ...(Array.isArray(raw?.statements) ? {statements:raw.statements.map(cleanReadingText),statementAnswers:Array.isArray(raw?.statementAnswers)?raw.statementAnswers.map(value=>/^(?:T|True)$/i.test(String(value))?'True':'False'):[],type:'grouped-boolean'} : {}),
       options,
       correctAnswers,
       answer,
@@ -180,6 +181,21 @@ const RevCore = (() => {
     const noteAt = lines.findIndex(line => /^(?:Explanation|Rationale|Reasoning|Solution|How\s+(?:the\s+)?answer\s+(?:was\s+)?(?:gotten|calculated|derived)|Why\s+[A-H])\s*:/i.test(line));
     const inlineNotes = noteAt >= 0 ? lines.slice(noteAt) : [];
     if (noteAt >= 0) lines = lines.slice(0, noteAt);
+    const groupedHeading = /(?:each|following)\s+statements?|select\s+true\s+or\s+false|true\s+or\s+false\s+for\s+each/i.test([block.heading,...lines].join(' '));
+    const groupedRows = lines.map(line => {
+      const match=line.match(/^(?:(?:[?*\-]\s*)|(?:\d+[.)]\s*))?(?:(?:\(([TF])\)|([TF])\s+(?=[A-Z]))\s*)?(.+?)\s*$/i);
+      if(!match) return null;
+      const explicit=match[1]||match[2];
+      const tail=match[3].match(/\s*[-??:]\s*(True|False|T|F)\s*$/i);
+      const result=explicit || tail?.[1]?.[0];
+      const statement=tail ? match[3].slice(0,tail.index).trim() : match[3].trim();
+      return statement && result ? {statement,answer:/^(?:T|True)$/i.test(result)?'True':'False'} : null;
+    }).filter(Boolean);
+    if(groupedHeading && groupedRows.length>=2) {
+      const rationale=inlineNotes.filter(line=>/^(?:Explanation|Rationale|Reasoning|Solution)\s*:/i.test(line)).map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,''));
+      return attachImages({sourceNumber:String(block.number),text:cleanReadingText([block.heading,...groupedRows.map((row,i)=>`${i+1}. ${row.statement}`)].join('\n')),options:[],correctAnswers:[],answer:'',type:'grouped-boolean',statements:groupedRows.map(row=>row.statement),statementAnswers:groupedRows.map(row=>row.answer),explanation:cleanReadingText(rationale.join('\n')),...media},media);
+    }
+
     if (!lines.length) return null;
     const explanationAt = lines.findIndex(line => /^ANSWER\s*(?:\+|AND)\s*EXPLANATION(?:\s*\|\s*PAGE\s+\d+)?\s*$/i.test(line));
     if (explanationAt >= 0) {
@@ -445,6 +461,7 @@ const RevCore = (() => {
 
   function isCorrect(question, answer) {
     if (!Array.isArray(answer) || !answer.length) return false;
+    if(question.type==='grouped-boolean') return answer.length===question.statements.length&&answer.every((value,index)=>normalize(value)===normalize(question.statementAnswers[index]));
     if (question.options.length && question.correctAnswers.length) {
       return answer.length === question.correctAnswers.length && answer.every(i => question.correctAnswers.includes(i));
     }

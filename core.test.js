@@ -31,6 +31,16 @@ test('imports identification answers and true or false with a wrong student resp
   assert.deepEqual(multiline.options, ['True', 'False']);
 });
 
+test('imports a multi-statement true-false question as one three-point card', () => {
+  const parsed=core.parseImport('Question 1\nFor each statement about bandwidth and throughput, select True or False.\nF  High levels of network latency decreases network bandwidth.\nT  Low Bandwidth can increase network latency.\nT  You can increase throughput by decreasing network congestion.');
+  assert.equal(parsed.questions.length,1);
+  assert.equal(parsed.questions[0].type,'grouped-boolean');
+  assert.equal(parsed.questions[0].statements.length,3);
+  assert.deepEqual(parsed.questions[0].statementAnswers,['False','True','True']);
+  assert.equal(core.isCorrect(parsed.questions[0],['False','True','True']),true);
+  assert.equal(core.isCorrect(parsed.questions[0],['True','True','True']),false);
+});
+
 test('deduplicates and prefers the copy with a key', () => {
   const input = 'Question 1\nSame question?\nChoice A: one\nChoice B: two\n\nQuestion 2\nSame question?\nCorrect! Choice A: one\nChoice B: two';
   const {questions} = core.parseImport(input);

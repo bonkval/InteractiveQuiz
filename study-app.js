@@ -61,6 +61,15 @@ Correct! Choice B: False
 Answer: False
 Explanation: Source-supported reasoning.
 
+For one question containing several true/false statements, keep the whole group as one card and include a separate T/F key per statement. Use this format:
+Question 4
+For each statement, select True or False.
+F High network latency reduces available bandwidth.
+T Low bandwidth can increase network latency.
+T Reducing congestion can improve throughput.
+Explanation: A concise explanation for the statements.
+Do not turn the statements into separate Question blocks. Rev grades each statement for one point.
+
 For identification, calculation, or a question without choices:
 Question 3
 Question text
@@ -172,7 +181,7 @@ Return only the questions in this format, ready to import into Rev.`;
     try {
       localStorage.setItem(scopedKey(SESSION_KEY), JSON.stringify({
         reviewerId: state.activeId, screen: state.screen, order: state.order, sessionIds: state.sessionIds,
-        position: state.position, answers: state.answers, results: state.results,
+        position: state.position, answers: state.answers, results: state.results, statementPoints:state.statementPoints || {},
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
         mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible,
         timerQuestionId:state.timerQuestionId, timerQuestionKey:state.timerQuestionKey || null, questionStarted:state.questionStarted, savedAt:Date.now()
@@ -196,6 +205,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.position = Math.min(Math.max(0, Number(saved.position) || 0), order.length - 1);
       state.answers = saved.answers && typeof saved.answers === 'object' ? saved.answers : {};
       state.results = saved.results && typeof saved.results === 'object' ? saved.results : {};
+      state.statementPoints = saved.statementPoints && typeof saved.statementPoints === 'object' ? saved.statementPoints : {};
       state.revealed = new Set(Array.isArray(saved.revealed) ? saved.revealed : []);
       state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
       state.explanationsVisible = Boolean(saved.explanationsVisible);
@@ -225,12 +235,14 @@ Return only the questions in this format, ready to import into Rev.`;
     toast(`Next review: ${rating === 'again' ? 'in 10 minutes' : `${deck[key].interval} day${deck[key].interval === 1 ? '' : 's'}`}.`);
   }
   function isAnswerCorrect(question, answer) {
+    if (question.type === 'grouped-boolean') return RevCore.isCorrect(question, answer);
     if (state.mode === 'written' && question.correctAnswers.length) {
       const typed=RevCore.normalize(answer?.[0]).replace(/[\s.,!?;:]+$/,'');
       return question.correctAnswers.some(index=>RevCore.normalize(question.options[index]).replace(/[\s.,!?;:]+$/,'')===typed);
     }
     return RevCore.isCorrect(question, answer);
   }
+  function isQuestionKeyed(question) { return question.type==='grouped-boolean' ? question.statementAnswers.length>0 : Boolean(question.correctAnswers.length||question.answer); }
   function isFlagged(question) { return Boolean(state.flags[state.activeId]?.includes(questionKey(question))); }
   function toggleFlag(question) {
     const key = questionKey(question), flags = new Set(state.flags[state.activeId] || []);
@@ -600,7 +612,9 @@ Return only the questions in this format, ready to import into Rev.`;
         data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
     }).join('');
     let input;
-    if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
+    if (q.type === 'grouped-boolean') {
+      input = `<div class="statement-list" role="group" aria-labelledby="question-prompt">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<fieldset class="statement-item"><legend><span>${index+1}.</span> ${esc(statement)}</legend><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></fieldset>`}).join('')}</div>`;
+    } else if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
       const multi = q.correctAnswers.length > 1;
       input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
         const checked = selected.includes(i);
@@ -612,7 +626,7 @@ Return only the questions in this format, ready to import into Rev.`;
     } else {
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
-    const knownAnswer = q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
+    const knownAnswer = q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
     const explanationPanel = state.explanationsVisible ? `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>` : '';
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
@@ -670,6 +684,10 @@ Return only the questions in this format, ready to import into Rev.`;
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = explanationPanel;
       syncCurrentCard(answer.length > 0);
       saveSession();
+    });
+    $('#main-panel').querySelectorAll('[data-statement]').forEach(button=>button.onclick=()=>{
+      const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
+      $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});syncCurrentCard(answers.length===q.statements.length);saveSession();
     });
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
@@ -747,8 +765,9 @@ Return only the questions in this format, ready to import into Rev.`;
     } else if (state.mode === 'practice') {
       if (answer.length) state.unknown.delete(id);
       else if (state.revealed.has(id)) state.unknown.add(id);
-    } else if (answer.length && (question.correctAnswers.length || question.answer)) {
+    } else if (answer.length && (question.correctAnswers.length || question.answer || question.type==='grouped-boolean')) {
       state.results[id] = isAnswerCorrect(question, answer);
+      if(question.type==='grouped-boolean') state.statementPoints=state.statementPoints||{},state.statementPoints[id]=answer.reduce((total,value,index)=>total+(value===question.statementAnswers[index]?1:0),0);
       showAnswerResult(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
@@ -789,17 +808,19 @@ Return only the questions in this format, ready to import into Rev.`;
     saveSession();
     const reviewer = currentReviewer();
     const sessionIds = state.sessionIds.length ? state.sessionIds : reviewer.questions.map((_, i) => i);
-    const keyed = sessionIds.filter(i => reviewer.questions[i].correctAnswers.length || reviewer.questions[i].answer);
-    const score = keyed.filter(i => state.results[i] === true).length;
+    const keyed = sessionIds.filter(i => isQuestionKeyed(reviewer.questions[i]));
+    const maxScore = keyed.reduce((sum,i)=>sum+(reviewer.questions[i].type==='grouped-boolean'?reviewer.questions[i].statementAnswers.length:1),0);
+    const score = keyed.reduce((sum,i)=>sum+(reviewer.questions[i].type==='grouped-boolean'?(state.statementPoints?.[i]||0):(state.results[i]===true?1:0)),0);
     const outcomes = sessionIds.map(i => {
       const q = reviewer.questions[i];
-      const hasKey = q.correctAnswers.length || q.answer;
+      const hasKey = isQuestionKeyed(q);
       const correct = state.results[i] === true;
+      const partial = q.type==='grouped-boolean' && state.statementPoints?.[i] > 0 && !correct;
       const status = state.unknown.has(i) ? 'I don\'t know'
         : state.mode === 'practice' ? (state.answers[i]?.length || state.revealed.has(i) ? 'Practiced' : 'Not practiced')
-          : !hasKey ? 'No key' : correct ? 'Correct' : state.results[i] === false ? 'Incorrect' : 'Not answered';
+          : !hasKey ? 'No key' : correct ? 'Correct' : partial ? `${state.statementPoints[i]} / ${q.statementAnswers.length} points` : state.results[i] === false ? 'Incorrect' : 'Not answered';
       const missed = state.mode === 'practice' ? state.unknown.has(i) : state.unknown.has(i) || (hasKey && !correct);
-      const tone = status === 'Correct' ? 'correct' : status === 'Incorrect' ? 'incorrect'
+      const tone = status === 'Correct' ? 'correct' : status === 'Incorrect' ? 'incorrect' : partial ? 'unknown'
         : status === 'I don\'t know' || status === 'Not answered' ? 'unknown' : 'neutral';
       return {q, i, status, tone, missed};
     });
@@ -811,7 +832,7 @@ Return only the questions in this format, ready to import into Rev.`;
       ${missed.length ? `<button class="primary-button" id="review-missed">Review missed cards</button>` : ''}</section>`;
     const completion = state.mode === 'practice'
       ? `<p class="result-sub">Practice complete · ${sessionIds.length} cards</p>`
-      : `<div class="result-score">${score}<span class="score-total"> / ${keyed.length}</span></div>
+      : `<div class="result-score">${score}<span class="score-total"> / ${maxScore}</span></div>
         <p class="result-sub">${keyed.length < sessionIds.length ? `${keyed.length} scored · ${sessionIds.length - keyed.length} without an answer key` : `${sessionIds.length} questions`}</p>`;
     $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice complete' : state.mode === 'exam' ? 'Exam complete' : 'Review complete'}</h2>
       ${completion}${summary}
@@ -836,6 +857,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const readableImages = images.filter(image => !/^data:image\//i.test(image));
       const hasEmbeddedImage = images.some(image => /^data:image\//i.test(image));
       const refs = [...new Set([...(q.imageRefs || []), ...readableImages, ...(hasEmbeddedImage ? ['attached'] : [])])];
+      if(q.type==='grouped-boolean') return `Question ${q.sourceNumber}\n${q.text.split('\n').slice(0,1)[0]}\n${q.statements.map((statement,index)=>`${index+1}. ${statement} — ${q.statementAnswers[index]}`).join('\n')}${q.explanation?`\nExplanation: ${q.explanation}`:''}`;
       return `Question ${q.sourceNumber}\n${q.text}\n${q.options.length
         ? q.options.map((o, i) => `${q.correctAnswers.includes(i) ? 'Correct! ' : ''}Choice ${String.fromCharCode(65 + i)}: ${o}`).join('\n')
         : q.answer ? `Answer: ${q.answer}${(q.acceptedAnswers || []).length ? `\nAlso accepted: ${q.acceptedAnswers.join(' | ')}` : ''}` : ''}${q.options.length && !q.correctAnswers.length && q.answer ? `\nAnswer: ${q.answer}` : ''}${q.explanation ? `\nExplanation: ${q.explanation}` : ''}${Object.entries(q.optionExplanations || {}).map(([i,note])=>`\nWhy ${String.fromCharCode(65+Number(i))}: ${note}`).join('')}${refs.map((image,index) => `\nExhibit: ${image}${q.imageAlts?.[index] ? `\nAlt text ${index + 1}: ${q.imageAlts[index]}` : ''}`).join('')}`;
