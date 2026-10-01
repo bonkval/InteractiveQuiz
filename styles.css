@@ -292,6 +292,14 @@ body,button,input,textarea,select{font-family:system-ui,-apple-system,"Segoe UI"
 .topic-editor input{width:min(260px,70%);min-height:34px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
 .confidence-ratings{display:flex;align-items:center;gap:5px;flex-wrap:wrap;color:var(--muted);font-size:11px}
 .answer-explanations{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:12px;line-height:1.55}
+.study-controls{flex-wrap:wrap;justify-content:flex-end}
+.explanation-toggle[aria-pressed="true"]{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent) 10%,var(--surface));color:var(--accent)}
+.feedback-area{flex:1;min-width:min(100%,250px)}
+.explanation-panel{margin-top:10px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--accent) 24%,var(--line));border-radius:10px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));color:var(--text);font-size:12px;line-height:1.55;text-align:left}
+.explanation-panel>strong{display:block;color:var(--accent);font-size:11px;letter-spacing:.04em}
+.explanation-panel p{margin:5px 0 0;color:var(--muted)}
+.explanation-panel .explanation-answer{color:var(--text)}
+.explanation-panel .answer-explanations{margin-top:7px}
 .sync-status{font-size:11px!important;color:var(--muted)!important}
 .daily-progress{display:block;width:100%;height:7px;margin:8px 0 12px;accent-color:var(--accent)}
 .topic-progress{margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px;text-align:left;font-size:12px}

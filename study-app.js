@@ -38,30 +38,40 @@ Correct! designated
 For the True or false just keep it as is.
 If there is a duplicate and the other one is wrong, remove the wrong one and keep the correct one.
 If theres no duplicate and there is only the wrong one, then just keep it as is because it will still serve as the reviewer.`;
-  const IMPORT = `Convert this reviewer into plain text for Rev.
+  const IMPORT = `Convert the entire pasted reviewer or attached reviewer PDF into question blocks that Rev can import. Read the whole source before writing: questions may mix multiple choice, true/false, identification, and image-based questions, while answers and explanations may be collected in a numbered section at the end of the PDF.
 
-Preserve the exact wording and order of every question and choice. Preserve every correct answer at its existing choice position. Mark a choice correct only when the source explicitly identifies it as correct. A student's wrong answer is not correct. Keep True/False and identification questions as they are. Remove duplicate questions, page numbers, and unrelated headers. If duplicates disagree, keep the copy with a clear correct answer. Do not invent missing questions, choices, answers, or exhibits.
-Keep any source-provided explanation after the answer as Explanation: text. If the source explains individual choices, preserve those notes as Why A: text, Why B: text, and so on. Never infer a rationale that the source does not support.
+Preserve question wording, order, and the original position of every correct choice. Match end-of-document answer and explanation entries to the right question by number or unmistakable question text. Keep true/false questions true/false. Keep identification questions as typed answers. Preserve diagrams, images, and exhibit references; never invent missing content.
 
-For any question that refers to a picture, diagram, topology, screenshot, or exhibit, keep its reference and add a line inside the question block: Exhibit: exact-image-filename.png. Preserve filenames exactly and attach each image only to the question that refers to it. Never replace an exhibit with a description or invent one. If an exhibit file is not available, write Exhibit: missing. If the image is available, add an Alt text: line that briefly describes what is visible. Do not invent details you cannot see.
+For every question, include its answer and a concise explanation in the same question block. Reuse the source explanation when provided. If the answer key is missing but the source explanation identifies the answer, put the answer on an Answer: line and explain it. For multiple choice, identify the correct choice letter and text. For computed answers, put the final value on the Answer: line and show the key calculation in Explanation:. For true/false, put True or False on Answer:. Do not guess when the source is insufficient; write Answer: Not stated in source and explain what is missing. Do not invent supporting facts.
 
-Return only this format, with one choice per line:
+Use this format, with one choice per line:
 Question 1
 Question text
 Choice A: first choice
 Correct! Choice B: second choice
 Choice C: third choice
+Answer: B — second choice
+Explanation: Why choice B is correct, based on the source.
 
-For identification, preserve the main answer. Include alternate answers only when the source explicitly lists them:
+For true/false, preserve the two choices and mark the correct one:
 Question 2
-Question text
-Answer: answer text
-Also accepted: another valid answer | a common abbreviation
+Statement
+Choice A: True
+Correct! Choice B: False
+Answer: False
+Explanation: Source-supported reasoning.
 
-For multiple correct answers, prefix each correct choice with Correct!. Do not add markdown fences or a separate answer key.
+For identification, calculation, or a question without choices:
+Question 3
+Question text
+Answer: exact answer
+Explanation: Concise source-supported rationale or calculation.
+
+For images, include Exhibit: exact-filename.png in that question block and an Alt text: line only when the image is available. If unavailable, write Exhibit: missing. For multiple correct choices, mark each with Correct!. Keep any explanation for individual choices as Why A: text, Why B: text, and so on. Do not add markdown fences, a separate answer key, or explanations detached from their questions.
 
 Reviewer to convert:
-[PASTE REVIEWER HERE]`;
+[PASTE REVIEWER HERE]
+`;
   const PDF_QUESTION_PROMPT = `Read the attached module PDF and create a concise quiz reviewer based only on its content.
 
 Cover the key concepts. Do not invent facts. Write clear questions with four distinct choices and exactly one correct answer. Vary the correct answer position. Use this format:
@@ -84,6 +94,7 @@ Return only the questions in this format, ready to import into Rev.`;
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
     sessionReviewer: null,
+    explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
     flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null, timerStarted: 0,
     sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
@@ -161,7 +172,7 @@ Return only the questions in this format, ready to import into Rev.`;
         reviewerId: state.activeId, screen: state.screen, order: state.order, sessionIds: state.sessionIds,
         position: state.position, answers: state.answers, results: state.results,
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
-        mixedIds: state.sessionReviewer?.sourceIds || null
+        mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible
       }));
       sessionSaveWarningShown = false;
     } catch {
@@ -184,6 +195,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.results = saved.results && typeof saved.results === 'object' ? saved.results : {};
       state.revealed = new Set(Array.isArray(saved.revealed) ? saved.revealed : []);
       state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
+      state.explanationsVisible = Boolean(saved.explanationsVisible);
       state.retry = Boolean(saved.retry); state.mode = ['practice','exam','written'].includes(saved.mode) ? saved.mode : 'quiz';
     } catch { clearSession(); }
   }
@@ -584,11 +596,11 @@ Return only the questions in this format, ready to import into Rev.`;
       input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
     }
     const knownAnswer = q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
-    const explanation = q.explanation && RevCore.normalize(q.explanation) !== RevCore.normalize(knownAnswer) ? `<p class="answer-explanation">${esc(q.explanation)}</p>` : '';
-    const optionExplanations = revealed && q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : '';
+    const explanationPanel = state.explanationsVisible ? `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>` : '';
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
-    const feedback = revealed ? `${knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>'}${explanation}${optionExplanations}` : '';
+    const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
+    const feedbackContent = `${status || feedback}${explanationPanel}`;
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const deckEl = $('.question-deck');
     const oldScroll = deckEl?.scrollLeft ?? null;
@@ -596,7 +608,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="read-question" aria-pressed="false">Read aloud</button><button class="mini-control" id="stop-reading">Stop audio</button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
+      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control explanation-toggle" id="toggle-explanations" aria-pressed="${state.explanationsVisible}" aria-label="${state.explanationsVisible ? 'Hide explanations' : 'Show explanations'}">${state.explanationsVisible ? 'Explanations on' : 'Explanations off'}</button><button class="mini-control" id="read-question" aria-pressed="false">Read aloud</button><button class="mini-control" id="stop-reading">Stop audio</button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
@@ -604,7 +616,7 @@ Return only the questions in this format, ready to import into Rev.`;
       <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div><label class="topic-editor">Topic <input id="question-topic" type="text" value="${esc(q.topic || '')}" placeholder="e.g. Routing" aria-label="Topic tag for this question"></label>
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
-      ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${status || feedback}</div>
+      ${selectionHint}${input}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
@@ -649,9 +661,10 @@ Return only the questions in this format, ready to import into Rev.`;
       saveSession();
     });
     $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
+    $('#toggle-explanations').onclick = () => { state.explanationsVisible=!state.explanationsVisible; renderQuestion(); };
     $('#question-topic').onchange = event => { q.topic = event.target.value.trim(); reviewer.updatedAt = Date.now(); if(reviewer.sourceIds){const source=state.reviewers.find(item=>item.title===q.sourceReviewer),original=source?.questions.find(item=>RevCore.normalize(item.text)===RevCore.normalize(q.text));if(original){original.topic=q.topic;source.updatedAt=Date.now();}} saveReviewers(); };
     $('#main-panel').querySelectorAll('[data-rate]').forEach(button => button.onclick = () => rateKnowledge(button.dataset.rate));
-    $('#read-question').onclick = () => { if (!('speechSynthesis' in window)) return toast('Read aloud is not available in this browser.'); if (speechSynthesis.speaking && !speechSynthesis.paused) { speechSynthesis.pause(); $('#read-question').textContent='Resume audio'; return; } if (speechSynthesis.paused) { speechSynthesis.resume(); $('#read-question').textContent='Pause audio'; return; } const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}. ${q.explanation || ''}` : ''].filter(Boolean).join('. '); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); $('#read-question').textContent='Pause audio'; $('#read-question').setAttribute('aria-pressed','true'); };
+    $('#read-question').onclick = () => { if (!('speechSynthesis' in window)) return toast('Read aloud is not available in this browser.'); if (speechSynthesis.speaking && !speechSynthesis.paused) { speechSynthesis.pause(); $('#read-question').textContent='Resume audio'; return; } if (speechSynthesis.paused) { speechSynthesis.resume(); $('#read-question').textContent='Pause audio'; return; } const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}` : '', state.explanationsVisible ? `Explanation: ${q.explanation || 'No explanation was imported.'}` : ''].filter(Boolean).join('. '); speechSynthesis.speak(new SpeechSynthesisUtterance(text)); $('#read-question').textContent='Pause audio'; $('#read-question').setAttribute('aria-pressed','true'); };
     $('#stop-reading').onclick = () => { window.speechSynthesis?.cancel(); $('#read-question').textContent='Read aloud'; $('#read-question').setAttribute('aria-pressed','false'); };
     $('#print-review').onclick = () => printReviewer(reviewer);
     $('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };

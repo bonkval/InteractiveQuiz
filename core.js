@@ -82,11 +82,87 @@ const RevCore = (() => {
     return null;
   }
 
+  function attachExplanationNotes(question, notes, warnings, block) {
+    if (!question || !notes?.length) return question;
+    const rationale = [], optionExplanations = {...(question.optionExplanations || {})};
+    let destination = null;
+    for (const raw of notes) {
+      const line = String(raw || '').trim();
+      if (!line) continue;
+      const answer = line.match(/^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*(.+)$/i);
+      if (answer) {
+        if (!question.correctAnswers.length && !question.answer && !isUnknownAnswer(answer[1])) {
+          if (question.options.length) applyAnswerKey(question, answer[1], warnings, block);
+          else question.answer = cleanReadingText(answer[1]);
+        }
+        destination = null;
+        continue;
+      }
+      const why = line.match(/^(?:Why|Choice|Option)\s+([A-H])\s*(?:is\s+correct\s*)?:\s*(.+)$/i);
+      if (why) {
+        const index = why[1].toUpperCase().charCodeAt(0) - 65;
+        optionExplanations[index] = cleanReadingText([optionExplanations[index], why[2]].filter(Boolean).join(' '));
+        destination = {type:'option', index};
+        continue;
+      }
+      const explanation = line.match(/^(?:Explanation|Rationale|Reasoning|Solution|How\s+(?:the\s+)?answer\s+(?:was\s+)?(?:gotten|calculated|derived))\s*:\s*(.*)$/i);
+      if (explanation) {
+        if (explanation[1]) rationale.push(explanation[1]);
+        destination = {type:'explanation'};
+        continue;
+      }
+      if (destination?.type === 'option') {
+        optionExplanations[destination.index] = cleanReadingText([optionExplanations[destination.index], line].filter(Boolean).join(' '));
+      } else {
+        rationale.push(line);
+        destination = {type:'explanation'};
+      }
+    }
+    question.explanation = cleanReadingText([question.explanation, ...rationale].filter(Boolean).join('\n'));
+    if (Object.keys(optionExplanations).length) question.optionExplanations = optionExplanations;
+    inferAnswerFromExplanation(question);
+    return question;
+  }
+
+  function isUnknownAnswer(value) {
+    return /^(?:not stated|unknown|not provided|cannot be determined|could not be determined)(?:\b|\s*\()/i.test(String(value || '').trim());
+  }
+
+  function inferAnswerFromExplanation(question) {
+    if (!question?.explanation || question.correctAnswers.length || question.answer) return question;
+    const explanation = question.explanation;
+    const labeled = explanation.match(/(?:correct\s+answer|answer|result|computed\s+answer)\s*(?:is|was|=|:)?\s*(?:Choice\s+)?([A-H])(?:\b|\s*[:.)-])/i);
+    if (labeled && question.options.length) {
+      const index = labeled[1].toUpperCase().charCodeAt(0) - 65;
+      if (index >= 0 && index < question.options.length) question.correctAnswers = [index];
+    }
+    const identified = explanation.match(/(?:Choice|option)\s+([A-H])\s+(?:is|would be)\s+(?:the\s+)?correct\b|\b([A-H])\s+is\s+correct\b/i);
+    const identifiedLetter = identified?.[1] || identified?.[2];
+    if (!question.correctAnswers.length && question.options.length && identifiedLetter) {
+      const index=identifiedLetter.toUpperCase().charCodeAt(0)-65;
+      if(index>=0&&index<question.options.length) question.correctAnswers=[index];
+    }
+    if (question.correctAnswers.length) return question;
+    const statement = explanation.match(/(?:the\s+)?(?:correct\s+)?(?:answer|result)\s+(?:is|was|=)\s+(.+?)(?=\s+(?:because|since|as)\b|[.!?]|$)/i);
+    if (statement) {
+      const value = cleanReadingText(statement[1].replace(/^Choice\s+/i, '').replace(/^['"“”]|['"“”]$/g, ''));
+      const option = question.options.findIndex(choice => normalize(choice) === normalize(value));
+      if (option >= 0) question.correctAnswers = [option];
+      else if (!question.options.length) question.answer = value;
+    }
+    const computed = explanation.match(/(?:computed|calculated)\s+answer\s*(?:is|=|:)?\s*([^.;\n]+)/i);
+    if (!question.answer && !question.correctAnswers.length && !question.options.length && computed) question.answer = cleanReadingText(computed[1]);
+    return question;
+  }
+
   function parseBlock(block, warnings) {
     const media = imageSources(block.lines);
-    const lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image|Alt text(?:\s+\d+)?)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
+    let lines = block.lines.filter(line => line && !/^\s*(?:(?:Exhibit|Image|Alt text(?:\s+\d+)?)\s*:|!\[[^\]]*\]\([^)]+\)\s*$)/i.test(line));
+    const noteAt = lines.findIndex(line => /^(?:Explanation|Rationale|Reasoning|Solution|How\s+(?:the\s+)?answer\s+(?:was\s+)?(?:gotten|calculated|derived)|Why\s+[A-H])\s*:/i.test(line));
+    const inlineNotes = noteAt >= 0 ? lines.slice(noteAt) : [];
+    if (noteAt >= 0) lines = lines.slice(0, noteAt);
     if (!lines.length) return null;
-    const explanationAt = lines.findIndex(line => /^ANSWER\s*\+\s*EXPLANATION(?:\s*\|\s*PAGE\s+\d+)?\s*$/i.test(line));
+    const explanationAt = lines.findIndex(line => /^ANSWER\s*(?:\+|AND)\s*EXPLANATION(?:\s*\|\s*PAGE\s+\d+)?\s*$/i.test(line));
     if (explanationAt >= 0) {
       const sourceLines = lines.slice(0, explanationAt);
       const question = parseBlock({...block, lines:sourceLines}, []);
@@ -95,27 +171,8 @@ const RevCore = (() => {
         question.options = []; question.correctAnswers = [];
         question.text = cleanReadingText([block.heading, ...sourceLines].filter(Boolean).join('\n'));
       }
-      const notes = lines.slice(explanationAt + 1);
-      const explicit = notes.find(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:/i.test(line));
-      if (explicit) applyAnswerKey(question, explicit.replace(/^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*/i, ''), warnings, block);
-      const optionExplanations = Object.fromEntries(notes.map(line => { const match = line.match(/^Why\s+([A-Z])\s*:\s*(.+)$/i); return match ? [match[1].toUpperCase().charCodeAt(0)-65, cleanReadingText(match[2])] : null; }).filter(Boolean));
-      if (Object.keys(optionExplanations).length) question.optionExplanations = optionExplanations;
-      const rationale = notes.filter(line => line !== explicit && !/^Also accepted\s*:/i.test(line) && !/^Why\s+[A-Z]\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, '').trim()).filter(Boolean);
-      question.explanation = cleanReadingText([question.explanation, ...rationale].filter(Boolean).join('\n'));
-      if (!question.correctAnswers.length && !question.answer) {
-        const stated = question.explanation.match(/(?:the\s+)?correct answer\s+(?:is\s+)?(?:Choice\s+)?([A-Z]|[^.!?]+?)(?=\s+(?:because|since|as)\b|[.!?]|$)/i);
-        if (stated) {
-          const token = stated[1].trim().replace(/["“”]/g, '');
-          const index = /^[A-Z]$/i.test(token) ? token.toUpperCase().charCodeAt(0) - 65 : question.options.findIndex(option => normalize(option) === normalize(token));
-          if (index >= 0 && index < question.options.length) question.correctAnswers = [index];
-          else if (!/^[A-Z]$/i.test(token)) question.answer = token;
-        }
-        const correctedResult = question.explanation.match(/\bresult\s+is\s+([^.;!?]+)/i);
-        const noListedAnswer = /no (?:correct )?(?:listed )?answer|no correct option|no listed answer/i.test(question.explanation);
-        if (correctedResult && noListedAnswer && !question.answer) question.answer = cleanReadingText(correctedResult[1]);
-        else if (!question.options.length && question.explanation && !question.answer) question.answer = question.explanation;
-        else if (noListedAnswer && !question.answer) question.answer = question.explanation;
-      }
+      attachExplanationNotes(question, lines.slice(explanationAt + 1), warnings, block);
+      attachExplanationNotes(question, inlineNotes, warnings, block);
       return attachImages(question, media);
     }
     const answerAt = lines.findIndex(line => /^(?:(?:Correct\s+)?Answers?|Best answer)\s*:\s*\S/i.test(line));
@@ -124,15 +181,17 @@ const RevCore = (() => {
       const acceptedAnswers = lines.slice(answerAt + 1)
         .filter(line => /^Also accepted\s*:/i.test(line))
         .flatMap(line => line.replace(/^Also accepted\s*:\s*/i, '').split(/\s*[|;]\s*/).map(value => value.trim()).filter(Boolean));
-      if (lines.slice(0, answerAt).some(line => optionLine(line).labeled)) {
-        const question = parseBlock({...block, lines: lines.slice(0, answerAt)}, []);
-        applyAnswerKey(question, key, warnings, block);
-        const notes = lines.slice(answerAt + 1), optionExplanations = Object.fromEntries(notes.map(line => { const match=line.match(/^Why\s+([A-Z])\s*:\s*(.+)$/i); return match ? [match[1].toUpperCase().charCodeAt(0)-65,cleanReadingText(match[2])] : null; }).filter(Boolean));
-        if (Object.keys(optionExplanations).length) question.optionExplanations = optionExplanations;
-        question.explanation = cleanReadingText([question.explanation, ...notes.filter(line => !/^Also accepted\s*:/i.test(line) && !/^Why\s+[A-Z]\s*:/i.test(line)).map(line => line.replace(/^Explanation\s*:\s*/i, ''))].filter(Boolean).join('\n'));
+      if (lines.slice(0, answerAt).some(line => optionLine(line).labeled || optionLine(line).marked)) {
+        const question = parseBlock({...block, lines:lines.slice(0, answerAt)}, []);
+        if (!isUnknownAnswer(key)) applyAnswerKey(question, key, warnings, block);
+        attachExplanationNotes(question, lines.slice(answerAt + 1).filter(line=>!/^Also accepted\s*:/i.test(line)), warnings, block);
+        attachExplanationNotes(question, inlineNotes, warnings, block);
         return attachImages(question, media);
       }
-      return attachImages(normalizeQuestion({ sourceNumber: block.number, text: [block.heading, ...lines.slice(0, answerAt)].filter(Boolean).join('\n'), answer: key, acceptedAnswers }), media);
+      const question = normalizeQuestion({sourceNumber:block.number,text:[block.heading,...lines.slice(0,answerAt)].filter(Boolean).join('\n'),answer:isUnknownAnswer(key)?'':key,acceptedAnswers});
+      attachExplanationNotes(question, lines.slice(answerAt + 1).filter(line=>!/^Also accepted\s*:/i.test(line)), warnings, block);
+      attachExplanationNotes(question, inlineNotes, warnings, block);
+      return attachImages(question, media);
     }
     const firstLabeled = lines.findIndex(line => optionLine(line).labeled);
     const firstMarked = lines.findIndex(line => optionLine(line).marked);
@@ -152,25 +211,20 @@ const RevCore = (() => {
       start = endOfQuestion >= 0 ? endOfQuestion + 1 : Math.min(1, lines.length);
       if (lines.length > start) warnings.push(`Question ${block.number}: no answer key was found.`);
     }
-    const text = [block.heading, ...lines.slice(0, start)].filter(Boolean).join('\n').trim();
-    const optionRows = lines.slice(start);
-    const labeled = optionRows.some(line => optionLine(line).labeled);
-    const options = [], correctAnswers = [];
+    const text = [block.heading,...lines.slice(0,start)].filter(Boolean).join('\n').trim();
+    const optionRows = lines.slice(start), labeled = optionRows.some(line=>optionLine(line).labeled);
+    const options=[], correctAnswers=[];
     for (const line of optionRows) {
-      const option = optionLine(line);
+      const option=optionLine(line);
       if (!option.text) continue;
-      if (labeled && !option.labeled && !option.marked && options.length) {
-        options[options.length - 1] += `\n${option.text}`;
-      } else {
-        options.push(option.text);
-        if (option.correct) correctAnswers.push(options.length - 1);
-      }
+      if (labeled && !option.labeled && !option.marked && options.length) options[options.length-1] += `\n${option.text}`;
+      else { options.push(option.text); if(option.correct) correctAnswers.push(options.length-1); }
     }
-    if (options.length && !correctAnswers.length && firstMarked < 0) {
-      warnings.push(`Question ${block.number}: no answer key was found.`);
-    }
+    if (options.length && !correctAnswers.length && firstMarked < 0) warnings.push(`Question ${block.number}: no answer key was found.`);
     if (!text) warnings.push(`Question ${block.number}: question text is empty.`);
-    return attachImages(normalizeQuestion({ sourceNumber: block.number, text, options, correctAnswers }), media);
+    const question=normalizeQuestion({sourceNumber:block.number,text,options,correctAnswers});
+    attachExplanationNotes(question,inlineNotes,warnings,block);
+    return attachImages(question,media);
   }
 
   function applyAnswerKey(question, rawKey, warnings, block) {
