@@ -1190,10 +1190,10 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function installLavaLamp() {
     const field = $('#lava-field');
-    if (!field || !window.matchMedia('(pointer:fine)').matches || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!field || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const blobs = [...field.querySelectorAll('.lava-blob')];
     let targetX = innerWidth * .52, targetY = innerHeight * .42, x = targetX, y = targetY, frame = 0;
-    const move = event => { targetX = event.clientX; targetY = event.clientY; };
+    const move = event => { if(event.pointerType==='touch')return; targetX = event.clientX; targetY = event.clientY; };
     const animate = () => {
       x += (targetX - x) * .035; y += (targetY - y) * .035;
       field.style.setProperty('--pointer-x', `${x}px`); field.style.setProperty('--pointer-y', `${y}px`);
