@@ -100,7 +100,7 @@ Return only the questions in this format, ready to import into Rev.`;
     mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 34 34" fill="none">${icon}</svg></span>`;
     document.body.append(mark);
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    setTimeout(() => mark.remove(), reducedMotion ? 260 : 760);
+    setTimeout(() => mark.remove(), reducedMotion ? 280 : 940);
   }
   function load() {
     state.reviewers = [];
