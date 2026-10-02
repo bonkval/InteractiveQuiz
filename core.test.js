@@ -206,6 +206,24 @@ test('keeps pages with unlabeled marked PDF choices when no question headings ex
   assert.deepEqual(questions[0].correctAnswers, [1]);
 });
 
+test('imports parser companion format without conflicting duplicate answer keys', () => {
+  const input = 'Question 1\nSelect two interfaces.\nCorrect! Choice A: Gi0/1\nChoice B: Gi0/2\nCorrect! Choice C: Gi0/3\nExplanation: Both marked interfaces match the configuration.';
+  const {questions, warnings} = core.parseImport(input);
+  assert.equal(questions.length, 1);
+  assert.deepEqual(questions[0].options, ['Gi0/1','Gi0/2','Gi0/3']);
+  assert.deepEqual(questions[0].correctAnswers, [0,2]);
+  assert.equal(questions[0].explanation, 'Both marked interfaces match the configuration.');
+  assert.deepEqual(warnings, []);
+});
+
+test('parses exhibit only when marker uses its exact attached image filename', () => {
+  const input = 'Question 1\nRefer to the diagram.\nExhibit: q001-diagram.png\nAlt text: A router connected to a switch.';
+  const question = core.parseImport(input).questions[0];
+  const resolved = core.resolveImageFiles([question], [{name:'q001-diagram.png',data:'data:image/png;base64,ZmFrZQ=='}]);
+  assert.deepEqual(resolved.unresolved, []);
+  assert.equal(question.images[0], 'data:image/png;base64,ZmFrZQ==');
+});
+
 test('bundled reviewer has complete questions and answer keys', () => {
   global.window = {};
   require('./reviewer-data');

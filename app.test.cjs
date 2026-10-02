@@ -110,6 +110,26 @@ test('quick filters separate incorrect and I-dont-know cards', () => {
   dom.window.close();
 });
 
+test('TXT companion is preferred to PDF regardless of attachment order', async () => {
+  const dom = openApp();
+  await signInOwner(dom);
+  dom.window.File = class MockFile {
+    constructor(name, text) { this.name=name; this.type=name.endsWith('.pdf')?'application/pdf':'text/plain'; this.text=async()=>text; }
+  };
+  const pdf = new dom.window.File('reviewer.pdf','Question 1\nPDF copy should not be selected');
+  const txt = new dom.window.File('reviewer_Revvy_Import.txt','Question 1\nWhich choice is correct?\nChoice A: first\nCorrect! Choice B: second');
+  await dom.window.document.querySelector('#new-reviewer').click();
+  dom.window.document.querySelector('.import-tab[data-tab="file"]').click();
+  dom.window.document.querySelector('#file-input').onchange({target:{files:[pdf,txt]}});
+  dom.window.document.querySelector('#import-submit').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(dom.window.document.querySelector('#import-preview').hidden, false);
+  assert.equal(dom.window.document.querySelectorAll('.preview-question').length, 1);
+  assert.match(dom.window.document.querySelector('#import-preview').textContent,/second/);
+  assert.doesNotMatch(dom.window.document.querySelector('#import-preview').textContent,/PDF copy/);
+  dom.window.close();
+});
+
 test('public visitors do not see reviewer editing or registration', () => {
   const dom = openApp(), {document} = dom.window;
   assert.equal(document.querySelector('#new-reviewer').hidden,true);
