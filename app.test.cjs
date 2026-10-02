@@ -173,7 +173,7 @@ test('a corrected PDF answer is entered as text and can be graded', async () => 
   dom.window.close();
 });
 
-test('grouped true-false statements stay on one card and score three points', async () => {
+test('grouped true-false statements show three cards on one page and score three points', async () => {
   const dom=openApp(),{document}=dom.window;
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value='Question 1: For each statement, select True or False.\nF High latency decreases bandwidth.\nT Low bandwidth can increase latency.\nT Less congestion can increase throughput.';
@@ -182,9 +182,29 @@ test('grouped true-false statements stay on one card and score three points', as
   document.querySelector('#import-submit').click(); await new Promise(resolve=>setTimeout(resolve,0));
   document.querySelector('#start-quiz').click();
   assert.equal(document.querySelectorAll('.statement-item').length,3);
+  assert.equal(document.querySelectorAll('.question-index-card').length,1, 'one page contains all three statements');
+  assert.doesNotMatch(document.querySelector('#question-prompt').textContent,/High latency decreases bandwidth/);
+  assert.match(document.querySelectorAll('.statement-item h3')[0].textContent,/High latency decreases bandwidth/);
+  assert.equal(document.querySelectorAll('.statement-choices .answer-option').length,6);
   [['False','True'],['True','True'],['True','True']].forEach((pair,index)=>document.querySelector(`[data-statement="${index}"][data-value="${pair[0]}"]`).click());
+  assert.equal(document.querySelectorAll('.statement-item.is-answered').length,3);
   document.querySelector('#next-question').click();
   assert.match(document.querySelector('.result-score').textContent,/3\s*\/\s*3/);
+  dom.window.close();
+});
+
+test('grouped statement text is not repeated in the scenario', async () => {
+  const dom=openApp(),{document}=dom.window;
+  const statements=['The interfaces can communicate over Layer 2.','The interfaces are administratively shut down.','The interfaces have default IP addresses.'];
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value=JSON.stringify({questions:[{sourceNumber:'87',type:'grouped-boolean',text:`You purchase a new switch. 1. ${statements.join(' 2. ')}`,statements,statementAnswers:['True','False','False'],explanation:'Check each statement.'}]});
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();
+  assert.equal(document.querySelector('#question-prompt').textContent,'You purchase a new switch.');
+  assert.deepEqual([...document.querySelectorAll('.statement-item h3')].map(item=>item.textContent),statements);
+  document.querySelector('#toggle-explanations').click();
+  assert.ok(document.querySelector('.statement-list').compareDocumentPosition(document.querySelector('.explanation-panel')) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
   dom.window.close();
 });
 

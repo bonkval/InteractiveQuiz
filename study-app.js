@@ -624,6 +624,9 @@ Return only the questions in this format, ready to import into Rev.`;
     const audioKey = `${reviewer.id}:${id}`;
     if (audioQuestion && audioQuestion !== audioKey) stopAudio();
     const revealed = state.revealed.has(id), selected = state.answers[id] || [];
+    const firstStatement = q.type === 'grouped-boolean' ? q.statements[0] : '';
+    const statementStart = firstStatement ? q.text.indexOf(firstStatement) : -1;
+    const questionPrompt = statementStart < 0 ? q.text : q.text.slice(0, statementStart).replace(/\s*\d+[.)]\s*$/, '').trim();
     if (state.timerQuestionId !== id || (state.timerQuestionKey && state.timerQuestionKey !== questionKey(q))) { state.timerQuestionId = id; state.timerQuestionKey = questionKey(q); state.questionStarted = Date.now(); state.timerExpired = false; }
     const deck = state.order.map((key, position) => {
       const item = reviewer.questions[key];
@@ -638,7 +641,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (q.type === 'matching') {
       input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
     } else if (q.type === 'grouped-boolean') {
-      input = `<div class="statement-list" role="group" aria-labelledby="question-prompt">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<fieldset class="statement-item"><legend><span>${index+1}.</span> ${esc(statement)}</legend><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></fieldset>`}).join('')}</div>`;
+      input = `<div class="statement-list" role="group" aria-label="True or false statements">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<section class="statement-item ${answer?'is-answered':''}" role="group" aria-labelledby="statement-title-${index}"><span class="statement-label">Statement ${index+1} of ${q.statements.length}</span><h3 id="statement-title-${index}">${esc(statement)}</h3><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></section>`}).join('')}</div>`;
     } else if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
       const multi = q.correctAnswers.length > 1;
       input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
@@ -671,10 +674,10 @@ Return only the questions in this format, ready to import into Rev.`;
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
       <p class="shortcut-hint">1–9 choose · ↑/↓ choices · ←/→ move · Enter next</p>
-      <article class="question-card" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button audio-text-button" id="read-question" aria-label="Use audio to read question aloud" title="Read aloud" aria-pressed="false">Use audio</button><button type="button" class="copy-question-button audio-text-button" id="stop-reading" aria-label="Stop audio" title="Stop audio">Stop audio</button></div><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(q.text)}</div>${state.explanationsVisible ? explanationPanel : ''}
+      <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button audio-text-button" id="read-question" aria-label="Use audio to read question aloud" title="Read aloud" aria-pressed="false">Use audio</button><button type="button" class="copy-question-button audio-text-button" id="stop-reading" aria-label="Stop audio" title="Stop audio">Stop audio</button></div><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
-      ${selectionHint}${unmatchedChoices}${input}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
+      ${selectionHint}${unmatchedChoices}${input}${q.type === 'grouped-boolean' ? `<div id="explanation-anchor" class="grouped-explanation">${state.explanationsVisible ? explanationPanel : ''}</div>` : ''}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
       <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
@@ -713,7 +716,8 @@ Return only the questions in this format, ready to import into Rev.`;
     });
     $('#main-panel').querySelectorAll('[data-statement]').forEach(button=>button.onclick=()=>{
       const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
-      $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});syncCurrentCard(answers.length===q.statements.length);saveSession();
+      $('#main-panel').querySelectorAll('[data-statement]').forEach(choice=>choice.classList.remove('correct','incorrect'));
+      $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});button.closest('.statement-item').classList.add('is-answered');const feedbackArea=$('.feedback-area');if(feedbackArea)feedbackArea.innerHTML='';syncCurrentCard(answers.filter(Boolean).length===q.statements.length);saveSession();
     });
     if(q.type==='matching'){
       let activeTile='';
@@ -741,8 +745,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.explanationsVisible = !state.explanationsVisible;
       const toggle = $('#toggle-explanations');
       toggle.setAttribute('aria-checked', String(state.explanationsVisible));
-      if (state.explanationsVisible) $('#question-prompt').insertAdjacentHTML('afterend', explanationPanel);
-      else $('.explanation-panel')?.remove();
+      $('#explanation-anchor').innerHTML = state.explanationsVisible ? explanationPanel : '';
       saveSession();
     };
     $('#main-panel').querySelectorAll('[data-rate]').forEach(button => button.onclick = () => rateKnowledge(button.dataset.rate));
@@ -752,7 +755,7 @@ Return only the questions in this format, ready to import into Rev.`;
       if (audioStatus === 'playing') { synth.pause(); audioStatus = 'paused'; updateAudioButton(); return; }
       if (audioStatus === 'paused' && synth.paused) { synth.resume(); audioStatus = 'playing'; updateAudioButton(); return; }
       stopAudio();
-      const text = [q.text, ...q.options, revealed ? `Answer: ${knownAnswer}` : '', state.explanationsVisible ? `Explanation: ${q.explanation || 'No explanation was imported.'}` : ''].filter(Boolean).join('. ');
+      const text = [questionPrompt, ...(q.type === 'grouped-boolean' ? q.statements.map((statement,index)=>`Statement ${index+1}: ${statement}`) : q.options), revealed ? `Answer: ${knownAnswer}` : '', state.explanationsVisible ? `Explanation: ${q.explanation || 'No explanation was imported.'}` : ''].filter(Boolean).join('. ');
       const utterance = new window.SpeechSynthesisUtterance(text);
       audioQuestion = audioKey;
       audioUtterance = utterance;
@@ -766,9 +769,9 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
     $('#flag-question').onclick = () => toggleFlag(q);
     $('#copy-question').onclick = async () => {
-      const copyText = [`Question ${q.sourceNumber}`, q.text, ...q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`),
+      const copyText = [`Question ${q.sourceNumber}`, questionPrompt, ...(q.type === 'grouped-boolean' ? q.statements.map((statement,index)=>`${index+1}. ${statement}`) : q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`)),
         ...exhibits.map((_, index) => `Exhibit ${index + 1}: attached image`), ...(q.imageRefs || []).map(ref => `Exhibit: ${ref} (not attached)`)].join('\n');
-      const copyHtml = `<p><strong>Question ${esc(q.sourceNumber)}</strong></p><p>${esc(q.text).replace(/\n/g,'<br>')}</p>${q.options.length ? `<ol type="A">${q.options.map(option => `<li>${esc(option)}</li>`).join('')}</ol>` : ''}${exhibits.map((image,index) => `<p>Exhibit ${index + 1}</p><img src="${esc(image)}" alt="${esc(q.imageAlts?.[index] || `Exhibit ${index + 1}`)}">`).join('')}`;
+      const copyHtml = `<p><strong>Question ${esc(q.sourceNumber)}</strong></p><p>${esc(questionPrompt).replace(/\n/g,'<br>')}</p>${q.type === 'grouped-boolean' ? `<ol>${q.statements.map(statement=>`<li>${esc(statement)}</li>`).join('')}</ol>` : q.options.length ? `<ol type="A">${q.options.map(option => `<li>${esc(option)}</li>`).join('')}</ol>` : ''}${exhibits.map((image,index) => `<p>Exhibit ${index + 1}</p><img src="${esc(image)}" alt="${esc(q.imageAlts?.[index] || `Exhibit ${index + 1}`)}">`).join('')}`;
       try {
         if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('Rich clipboard unavailable');
         const formats = {'text/plain': new Blob([copyText], {type:'text/plain'}), 'text/html': new Blob([copyHtml], {type:'text/html'})};

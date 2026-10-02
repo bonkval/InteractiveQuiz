@@ -41,6 +41,15 @@ test('imports a multi-statement true-false question as one three-point card', ()
   assert.equal(core.isCorrect(parsed.questions[0],['True','True','True']),false);
 });
 
+test('JSON import preserves grouped true-false and matching activity types', () => {
+  const questions=core.parseImport(JSON.stringify({questions:[
+    {text:'Choose true or false.',statements:['First statement','Second statement'],statementAnswers:['T','F']},
+    {text:'Match each item.',answerTiles:['A','B'],matches:[{prompt:'First',answer:'A'},{prompt:'Second',answer:'B'}]}
+  ]})).questions;
+  assert.equal(questions[0].type,'grouped-boolean');
+  assert.equal(questions[1].type,'matching');
+});
+
 test('imports answer-bank matching activities as one point-per-pair card',()=>{
   const imported=core.parseImport('Question 1: Move each cloud computing service model from the list on the left to the correct example. IaaS SaaS PaaS\nPAAS - A company develops an application using cloud-based resources and tools.\nIAAS - Virtual machines are connected by a virtual network in the cloud.\nSAAS - User accesses a web-based graphics design application for a monthly fee.');
   const q=imported.questions[0];
