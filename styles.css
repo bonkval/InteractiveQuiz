@@ -452,3 +452,11 @@ html{scrollbar-gutter:stable}
 .audio-icon-button{width:34px;min-width:34px;height:34px;padding:7px;display:grid;place-items:center}
 .audio-icon-button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .audio-icon-button[aria-pressed="true"]{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 45%,var(--line));background:color-mix(in srgb,var(--accent) 7%,var(--surface))}
+.prompt-pdf-preview{display:grid;place-items:center;min-height:300px;padding:18px;background:#e4e5eb}
+.sample-pdf-page{display:flex;flex-direction:column;gap:10px;width:min(100%,290px);min-height:270px;padding:18px;background:#fff;color:#252631;box-shadow:0 8px 24px #10111a30}
+.sample-pdf-page h3{margin:0;font:700 13px/1.45 Manrope,system-ui,sans-serif}
+.sample-pdf-figure{display:grid;flex:1;min-height:62px;place-items:center;padding:10px;border:1px solid #dce0e8;background:linear-gradient(135deg,#f0f3f8,#e6eaf0);color:#687080;text-align:center;font-size:9px}
+.sample-pdf-answer{margin-top:8px;padding:10px 11px;border:1px solid #d5e0eb;border-radius:5px;background:#f1f6fa;color:#273b50;font-size:9px;line-height:1.45}
+.sample-pdf-answer strong{display:block;color:#385b7a;font-size:8px;letter-spacing:.05em}
+.sample-pdf-answer p{margin:5px 0 0}
+.prompt-rendered .sample-pdf-answer{font-size:10px}

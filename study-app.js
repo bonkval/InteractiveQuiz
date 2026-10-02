@@ -38,60 +38,40 @@ Correct! designated
 For the True or false just keep it as is.
 If there is a duplicate and the other one is wrong, remove the wrong one and keep the correct one.
 If theres no duplicate and there is only the wrong one, then just keep it as is because it will still serve as the reviewer.`;
-  const IMPORT = `Convert the entire pasted reviewer or attached reviewer PDF into question blocks that Rev can import. Read the whole source before writing: questions may mix multiple choice, true/false, identification, and image-based questions, while answers and explanations may be collected in a numbered section at the end of the PDF.
+  const IMPORT = `Create a complete, polished, downloadable PDF study reviewer from the attached source reviewer. Do not return a .txt file, Markdown, or a list of questions as the final deliverable. Attach the finished PDF to your response. If you cannot create or attach a PDF in this environment, state that limitation and do not present text as the completed deliverable.
 
-Preserve question wording, order, and the original position of every correct choice. Match end-of-document answer and explanation entries to the right question by number or unmistakable question text. Keep true/false questions true/false. Keep identification questions as typed answers. Preserve diagrams, images, and exhibit references; never invent missing content.
+Attachments and their roles:
+- The source reviewer is the authority for question wording, choices, marked answers, diagrams, screenshots, and study content.
+- Use CCST_Networking_Reviewer_Explained (1).pdf as the visual and organizational reference. Follow its clean certification-review style: an illustrated cover, clear topic dividers, readable question pages, and a distinct ANSWER + EXPLANATION box near the bottom of each question page. Do not copy its questions or unrelated images into the new reviewer.
+- If either attachment is missing or unreadable, identify which one and ask for it. Do not guess at missing source material.
 
-For every question, include its answer and a concise explanation in the same question block. Reuse the source explanation when provided. If the answer key is missing but the source explanation identifies the answer, put the answer on an Answer: line and explain it. For multiple choice, identify the correct choice letter and text. For computed answers, put the final value on the Answer: line and show the key calculation in Explanation:. For true/false, put True or False on Answer:. Do not guess when the source is insufficient; write Answer: Not stated in source and explain what is missing. Do not invent supporting facts.
+Read the entire source before creating the PDF. Preserve every unique question, its original order, wording, choices, and correct-answer positions. Remove only exact duplicates. When duplicate versions conflict, keep the version with the most complete, source-supported answer and explanation; flag any unresolved conflict in the PDF instead of silently choosing. Match answer keys and explanations from later sections to the correct question number or unmistakable question text. If a marked answer conflicts with clear evidence in the source, flag the conflict instead of silently changing the key.
 
-Use this format, with one choice per line:
-Question 1
-Question text
-Choice A: first choice
-Correct! Choice B: second choice
-Choice C: third choice
-Answer: B — second choice
-Explanation: Why choice B is correct, based on the source.
+Preserve the source’s full range of question formats. Do not force everything into single-answer multiple choice:
+- Single-answer multiple choice: show every original choice in its original order and visibly identify the correct choice.
+- Select-two, select-all, or other multiple-answer questions: preserve the required number of selections, identify every correct choice, and explain each; note partial credit only when the source specifies it.
+- True/false: keep ordinary statements as true/false. For grouped true/false questions, retain the shared scenario and show every statement separately with its own True/False answer and concise reasoning.
+- Matching, sorting, or drag-and-drop activities: preserve the complete instruction, answer bank, every target, and the correct mapping. Lay these out as a clear matching table or paired lists, then provide the answer mapping and explanation.
+- Identification, fill-in, command, configuration, and short-answer questions: retain the requested response format and give the exact source-supported answer.
+- Calculations and subnetting: show the final answer and enough working to make the result reviewable.
+- Scenario, troubleshooting, topology, diagram, and command-output questions: preserve the full scenario and all evidence needed to answer, then explain how that evidence supports the answer.
+- Multi-part questions: keep all parts together with a clearly separated answer for each part.
 
-For true/false, preserve the two choices and mark the correct one:
-Question 2
-Statement
-Choice A: True
-Correct! Choice B: False
-Answer: False
-Explanation: Source-supported reasoning.
+Images and exhibits are required study content. Extract and embed every relevant source photograph, topology, network diagram, screenshot, command output, table, and other exhibit on or beside the question that refers to it. Preserve the original image and its details; do not replace it with a caption, filename, link, generic icon, newly invented diagram, or blank placeholder. Keep text in screenshots and labels legible at normal PDF zoom. Do not crop away relevant details, stretch images, or separate an image from its question. If an image cannot be extracted or is unreadable, list its question number and source page in a short issues note and do not pretend it was included.
 
-For one question containing several true/false statements, keep the whole group as one card and include a separate T/F key per statement. Use this format:
-Question 4
-For each statement, select True or False.
-F High network latency reduces available bandwidth.
-T Low bandwidth can increase network latency.
-T Reducing congestion can improve throughput.
-Explanation: A concise explanation for the statements.
-Do not turn the statements into separate Question blocks. Rev grades each statement for one point.
+Make the PDF easy to use as a reviewer:
+- Add a professional cover with the source reviewer’s title, a restrained networking visual, and a short subtitle. Include a contents page and topic divider pages when the source provides enough information to group questions reliably; do not invent topics or learning objectives.
+- Use a consistent page size, margins, typography, spacing, and page numbers. Give each question a clear number and visual hierarchy. Keep choices, instructions, and source exhibits with their question.
+- Put the correct answer and a concise explanation in a clearly labeled box on the same page as its question whenever space permits. For a long matching or grouped question, use the next page only when needed and repeat the question number and part label so the connection is unmistakable.
+- Reuse explanations from the source where available. When the source gives an answer but no explanation, add a concise, technically accurate rationale using established networking knowledge; do not present added reasoning as text quoted from the source. Never invent question details, answer evidence, diagrams, or technical facts. If the source is incomplete or internally inconsistent, state exactly what is missing or inconsistent and mark the answer as uncertain.
+- Preserve meaningful source labels, units, command syntax, interface names, addresses, and answer-choice lettering. Check that the final PDF contains all questions and all available exhibits before delivery.
 
-For matching or drag-and-drop questions, keep all pairs in one activity. Put the available answer tiles on separate "Word:" lines, then list one target per line with its correct answer label first:
-Question 5
-Move each service model to its correct example.
-Word: IaaS
-Word: SaaS
-Word: PaaS
-Example 1: A company develops an application using cloud-based resources and tools. — PaaS
-Example 2: Virtual machines are connected by a virtual network in the cloud. — IaaS
-Example 3: A user accesses a web-based graphics design application for a monthly fee. — SaaS
-Rev will make one draggable answer bank and award one point per correctly matched example.
+Before attaching the PDF, verify that it opens, the page count is nonzero, question numbering is complete, answer boxes match their questions, and every source exhibit is present, sharp, and not clipped. The final deliverable must be the actual PDF file.
 
-For identification, calculation, or a question without choices:
-Question 3
-Question text
-Answer: exact answer
-Explanation: Concise source-supported rationale or calculation.
-
-For images, include Exhibit: exact-filename.png in that question block and an Alt text: line only when the image is available. If unavailable, write Exhibit: missing. For multiple correct choices, mark each with Correct!. Keep any explanation for individual choices as Why A: text, Why B: text, and so on. Do not add markdown fences, a separate answer key, or explanations detached from their questions.
-
-Reviewer to convert:
-[PASTE REVIEWER HERE]
-`;
+Source reviewer to organize: the attached source reviewer PDF.
+Visual reference only: the attached CCST_Networking_Reviewer_Explained (1).pdf.`;
+  const LEGACY_IMPORT_LENGTH = 3519;
+  const LEGACY_IMPORT_HASH = 900036575;
   const PDF_QUESTION_PROMPT = `Read the attached module PDF and create a concise quiz reviewer based only on its content.
 
 Cover the key concepts. Do not invent facts. Write clear questions with four distinct choices and exactly one correct answer. Vary the correct answer position. Use this format:
@@ -561,21 +541,38 @@ Return only the questions in this format, ready to import into Rev.`;
   function renderPrompt(importPrompt, pdfPrompt = false) {
     const key = pdfPrompt ? PDF_PROMPT_KEY : importPrompt ? IMPORT_KEY : MASTER_KEY;
     const title = pdfPrompt ? 'PDF question prompt' : importPrompt ? 'Import prompt' : 'Master prompt';
+    const filename = importPrompt ? 'organized-reviewer.pdf' : 'reviewer.txt';
+    const outputType = importPrompt ? 'PDF PAGE PREVIEW' : 'PLAIN TEXT';
+    const exampleMarkup = importPrompt
+      ? '<div class="prompt-pdf-preview"><div class="sample-pdf-page"><span class="rendered-q-number">QUESTION 01 - PAGE 05</span><h3>Which two statements are true about this network?</h3><div class="sample-pdf-figure">Original network diagram or command output</div><div class="sample-pdf-answer"><strong>ANSWER + EXPLANATION</strong><p>Keep correct answers and source-based reasoning with this question.</p></div></div></div>'
+      : '<div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div><pre><span class="code-heading">Question 1</span>\n<span class="code-question">What does a switch use to learn MAC addresses?</span>\n<span class="code-choice">Choice A: routing table</span>\n<span class="code-correct">Correct! Choice B: source MAC addresses</span>\n<span class="code-choice">Choice C: DNS records</span>\n<span class="code-choice">Choice D: IP subnet masks</span>\n<span class="code-answer">Answer: source MAC addresses</span></pre></div>';
+    const previewTitle = importPrompt ? 'Illustrated PDF reviewer' : 'Rev study card';
+    const previewSubtitle = pdfPrompt ? 'Generated from your module PDF' : importPrompt ? 'Question, source exhibit, answer + explanation' : 'After using the Master prompt';
+    const previewBody = importPrompt
+      ? '<div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>Which two statements are true about this network?</h2><div class="rendered-choice"><b>FIGURE</b><span>Original topology or exhibit embedded here</span></div><div class="sample-pdf-answer"><strong>ANSWER + EXPLANATION</strong><p>Answer key and concise source-supported reasoning.</p></div></div>'
+      : '<div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">&#10003;</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div>';
+    const instructions = pdfPrompt
+      ? '<p class="pdf-prompt-tip">Attach your module PDF in your AI tool, paste this prompt, then copy the generated questions into Rev.</p>'
+      : importPrompt
+        ? '<p class="pdf-prompt-tip">Attach the reviewer to organize and CCST_Networking_Reviewer_Explained (1).pdf as the visual reference. Ask your AI tool for an actual downloadable PDF.</p>'
+        : '';
     $('#main-panel').innerHTML = `<section class="prompt-editor"><div class="prompt-top"><h1>${title}</h1>
       <span class="prompt-saved" id="prompt-saved">Saved on this device</span></div>
-      <div class="prompt-workspace"><div class="prompt-code-wrap"><div class="prompt-code-head"><span class="vscode-dots"><i></i><i></i><i></i></span><span>reviewer.txt</span><span class="prompt-language">PLAIN TEXT</span></div><div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div><pre><span class="code-heading">Question 1</span>
-<span class="code-question">What does a switch use to learn MAC addresses?</span>
-<span class="code-choice">Choice A: routing table</span>
-<span class="code-correct">Correct! Choice B: source MAC addresses</span>
-<span class="code-choice">Choice C: DNS records</span>
-<span class="code-choice">Choice D: IP subnet masks</span>
-<span class="code-answer">Answer: source MAC addresses</span></pre></div></div>
-      <div class="prompt-rendered"><div class="prompt-rendered-head"><span class="rendered-icon">✦</span><div><strong>Rev study card</strong><small>${pdfPrompt ? 'Generated from your module PDF' : importPrompt ? 'After using the Import prompt' : 'After using the Master prompt'}</small></div></div><div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">✓</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div></div></div>
-      ${pdfPrompt ? '<p class="pdf-prompt-tip">Attach your module PDF in your AI tool, paste this prompt, then copy the generated questions into Rev.</p>' : ''}
+      <div class="prompt-workspace"><div class="prompt-code-wrap"><div class="prompt-code-head"><span class="vscode-dots"><i></i><i></i><i></i></span><span>${filename}</span><span class="prompt-language">${outputType}</span></div>${exampleMarkup}</div>
+      <div class="prompt-rendered"><div class="prompt-rendered-head"><span class="rendered-icon">&#10022;</span><div><strong>${previewTitle}</strong><small>${previewSubtitle}</small></div></div>${previewBody}</div></div>
+      ${instructions}
       <label class="prompt-editor-label" for="master-prompt">${title} text</label><textarea id="master-prompt" spellcheck="true"></textarea><div class="prompt-actions">
       <button class="secondary-button" id="copy-prompt">Copy prompt</button>
       <button class="primary-button" id="save-prompt">Save changes</button></div></section>`;
-    const field = $('#master-prompt'); field.value = get(key, pdfPrompt ? PDF_QUESTION_PROMPT : importPrompt ? IMPORT : MASTER);
+    const field = $('#master-prompt');
+    const savedPrompt = get(key);
+    let legacyHash = 2166136261;
+    if (importPrompt && savedPrompt?.length === LEGACY_IMPORT_LENGTH) {
+      for (let i = 0; i < savedPrompt.length; i++) legacyHash = Math.imul(legacyHash ^ savedPrompt.charCodeAt(i), 16777619);
+    }
+    const migrateLegacyPrompt = importPrompt && savedPrompt?.length === LEGACY_IMPORT_LENGTH && (legacyHash >>> 0) === LEGACY_IMPORT_HASH;
+    field.value = migrateLegacyPrompt ? IMPORT : savedPrompt ?? (pdfPrompt ? PDF_QUESTION_PROMPT : importPrompt ? IMPORT : MASTER);
+    if (migrateLegacyPrompt) put(key, IMPORT);
     field.oninput = () => $('#prompt-saved').textContent = 'Unsaved changes';
     $('#save-prompt').onclick = () => { if (put(key, field.value)) $('#prompt-saved').textContent = 'Saved'; };
     $('#copy-prompt').onclick = async () => {
