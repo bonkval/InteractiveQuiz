@@ -130,6 +130,15 @@ test('TXT companion is preferred to PDF regardless of attachment order', async (
   dom.window.close();
 });
 
+test('pixel lava backdrop exists behind the app without pointer tracking', () => {
+  const dom = openApp(), {document} = dom.window;
+  const field = document.querySelector('#lava-field');
+  assert.ok(field);
+  assert.equal(field.querySelectorAll('.lava-blob').length, 5);
+  assert.ok(field.querySelector('.lava-pixels'));
+  dom.window.close();
+});
+
 test('public visitors do not see reviewer editing or registration', () => {
   const dom = openApp(), {document} = dom.window;
   assert.equal(document.querySelector('#new-reviewer').hidden,true);

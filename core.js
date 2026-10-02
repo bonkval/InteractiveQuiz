@@ -457,6 +457,8 @@ const RevCore = (() => {
       const remainingRefs = [];
       for (const ref of question.imageRefs || []) {
         const name = String(ref).split(/[\\/]/).pop().toLocaleLowerCase();
+        const candidate = name.replace(/\.[^.]+$/, '').trim();
+        if (/^(?:missing|unavailable|not available|not provided|none|attached)(?:\b|\s|[-_:])/i.test(candidate)) continue;
         const image = byName.get(name) || byName.get(name.replace(/\.[^.]+$/, ''));
         if (image) question.images = [...(question.images || []), image];
         else if (name === 'missing') remainingRefs.push('missing');

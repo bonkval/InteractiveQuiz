@@ -168,7 +168,7 @@ test('attaches image files by filename and preserves old or bundled exhibits', (
   assert.deepEqual(questions[0].images,['data:image/png;base64,bG9jYWw=']);
   assert.deepEqual(questions[1].images,['data:image/png;base64,b2xk']);
   assert.deepEqual(questions[2].images,['data:image/png;base64,cGRm']);
-  assert.deepEqual(questions[3].imageRefs,['missing']);
+  assert.deepEqual(questions[3].imageRefs,[]);
 });
 
 test('imports the source PDF style with unlabeled choices', () => {
@@ -222,6 +222,14 @@ test('parses exhibit only when marker uses its exact attached image filename', (
   const resolved = core.resolveImageFiles([question], [{name:'q001-diagram.png',data:'data:image/png;base64,ZmFrZQ=='}]);
   assert.deepEqual(resolved.unresolved, []);
   assert.equal(question.images[0], 'data:image/png;base64,ZmFrZQ==');
+});
+
+test('ignores descriptive missing-exhibit placeholders without treating them as filenames', () => {
+  const question = core.parseImport('Question 1\nWhat does the unavailable figure show?\nExhibit: Missing from source page 59.\nAlt text: The figure was not present in the source.').questions[0];
+  const resolved = core.resolveImageFiles([question]);
+  assert.deepEqual(resolved.unresolved, []);
+  assert.deepEqual(question.imageRefs, []);
+  assert.equal((question.images || []).length, 0);
 });
 
 test('bundled reviewer has complete questions and answer keys', () => {
