@@ -539,14 +539,14 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function renderPrompt(importPrompt, pdfPrompt = false) {
     const key = pdfPrompt ? PDF_PROMPT_KEY : importPrompt ? IMPORT_KEY : MASTER_KEY;
-    const title = pdfPrompt ? 'PDF question prompt' : importPrompt ? 'Import prompt' : 'Master prompt';
+    const title = pdfPrompt ? 'PDF question prompt' : importPrompt ? 'Import prompt' : 'Networking 2 SW Reviewer';
     const filename = importPrompt ? 'revvy-reviewer.pdf' : 'reviewer.txt';
     const outputType = importPrompt ? 'PARSER-FRIENDLY PDF' : 'PLAIN TEXT';
     const exampleMarkup = importPrompt
       ? '<div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9</div><pre><span class="code-heading">Question 1</span>\n<span class="code-question">Which two statements are true?</span>\n<span class="code-choice">Choice A: First statement</span>\n<span class="code-correct">Correct! Choice B: Second statement</span>\n<span class="code-answer">Answer: B - Second statement</span>\n<span class="code-choice">Explanation: Source-based reason.</span>\n<span class="code-choice">Exhibit: diagram-01.png</span>\n<span class="code-choice">Alt text: Original network diagram.</span></pre></div>'
       : '<div class="prompt-code"><div class="prompt-lines" aria-hidden="true">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8</div><pre><span class="code-heading">Question 1</span>\n<span class="code-question">What does a switch use to learn MAC addresses?</span>\n<span class="code-choice">Choice A: routing table</span>\n<span class="code-correct">Correct! Choice B: source MAC addresses</span>\n<span class="code-choice">Choice C: DNS records</span>\n<span class="code-choice">Choice D: IP subnet masks</span>\n<span class="code-answer">Answer: source MAC addresses</span></pre></div>';
     const previewTitle = importPrompt ? 'Parser-ready question block' : 'Rev study card';
-    const previewSubtitle = pdfPrompt ? 'Generated from your module PDF' : importPrompt ? 'Selectable text with a matching exhibit filename' : 'After using the Master prompt';
+    const previewSubtitle = pdfPrompt ? 'Generated from your module PDF' : importPrompt ? 'Selectable text with a matching exhibit filename' : 'After using the Networking 2 SW Reviewer prompt';
     const previewBody = importPrompt
       ? '<div class="prompt-rendered-card"><pre class="prompt-example-text">Question 1\nWhich two statements are true?\nChoice A: First statement\nCorrect! Choice B: Second statement\nAnswer: B - Second statement\nExplanation: Source-based reason.\nExhibit: diagram-01.png\nAlt text: Original network diagram.</pre><p class="rendered-note">Attach diagram-01.png with the PDF so Revvy can match it to this question.</p></div>'
       : '<div class="prompt-rendered-card"><span class="rendered-q-number">QUESTION 01</span><h2>What does a switch use to learn MAC addresses?</h2><div class="rendered-choice"><b>A</b><span>routing table</span></div><div class="rendered-choice rendered-correct"><b>B</b><span>source MAC addresses</span><span class="rendered-check">&#10003;</span></div><div class="rendered-choice"><b>C</b><span>DNS records</span></div><div class="rendered-choice"><b>D</b><span>IP subnet masks</span></div><p class="rendered-note">Correct answer stays in its original position.</p></div>';
