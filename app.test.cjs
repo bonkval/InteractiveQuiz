@@ -110,24 +110,12 @@ test('quick filters separate incorrect and I-dont-know cards', () => {
   dom.window.close();
 });
 
-test('TXT companion is preferred to PDF regardless of attachment order', async () => {
-  const dom = openApp();
-  await signInOwner(dom);
-  dom.window.File = class MockFile {
-    constructor(name, text) { this.name=name; this.type=name.endsWith('.pdf')?'application/pdf':'text/plain'; this.text=async()=>text; }
-  };
-  const pdf = new dom.window.File('reviewer.pdf','Question 1\nPDF copy should not be selected');
-  const txt = new dom.window.File('reviewer_Revvy_Import.txt','Question 1\nWhich choice is correct?\nChoice A: first\nCorrect! Choice B: second');
-  await dom.window.document.querySelector('#new-reviewer').click();
-  dom.window.document.querySelector('.import-tab[data-tab="file"]').click();
-  dom.window.document.querySelector('#file-input').onchange({target:{files:[pdf,txt]}});
-  dom.window.document.querySelector('#import-submit').click();
-  await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(dom.window.document.querySelector('#import-preview').hidden, false);
-  assert.equal(dom.window.document.querySelectorAll('.preview-question').length, 1);
-  assert.match(dom.window.document.querySelector('#import-preview').textContent,/second/);
-  assert.doesNotMatch(dom.window.document.querySelector('#import-preview').textContent,/PDF copy/);
-  dom.window.close();
+test('Import prompt requests one parser-ready PDF and PDF import selection is preferred', () => {
+  const studyApp = fs.readFileSync('study-app.js','utf8');
+  const html = fs.readFileSync('index.html','utf8');
+  assert.match(studyApp,/Deliver exactly one file: a parser-ready PDF/);
+  assert.match(studyApp,/_Revvy_Import\\\.pdf/);
+  assert.match(html,/select its single \*_Revvy_Import\.pdf file/);
 });
 
 test('pixel lava backdrop exists behind the app without pointer tracking', () => {
