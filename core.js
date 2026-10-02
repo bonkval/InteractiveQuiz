@@ -198,21 +198,24 @@ const RevCore = (() => {
     }
     const matchingText=[block.heading,...lines].join(' ');
     const matchingHeading=/\b(?:move|drag|match|connect|pair|list\s+on\s+the\s+left)\b.*\b(?:correct|appropriate|respective|example|item|description|right)\b/i.test(matchingText)||/\b(?:move|drag|match|connect|pair)\b/i.test(matchingText)&&/\b(?:example|item|description|model|term|service)\b/i.test(matchingText);
-    const answerTiles=[],matchRows=[];
+    const answerTiles=[],matchRows=[],tileLabels=new Map();
     const addTiles=value=>String(value||'').split(/[,;|]/).map(item=>cleanReadingText(item.replace(/^[\s\p{P}\p{S}]+|[\s\p{P}\p{S}]+$/gu,''))).filter(item=>item&&item.length<45).forEach(item=>{if(!answerTiles.some(tile=>normalize(tile)===normalize(item)))answerTiles.push(item);});
     const labels=[];
     for(const line of lines){
+      const labeledTile=line.match(/^(?:Word|Term|Model|Service|Answer|Choice|Option)\s*:\s*([A-Z][A-Z0-9_-]{0,15})\s*[-.)]\s*(.+)$/i);
+      if(labeledTile){const label=cleanReadingText(labeledTile[1]),tile=cleanReadingText(labeledTile[2]);tileLabels.set(normalize(label),tile);addTiles(tile);continue;}
       const tile=line.match(/^(?:Word|Term|Model|Service|Answer|Choices?|Word\s+bank)\s*:\s*(.+)$/i);
       if(tile){addTiles(tile[1]);continue;}
-      const labeled=line.match(/^(?:Example|Item|Match|Description)\s*\d*\s*[:.)-]\s*(.+?)\s*[|:]\s*([A-Z][A-Z0-9_-]{1,15})\s*$/i);
-      if(labeled){matchRows.push({prompt:cleanReadingText(labeled[1]),answer:cleanReadingText(labeled[2])});labels.push(labeled[2]);continue;}
+      const labeled=line.match(/^(?:Example|Item|Match|Description)\s*\d*\s*[:.)-]\s*(.+?)\s*[|:]\s*([A-Z][A-Z0-9_-]{0,15})\s*$/i);
+      if(labeled){const label=cleanReadingText(labeled[2]);matchRows.push({prompt:cleanReadingText(labeled[1]),answer:tileLabels.get(normalize(label))||label});labels.push(label);continue;}
       const row=line.match(/^([A-Z][A-Z0-9_-]{1,15})\s+(.+?)\s*$/);
-      if(row){const prompt=row[2].replace(/^[^\p{L}\p{N}]+/u,'').trim();if(prompt.length>8){matchRows.push({prompt:cleanReadingText(prompt),answer:cleanReadingText(row[1])});labels.push(row[1]);}}
+      if(row){const prompt=row[2].replace(/^[^\p{L}\p{N}]+/u,'').trim();if(prompt.length>8){matchRows.push({prompt:cleanReadingText(prompt),answer:tileLabels.get(normalize(row[1]))||cleanReadingText(row[1])});labels.push(row[1]);}}
     }
     if(matchingHeading&&!answerTiles.length){const source=`${block.heading} ${lines.join(' ')}`;const words=source.match(/\b[A-Z][A-Z0-9_-]{1,15}\b/g)||[];addTiles(words.filter(word=>labels.some(label=>normalize(label)===normalize(word))));}
     if(matchingHeading&&answerTiles.length>=2&&matchRows.length>=2){
       const matches=matchRows.map(row=>({prompt:row.prompt,answer:row.answer,correct:true}));
-      return attachImages({sourceNumber:String(block.number),text:cleanReadingText(block.heading),options:[],correctAnswers:[],answer:'',type:'matching',matches,answerTiles,explanation:cleanReadingText(inlineNotes.map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,'')).join('\n')),...media},media);
+      const matchingPrompt=block.heading||lines.find(line=>! /^(?:Word|Term|Model|Service|Answer|Choices?|Word\s+bank|Example|Item|Match|Description)\s*[:\d]/i.test(line))||'Match each item to its correct description.';
+      return attachImages({sourceNumber:String(block.number),text:cleanReadingText(matchingPrompt),options:[],correctAnswers:[],answer:'',type:'matching',matches,answerTiles,explanation:cleanReadingText(inlineNotes.map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,'')).join('\n')),...media},media);
     }
 
     if (!lines.length) return null;
@@ -277,6 +280,12 @@ const RevCore = (() => {
       if (!option.text) continue;
       if (labeled && !option.labeled && !option.marked && options.length) options[options.length-1] += `\n${option.text}`;
       else { options.push(option.text); if(option.correct) correctAnswers.push(options.length-1); }
+    }
+    if(options.length>=2&&options.every(option=>/^[TF]\s+\S/i.test(option))){
+      const statements=options.map(option=>option.replace(/^[TF]\s+/i,''));
+      const statementAnswers=options.map(option=>/^T\s/i.test(option)?'True':'False');
+      const question=normalizeQuestion({sourceNumber:block.number,text,statements,statementAnswers,explanation:cleanReadingText(inlineNotes.map(line=>line.replace(/^(?:Explanation|Rationale|Reasoning|Solution)\s*:\s*/i,'')).join('\n')),...media});
+      return attachImages(question,media);
     }
     if (options.length && !correctAnswers.length && firstMarked < 0) warnings.push(`Question ${block.number}: no answer key was found.`);
     if (!text) warnings.push(`Question ${block.number}: question text is empty.`);

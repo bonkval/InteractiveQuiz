@@ -41,6 +41,18 @@ test('imports a multi-statement true-false question as one three-point card', ()
   assert.equal(core.isCorrect(parsed.questions[0],['True','True','True']),false);
 });
 
+test('recognizes imported T/F assertion choices as one grouped true-false card',()=>{
+  const q=core.parseImport(`Question 1
+Review each firewall statement.
+Choice A: T A firewall can block traffic to specific ports.
+Choice B: T A firewall can direct web traffic using proxy rules.
+Choice C: F A firewall can prevent an app from launching.`).questions[0];
+  assert.equal(q.type,'grouped-boolean');
+  assert.deepEqual(q.statements,['A firewall can block traffic to specific ports.','A firewall can direct web traffic using proxy rules.','A firewall can prevent an app from launching.']);
+  assert.deepEqual(q.statementAnswers,['True','True','False']);
+  assert.equal(core.isCorrect(q,['True','True','False']),true);
+});
+
 test('JSON import preserves grouped true-false and matching activity types', () => {
   const questions=core.parseImport(JSON.stringify({questions:[
     {text:'Choose true or false.',statements:['First statement','Second statement'],statementAnswers:['T','F']},
@@ -58,6 +70,22 @@ test('imports answer-bank matching activities as one point-per-pair card',()=>{
   assert.equal(q.answerTiles.length,3);
   assert.equal(core.isCorrect(q,['PaaS','IaaS','SaaS']),true);
   assert.equal(core.isCorrect(q,['IaaS','IaaS','SaaS']),false);
+});
+
+test('parses PDF prompt matching blocks that map single-letter bank labels to answer tiles',()=>{
+  const imported=core.parseImport(`Question 1
+Move each protocol to its matching description.
+Word: A - SFTP
+Word: B - TFTP
+Example 1: Uses SSH and port 22. | A
+Example 2: Transfers small files over UDP port 69. | B
+Explanation: SFTP uses SSH; TFTP uses UDP.`);
+  const q=imported.questions[0];
+  assert.equal(q.type,'matching');
+  assert.deepEqual(q.answerTiles,['SFTP','TFTP']);
+  assert.deepEqual(q.matches.map(match=>match.answer),['SFTP','TFTP']);
+  assert.equal(core.isCorrect(q,['SFTP','TFTP']),true);
+  assert.deepEqual(imported.warnings,[]);
 });
 
 test('deduplicates and prefers the copy with a key', () => {
