@@ -53,7 +53,9 @@ const RevCore = (() => {
       const source = (marker?.[1] || markdown?.[2] || '').trim();
       if (!source) continue;
       if (markdown?.[1]) imageAlts.push(cleanReadingText(markdown[1]));
-      if (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(source) || /^https?:\/\//i.test(source)) images.push(source);
+      const embedded = source.match(/^data:image\/(png|jpe?g|webp|gif);base64,([a-z0-9+/=\s]+)$/i);
+      if (embedded) images.push(`data:image/${embedded[1].toLowerCase().replace('jpg','jpeg')};base64,${embedded[2].replace(/\s/g,'')}`);
+      else if (/^https?:\/\//i.test(source)) images.push(source);
       else imageRefs.push(source);
     }
     return {images, imageRefs, imageAlts};
