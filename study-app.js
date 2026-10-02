@@ -42,6 +42,8 @@ If theres no duplicate and there is only the wrong one, then just keep it as is 
 
 Identify the source and optional design reference from their contents, not their filenames. Files that contain the questions and answer key are source material. If I explicitly identify or describe a file as an example or style reference, use it only for visual guidance, even if it contains its own questions. A separate sample or reference file is optional and is never required to complete the task. Do not copy questions or unrelated images from a design reference. If no source material was actually provided, ask me to attach or paste it. If a provided source file cannot be read, name that file and explain what content you need.
 
+Source-selection rules: use only files actually attached in this conversation and content pasted in this message. Never require, search for, or ask me to attach a guessed or remembered filename. A filename mentioned in an earlier message does not mean that file is attached now. If there is one reviewer-like attachment and I have not explicitly called it a sample or reference, treat that attachment as the source and start organizing it. If there are several files, identify the source by its contents; use a file as a design reference only when I explicitly label or describe it that way. If no attached or pasted material contains reviewer questions, ask me generally to attach or paste the source reviewer; do not name a file you expect.
+
 Read the entire source before creating the PDF. Preserve every unique question, its original order, wording, choices, and correct-answer positions. Remove only exact duplicates. When duplicate versions conflict, keep the version with the most complete, source-supported answer and explanation; flag any unresolved conflict in the PDF instead of silently choosing. Match answer keys and explanations from later sections to the correct question number or unmistakable question text. If a marked answer conflicts with clear evidence in the source, flag the conflict instead of silently changing the key.
 
 Preserve the source’s full range of question formats. Do not force everything into single-answer multiple choice:
@@ -66,7 +68,7 @@ Make the PDF easy to use as a reviewer:
 Before attaching the PDF, verify that it opens, the page count is nonzero, question numbering is complete, answer boxes match their questions, and every source exhibit is present, sharp, and not clipped. The final deliverable must be the actual PDF file.
 
 Reviewer material to organize: all relevant pasted content and readable attachments provided for this task. Optional design reference: any separately provided sample file; if none is provided, use the design guidance above.`;
-  const LEGACY_IMPORT_SIGNATURES = new Set(['3519:900036575', '5622:4193146868']);
+  const LEGACY_IMPORT_SIGNATURES = new Set(['3519:900036575', '5622:4193146868', '6117:1127033801']);
   const PDF_QUESTION_PROMPT = `Read the attached module PDF and create a concise quiz reviewer based only on its content.
 
 Cover the key concepts. Do not invent facts. Write clear questions with four distinct choices and exactly one correct answer. Vary the correct answer position. Use this format:
