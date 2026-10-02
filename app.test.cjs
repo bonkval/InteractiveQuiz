@@ -12,10 +12,39 @@ function openApp() {
   window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
   window.HTMLDialogElement.prototype.close = function() { this.open = false; };
   window.confirm = () => true;
+  let owner = false;
+  let sharedReviewers = null, sharedEtag = 'etag-1';
+  const jsonResponse = (payload, status=200, etag='') => ({ok:status>=200&&status<300,status,headers:{get:name=>name.toLowerCase()==='etag'?etag:''},json:async()=>payload});
+  window.fetch = async (path, options={}) => {
+    if(path==='/api/auth'&&(!options.method||options.method==='GET'))return jsonResponse({owner,configured:true});
+    if(path==='/api/auth'&&options.method==='POST'){
+      const body=JSON.parse(options.body||'{}');
+      if(body.action==='logout'){owner=false;return jsonResponse({owner:false});}
+      if(body.username==='cval'&&body.password==='test-password'){owner=true;return jsonResponse({owner:true,username:'cval'});}
+      return jsonResponse({error:'Username or password is incorrect.'},401);
+    }
+    if(path==='/api/library'&&(!options.method||options.method==='GET'))return jsonResponse({initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
+    if(path==='/api/library'&&options.method==='PUT'){
+      sharedReviewers=JSON.parse(options.body||'{}').reviewers||[];sharedEtag=`etag-${Date.now()}`;
+      return jsonResponse({saved:true,etag:sharedEtag},200,sharedEtag);
+    }
+    return jsonResponse({error:'Not found'},404);
+  };
   window.eval(fs.readFileSync('reviewer-data.js', 'utf8'));
   window.eval(fs.readFileSync('core.js', 'utf8'));
   window.eval(fs.readFileSync('study-app.js', 'utf8'));
   return dom;
+}
+
+async function signInOwner(dom) {
+  const {document}=dom.window;
+  await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#account-button').click();
+  document.querySelector('#account-username').value='cval';
+  document.querySelector('#account-password').value='test-password';
+  document.querySelector('#account-form').dispatchEvent(new dom.window.Event('submit',{bubbles:true,cancelable:true}));
+  for(let i=0;i<20&&(!document.body.classList.contains('owner-session')||document.querySelector('#account-dialog').open);i++)await new Promise(resolve=>setTimeout(resolve,0));
+  assert.ok(document.body.classList.contains('owner-session'),'owner login enables owner controls');
 }
 
 test('guest can review, flag a question, and start a flagged set', () => {
@@ -39,6 +68,7 @@ test('guest can review, flag a question, and start a flagged set', () => {
 
 test('import previews before saving and local deletion clears the library', async () => {
   const dom = openApp(), {document, localStorage} = dom.window;
+  await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value = 'Question 1\nWhich choice is right?\nChoice A: one\nCorrect! Choice B: two\nChoice C: three\nChoice D: four';
   document.querySelector('#import-submit').click();
@@ -50,7 +80,7 @@ test('import previews before saving and local deletion clears the library', asyn
   assert.ok(questionEditor, 'import preview has a direct question editor');
   document.querySelector('#import-submit').click();
   await new Promise(resolve => setTimeout(resolve, 0));
-  assert.equal(JSON.parse(localStorage.getItem('recall-reviewers-v1')).length, 2);
+  assert.equal(JSON.parse(localStorage.getItem('recall-reviewers-v1:user:owner')).length, 2);
   dom.window.location.hash = '#data';
   dom.window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));
   assert.match(document.querySelector('#main-panel').textContent, /Browser compatibility/);
@@ -80,19 +110,39 @@ test('quick filters separate incorrect and I-dont-know cards', () => {
   dom.window.close();
 });
 
-test('sign-up asks for terms acknowledgement and guest access remains available', () => {
+test('public visitors do not see reviewer editing or registration', () => {
   const dom = openApp(), {document} = dom.window;
+  assert.equal(document.querySelector('#new-reviewer').hidden,true);
+  assert.equal(document.querySelector('#import-trigger').hidden,true);
   document.querySelector('#account-button').click();
-  document.querySelector('#account-switch').click();
-  assert.equal(document.querySelector('#account-consent-row').hidden, false);
-  assert.equal(document.querySelector('#account-consent').required, true);
-  document.querySelector('#account-guest').click();
-  assert.equal(document.querySelector('#account-dialog').open, false);
+  assert.ok(document.querySelector('#account-username'));
+  assert.equal(document.querySelector('#account-switch'),null);
+  assert.equal(document.querySelector('#account-guest'),null);
+  dom.window.close();
+});
+
+test('owner reviewer changes become visible to signed-out visitors after refresh', async () => {
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#reviewer-name').value='Shared set';
+  document.querySelector('#paste-text').value='Question 1\nWhich answer is shared?\nCorrect! Choice A: Yes\nChoice B: No';
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#account-signout').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.body.classList.contains('owner-session'),false);
+  assert.ok([...document.querySelectorAll('[data-reviewer]')].some(button=>button.textContent.includes('Shared set')));
+  assert.equal(document.querySelector('#new-reviewer').hidden,true);
   dom.window.close();
 });
 
 test('copy fallback includes every exhibit reference', async () => {
   const dom = openApp(), {document, navigator} = dom.window;
+  await signInOwner(dom);
   let copied = '';
   navigator.clipboard = {writeText: async text => { copied = text; }};
   document.querySelector('#new-reviewer').click();
@@ -157,6 +207,7 @@ test('audio can pause, resume, stop, and start again after changing cards', () =
 
 test('a corrected PDF answer is entered as text and can be graded', async () => {
   const dom = openApp(), {document} = dom.window;
+  await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value = 'Question 1\nCompute the CIDR.\nChoice A: 1/20\nChoice B: 1/21\nANSWER + EXPLANATION\nNo listed answer is fully correct. The result is 1/22.';
   document.querySelector('#import-submit').click();
@@ -175,6 +226,7 @@ test('a corrected PDF answer is entered as text and can be graded', async () => 
 
 test('grouped true-false statements show three cards on one page and score three points', async () => {
   const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value='Question 1: For each statement, select True or False.\nF High latency decreases bandwidth.\nT Low bandwidth can increase latency.\nT Less congestion can increase throughput.';
   document.querySelector('#import-submit').click(); await new Promise(resolve=>setTimeout(resolve,0));
@@ -195,6 +247,7 @@ test('grouped true-false statements show three cards on one page and score three
 
 test('grouped statement text is not repeated in the scenario', async () => {
   const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
   const statements=['The interfaces can communicate over Layer 2.','The interfaces are administratively shut down.','The interfaces have default IP addresses.'];
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value=JSON.stringify({questions:[{sourceNumber:'87',type:'grouped-boolean',text:`You purchase a new switch. 1. ${statements.join(' 2. ')}`,statements,statementAnswers:['True','False','False'],explanation:'Check each statement.'}]});
@@ -210,6 +263,7 @@ test('grouped statement text is not repeated in the scenario', async () => {
 
 test('matching answer tiles can be selected and dropped onto one-card targets',async()=>{
   const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value='Question 1: Move each term to its correct example.\nWord: IaaS\nWord: SaaS\nWord: PaaS\nExample 1: Cloud virtual machines | IaaS\nExample 2: Web app subscription | SaaS\nExample 3: Build software using a cloud platform | PaaS';
   document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
@@ -224,6 +278,7 @@ test('matching answer tiles can be selected and dropped onto one-card targets',a
 
 test('mixed reviewer filters and retry keep a usable reviewer selected', async () => {
   const dom = openApp(), {document} = dom.window;
+  await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value = 'Question 1\nOther topic?\nCorrect! Choice A: Yes\nChoice B: No';
   document.querySelector('#import-submit').click();

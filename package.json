@@ -22,7 +22,7 @@
   },
   "homepage": "https://github.com/bonkval/InteractiveQuiz#readme",
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.2",
+    "@vercel/blob": "^2.8.0",
     "pdfjs-dist": "6.3.289",
     "tesseract.js": "7.0.0"
   },

@@ -1,7 +1,5 @@
 (() => {
   'use strict';
-  const auth = window.RevAuthClient || null;
-  const accountsConfigured = Boolean(auth);
   const KEY = 'recall-reviewers-v1';
   const SESSION_KEY = 'rev-quiz-session-v1';
   const SEED_KEY = 'rev-starter-seeded-v1';
@@ -96,6 +94,7 @@ Return only the questions in this format, ready to import into Rev.`;
   const storageStatus = () => { try { const key=`rev-storage-check-${Date.now()}`; localStorage.setItem(key,'1'); localStorage.removeItem(key); return true; } catch { return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
+    sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'',
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
@@ -182,6 +181,38 @@ Return only the questions in this format, ready to import into Rev.`;
     restoreSession();
   }
   function saveReviewers() { return put(scopedKey(KEY), JSON.stringify(state.reviewers)); }
+  async function saveSharedLibrary() {
+    if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
+    const headers={'Content-Type':'application/json'};
+    if(state.sharedLibraryEtag)headers['If-Match']=state.sharedLibraryEtag;
+    const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body:JSON.stringify({reviewers:state.reviewers})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok){if(response.status===412)state.sharedLibraryEtag='';throw new Error(result.error||'Could not save the shared reviewers.');}
+    state.sharedLibraryEtag=response.headers.get('ETag')||result.etag||'';
+    state.sharedLibraryInitialized=true;state.sharedLibraryStatus='ready';
+  }
+  async function refreshSharedLibrary({quiet=false}={}) {
+    try{
+      const response=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||'Shared reviewer storage is unavailable.');
+      state.sharedLibraryInitialized=Boolean(result.initialized);
+      state.sharedLibraryEtag=response.headers.get('ETag')||'';
+      if(state.sharedLibraryInitialized){
+        state.reviewers=Array.isArray(result.reviewers)?result.reviewers.filter(item=>item&&Array.isArray(item.questions)).map(item=>({...item,questions:item.questions.map(RevCore.normalizeQuestion)})):[];
+        saveReviewers();
+        if(!state.reviewers.some(item=>item.id===state.activeId)){state.activeId=null;state.sessionReviewer=null;}
+        restoreSession();
+      }else if(state.user){
+        await saveSharedLibrary();
+      }
+      state.sharedLibraryStatus='ready';render();return true;
+    }catch(error){
+      state.sharedLibraryStatus='unavailable';
+      if(!quiet)toast(error.message||'Shared reviewer storage is unavailable.');
+      render();return false;
+    }
+  }
   function clearSession() { try { localStorage.removeItem(scopedKey(SESSION_KEY)); } catch {} }
   function saveSession() {
     if (!currentReviewer() || !['study', 'retry-prompt', 'results'].includes(state.screen)) return;
@@ -279,62 +310,51 @@ Return only the questions in this format, ready to import into Rev.`;
   function switchAccount(user) {
     if (state.user?.id === user?.id) return;
     saveSession();
+    const localReviewers=state.reviewers;
     state.user = user || null; state.sessionReviewer = null;
+    document.body.classList.toggle('owner-session',Boolean(user));
     state.activeId = null; state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); load();
-    $('#account-label').textContent = user?.email || 'Sign in';
-    $('#account-button').setAttribute('aria-label', user ? `Account: ${user.email}` : 'Sign in or create an account');
+    if(user&&!state.sharedLibraryInitialized&&localReviewers.length){
+      const merged=[...state.reviewers];
+      for(const reviewer of localReviewers){const index=merged.findIndex(item=>item.id===reviewer.id);if(index>=0)merged[index]=reviewer;else merged.push(reviewer);}
+      state.reviewers=merged;saveReviewers();
+    }
+    $('#account-label').textContent = user ? 'Owner account' : 'Owner sign in';
+    $('#account-button').setAttribute('aria-label', user ? `Signed in as owner ${user.username}` : 'Owner sign in');
     $('#account-signout').hidden = !user;
+    syncOwnerControls();
     render();
   }
-  function showAccountDialog(mode = 'signin') {
+  function syncOwnerControls() {
+    document.querySelectorAll('.owner-only').forEach(element=>{element.hidden=!state.user;});
+    document.querySelectorAll('[data-delete]').forEach(element=>{element.hidden=!state.user;});
+  }
+  function showAccountDialog() {
     const dialog = $('#account-dialog');
     $('#account-form').reset();
-    $('#account-feedback').textContent = accountsConfigured ? '' : 'Add Supabase settings to enable accounts.';
-    $('#account-feedback').classList.toggle('error', !accountsConfigured);
-    $('#account-submit').disabled = !accountsConfigured;
-    $('#account-email').disabled = !accountsConfigured;
-    $('#account-password').disabled = !accountsConfigured;
-    $('#account-guest').hidden = Boolean(state.user);
-    setAccountMode(mode);
+    $('#account-feedback').textContent = '';
+    $('#account-feedback').classList.remove('error');
+    $('#account-submit').disabled = false;
     dialog.showModal();
-    if (accountsConfigured && !window.matchMedia('(max-width:760px)').matches) $('#account-email').focus();
-  }
-  function setAccountMode(mode) {
-    const signup = mode === 'signup';
-    $('#account-dialog').dataset.mode = mode;
-    $('#account-heading').textContent = signup ? 'Create account' : 'Sign in';
-    $('#account-submit').textContent = signup ? 'Create account' : 'Sign in';
-    $('#account-switch').textContent = signup ? 'Already have an account? Sign in' : 'New to Rev? Create an account';
-    $('#account-password').autocomplete = signup ? 'new-password' : 'current-password';
-    $('#account-consent-row').hidden = !signup;
-    $('#account-consent').required = signup;
-    $('#account-feedback').textContent = accountsConfigured ? '' : 'Add Supabase settings to enable accounts.';
-    $('#account-feedback').classList.toggle('error', !accountsConfigured);
+    if (!window.matchMedia('(max-width:760px)').matches) $('#account-username').focus();
   }
   async function submitAccount(event) {
     event.preventDefault();
-    if (!auth) return;
-    const email = $('#account-email').value.trim();
+    const username = $('#account-username').value.trim();
     const password = $('#account-password').value;
     const submit = $('#account-submit');
     const feedback = $('#account-feedback');
     submit.disabled = true; feedback.textContent = ''; feedback.classList.remove('error');
     try {
-      const signup = $('#account-dialog').dataset.mode === 'signup';
-      const result = signup
-        ? await auth.auth.signUp({email, password, options:{emailRedirectTo:location.origin, data:{terms_version:'2026-10-01', terms_accepted_at:new Date().toISOString()}}})
-        : await auth.auth.signInWithPassword({email, password});
-      if (result.error) throw result.error;
-      if (result.data.session?.user) {
-        switchAccount(result.data.session.user);
-        $('#account-dialog').close();
-        toast(signup ? 'Account created.' : 'Signed in.');
-      } else {
-        feedback.textContent = 'Check your email to confirm your account, then sign in.';
-        $('#account-password').value = '';
-      }
+      const response=await fetch('/api/auth',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'login',username,password})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.error||'Could not sign in.');
+      switchAccount({id:'owner',username:result.username||username});
+      const synced=await refreshSharedLibrary({quiet:true});
+      $('#account-dialog').close();
+      toast(synced?'Signed in. Shared reviewers are up to date.':'Signed in, but shared storage needs configuration.');
     } catch (error) {
       feedback.textContent = error.message || 'Could not access your account.';
       feedback.classList.add('error');
@@ -361,7 +381,7 @@ Return only the questions in this format, ready to import into Rev.`;
       <button class="reviewer-item ${r.id === state.activeId && !location.hash ? 'active' : ''}" data-reviewer="${esc(r.id)}" aria-current="${r.id === state.activeId && !location.hash ? 'page' : 'false'}">
         <svg class="ui-icon reviewer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.75h7l4 4v12.5H7zM14 3.75v4h4M10 12h5M10 16h5"/></svg>
         <span class="reviewer-copy"><span class="reviewer-title">${esc(r.title)}</span></span>
-      </button><button class="reviewer-delete" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}" title="Delete reviewer">×</button>
+      </button><button class="reviewer-delete owner-only" data-delete="${esc(r.id)}" aria-label="Delete ${esc(r.title)}" title="Delete reviewer">×</button>
     </div>`).join('') : `<p class="reviewer-empty">${search ? 'No matching reviewers' : 'No reviewers yet'}</p>`;
     $('#reviewer-list').querySelectorAll('[data-reviewer]').forEach(b => b.onclick = () => selectReviewer(b.dataset.reviewer));
     $('#reviewer-list').querySelectorAll('[data-delete]').forEach(b => b.onclick = () => deleteReviewer(b.dataset.delete));
@@ -379,12 +399,14 @@ Return only the questions in this format, ready to import into Rev.`;
     render();
     if (selectedFromMobileNav) $('#start-quiz')?.focus();
   }
-  function deleteReviewer(id) {
+  async function deleteReviewer(id) {
+    if(!state.user)return;
     const reviewer = state.reviewers.find(x => x.id === id);
     if (!reviewer || !confirm(`Delete "${reviewer.title}"?`)) return;
     const previous = state.reviewers;
     state.reviewers = state.reviewers.filter(x => x.id !== id);
-    if (!saveReviewers()) { state.reviewers = previous; return toast('Could not delete this reviewer from device storage.'); }
+    if (!saveReviewers()) { state.reviewers = previous; return toast('Could not save this change on this device.'); }
+    try{await saveSharedLibrary();}catch(error){state.reviewers=previous;saveReviewers();return toast(error.message||'Could not update the shared reviewers.');}
     delete state.flags[id]; delete state.history[id]; delete state.schedule[id];
     put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
     put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
@@ -393,6 +415,7 @@ Return only the questions in this format, ready to import into Rev.`;
     render();
   }
   function render() {
+    syncOwnerControls();
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt' || location.hash === '#pdf-prompt';
     const easterEgg = location.hash === '#easter-egg';
     const dataScreen = location.hash === '#data';
@@ -403,14 +426,17 @@ Return only the questions in this format, ready to import into Rev.`;
     document.body.classList.toggle('easter-egg-open', easterEgg);
     $('#intro').hidden = prompt || studying || dataScreen || helpScreen || !!currentReviewer();
     renderLibrary();
+    syncOwnerControls();
     if (easterEgg) return renderEasterEgg();
     if (prompt) return renderPrompt(location.hash === '#import-prompt', location.hash === '#pdf-prompt');
     if (dataScreen) return renderDataSettings();
     if (helpScreen) return renderHelp();
     const reviewer = currentReviewer();
     if (!reviewer) {
-      $('#main-panel').innerHTML = '<div class="welcome"><button class="primary-button" id="welcome-import">Add reviewer</button></div>';
-      $('#welcome-import').onclick = () => openImport(); return;
+      $('#main-panel').innerHTML = state.user
+        ? '<div class="welcome"><button class="primary-button" id="welcome-import">Add reviewer</button></div>'
+        : '<div class="welcome"><h2>No reviewers are available yet</h2><p>Ask cval to add the reviewer you need.</p></div>';
+      if(state.user)$('#welcome-import').onclick = () => openImport(); return;
     }
     if (state.screen === 'study') return renderQuestion();
     if (state.screen === 'retry-prompt') return renderRetryPrompt();
@@ -425,14 +451,14 @@ Return only the questions in this format, ready to import into Rev.`;
       <label class="field-label" for="daily-goal">Daily review target</label><input id="daily-goal" class="study-filter" type="number" min="1" max="500" value="${Number(state.settings.dailyGoal) || 20}">
       <label class="field-label study-filter-label" for="study-filter">Study</label><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select>
       ${topics.length ? `<label class="field-label" for="topic-filter">Focus topic</label><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select>` : '<p class="hint">Add topic tags while reviewing questions to see progress by topic.</p>'}
-      <p class="sync-status" role="status">${todayDue} questions due across your library · Saved on this device · Backup available</p>
+      <p class="sync-status" role="status">${todayDue} questions due across your library &middot; Reviewers ${state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'shared online':'not synced'} &middot; Your progress stays on this device</p>
       <progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress>
       ${topicStats ? `<section class="topic-progress"><strong>Progress by topic</strong><div>${topicStats}</div></section>` : ''}
       <label class="field-label" for="question-search">Find questions in this reviewer</label><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text">
       <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details>
       <button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start reviewing</button>
       <div class="welcome-actions"><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice (no score)</button></div>
-      <div class="welcome-actions"><button class="mini-control" id="edit-reviewer">Edit questions</button>
+      <div class="welcome-actions"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit questions</button>
       <button class="mini-control" id="export-reviewer">Export</button></div></div></div>`;
     $('#daily-goal').onchange = event => { state.settings.dailyGoal = Math.max(1, Math.min(500, Number(event.target.value) || 20)); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
     $('#question-search').onchange = event => { state.settings.questionSearch = event.target.value.trim().toLowerCase(); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
@@ -483,7 +509,8 @@ Return only the questions in this format, ready to import into Rev.`;
       if (step === 1) { step = 2; done = false; say('Next card! When the set ends, I’ll show you how to review missed questions.', '#help-next', 'next'); const card = document.querySelector('.help-demo'); card.classList.add('is-changing'); setTimeout(() => { $('#help-count').textContent = 'SAMPLE · 2 OF 2'; $('#help-question').textContent = 'What happens when you finish a study set?'; options.innerHTML = '<button class="help-option" data-correct="false"><span class="help-option-letter">A</span><span>Your progress is deleted</span></button><button class="help-option" data-correct="true"><span class="help-option-letter">B</span><span>You can review missed cards</span></button><button class="help-option" data-correct="false"><span class="help-option-letter">C</span><span>You must start over</span></button>'; status.textContent = 'Try this second sample question.'; $('#help-next').disabled = true; $('#help-next').innerHTML = 'Finish sample <span>✓</span>'; card.classList.remove('is-changing'); say('Answer this one to see how Rev helps you review a set.', '#help-question', 'answers'); }, 190); }
       else { status.textContent = 'That’s the flow: answer, move on, then review what you missed.'; say('You did it! Try the real reviewer now, or open the Import prompt to prep your questions.'); $('#help-next').disabled = true; document.querySelector('.help-demo').classList.add('sample-complete'); }
     };
-    $('#help-go-feature').onclick = () => { clearHash(); if (reviewer) render(); else openImport(); };
+    $('#help-go-feature').textContent=reviewer?'Open reviewer':state.user?'Import reviewer':'Request a reviewer';
+    $('#help-go-feature').onclick = () => { clearHash(); if (reviewer) render(); else if(state.user)openImport();else toast('Ask cval to add the reviewer you need.'); };
   }  function renderEasterEgg() {
     $('#intro').hidden = true;
     $('#main-panel').innerHTML = `<section class="easter-egg-page"><p>09655236422 - alam nyo na gagawin</p><button class="secondary-button" id="egg-back">Back to reviewer</button></section>`;
@@ -504,38 +531,21 @@ Return only the questions in this format, ready to import into Rev.`;
   function renderDataSettings() {
     saveSession();
     const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
-    const checks=[['PDF import',Boolean(window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
+    const checks=[['PDF import',Boolean(window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
-      <p>Reviewers, exhibits, study progress, flags, and prompts are stored on this device. Accounts do not sync reviewers between devices yet.</p>
+      <p>The reviewer library is shared through Vercel Blob. Answers, flags, study progress, and prompts stay on this device.</p>
       <div class="data-card"><h2>Browser compatibility</h2><ul class="compatibility-list">${checks.map(([name,ok,detail])=>`<li><i class="compat-indicator ${ok?'is-ok':'is-warning'}"></i><strong>${esc(name)}</strong><small>${esc(detail)}</small></li>`).join('')}</ul><p id="storage-estimate">Checking browser storage...</p></div>
-      <div class="data-card"><h2>Back up your reviewers</h2><p>Download a copy before deleting or moving devices.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
-      <div class="data-card"><h2>Delete study data on this device</h2><p>Removes all Rev reviewers, answers, progress, flags, prompts, and preferences stored in this browser. Exported backup files are unaffected. Your Supabase account remains active.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
-      ${state.user ? `<div class="data-card"><h2>Delete account</h2><p>Permanently removes the signed-in Supabase account and local Rev study data on this device. This requires the hosted deletion service.</p><button class="danger-button" id="delete-account">Delete account</button></div>` : ''}
-      <p><a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms</a> · <a href="cookies.html">Cookie Policy</a></p>
-      <button class="secondary-button" id="data-back">Back to reviewer</button><p class="import-feedback" id="data-feedback" role="status" aria-live="polite"></p></section>`;
+      <div class="data-card"><h2>Back up your reviewers</h2><p>Download a copy before changing devices.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
+      <div class="data-card"><h2>Delete study data on this device</h2><p>Removes this browser's cached reviewers, answers, progress, flags, prompts, and preferences. It does not remove the shared reviewer library.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
+      <p><a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms</a> &middot; <a href="cookies.html">Cookie Policy</a></p>
+      <button class="secondary-button" id="data-back">Back to reviewer</button></section>`;
     $('#data-backup').onclick = exportLibraryBackup;
     if(navigator.storage?.estimate) navigator.storage.estimate().then(({usage,quota})=>{const el=$('#storage-estimate');if(el&&Number.isFinite(quota))el.textContent=`About ${Math.max(0,Math.round((quota-(usage||0))/1048576))} MB browser storage available.`;}).catch(()=>{});
     $('#data-back').onclick = () => { clearHash(); render(); };
     $('#delete-local-data').onclick = () => {
-      if (!confirm('Delete all Rev study data stored in this browser? Export a backup first if you want to keep it.')) return;
+      if (!confirm('Delete study data stored in this browser? Export a backup first if you want to keep your progress.')) return;
       removeLocalStudyData(); toast('Local study data deleted.');
     };
-    $('#delete-account')?.addEventListener('click', async () => {
-      if (prompt('Type DELETE to permanently remove this account and local study data.') !== 'DELETE') return;
-      const button = $('#delete-account'), status = $('#data-feedback');
-      button.disabled = true; status.textContent = 'Deleting account…';
-      try {
-        const {data, error} = await auth.auth.getSession();
-        if (error || !data.session?.access_token) throw new Error('Sign in again, then retry account deletion.');
-        const response = await fetch('/api/delete-account', {method:'POST', headers:{Authorization:`Bearer ${data.session.access_token}`}});
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || 'Account deletion is unavailable on this deployment.');
-        await auth.auth.signOut().catch(() => {});
-        state.user = null; removeLocalStudyData();
-        $('#account-label').textContent = 'Sign in'; $('#account-signout').hidden = true;
-        toast('Account and local study data deleted.');
-      } catch (error) { status.textContent = error.message || 'Could not delete account.'; button.disabled = false; }
-    });
   }
   function renderPrompt(importPrompt, pdfPrompt = false) {
     const key = pdfPrompt ? PDF_PROMPT_KEY : importPrompt ? IMPORT_KEY : MASTER_KEY;
@@ -951,6 +961,7 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   async function restoreLibraryBackup(file) {
     try {
+      if(!state.user)throw new Error('Only the owner account can restore reviewers.');
       const data = JSON.parse(await file.text());
       const source = Array.isArray(data) ? data : Array.isArray(data?.reviewers) ? data.reviewers : data?.questions ? [data] : null;
       if (!source?.length || source.some(item => !item || !Array.isArray(item.questions) || !item.questions.length ||
@@ -969,6 +980,7 @@ Return only the questions in this format, ready to import into Rev.`;
       }
       state.reviewers = merged;
       if (!saveReviewers()) { state.reviewers = previous; return; }
+      try{await saveSharedLibrary();}catch(error){state.reviewers=previous;saveReviewers();throw error;}
       if (data && !Array.isArray(data)) {
         for (const reviewer of restored) {
           if (Array.isArray(data.flags?.[reviewer.id])) state.flags[reviewer.id] = data.flags[reviewer.id].filter(value => typeof value === 'string');
@@ -989,6 +1001,7 @@ Return only the questions in this format, ready to import into Rev.`;
     finally { $('#backup-file').value = ''; }
   }
   function openImport(reviewer = null) {
+    if(!state.user){toast('Sign in with the owner account to add or edit reviewers.');showAccountDialog();return;}
     const dialog = $('#import-dialog');
     dialog.dataset.editId = reviewer?.id || '';
     state.sourceText = ''; state.selectedFiles = []; state.importBusy = false; state.importPreview = null;
@@ -1038,6 +1051,7 @@ Return only the questions in this format, ready to import into Rev.`;
     return text;
   }
   async function submitImport(forceOcr=false) {
+    if(!state.user){toast('Only the owner account can add or edit reviewers.');return;}
     if (state.importBusy) return;
     state.importBusy = true; $('#import-submit').disabled = true;
     try {
@@ -1076,6 +1090,10 @@ Return only the questions in this format, ready to import into Rev.`;
         if (index >= 0) state.reviewers[index] = previous;
         else state.reviewers.shift();
         return feedback('Browser storage is full. Export or remove a reviewer, then try again.', true);
+      }
+      try{await saveSharedLibrary();}catch(error){
+        if(index>=0)state.reviewers[index]=previous;else state.reviewers.shift();
+        saveReviewers();throw error;
       }
       clearSession();
       state.activeId = reviewer.id; state.screen = 'home'; clearHash();
@@ -1185,14 +1203,10 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#restore-library').onclick = () => { setMobileNav(false); $('#backup-file').click(); };
     $('#backup-file').onchange = event => { if (event.target.files[0]) restoreLibraryBackup(event.target.files[0]); };
     $('#account-button').onclick = () => { setMobileNav(false); showAccountDialog(); };
-    $('#account-switch').onclick = () => setAccountMode($('#account-dialog').dataset.mode === 'signup' ? 'signin' : 'signup');
-    $('#account-guest').onclick = () => $('#account-dialog').close();
     $('#account-form').addEventListener('submit', submitAccount);
     $('#account-signout').onclick = async () => {
-      if (!auth) return;
-      const {error} = await auth.auth.signOut();
-      if (error) return toast(error.message || 'Could not sign out.');
-      switchAccount(null); setMobileNav(false); toast('Signed out.');
+      try{await fetch('/api/auth',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'logout'})});}catch{}
+      switchAccount(null);await refreshSharedLibrary({quiet:true});setMobileNav(false);toast('Signed out.');
     };
     $('#cancel-import').onclick = () => $('#import-dialog').close();
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
@@ -1216,15 +1230,13 @@ Return only the questions in this format, ready to import into Rev.`;
       const delay = Math.max(0, 420 - (performance.now() - bootStarted));
       setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), 520); }, delay);
     };
-    if (auth) {
-      auth.auth.getUser().then(({data, error}) => {
-        if (!error && data.user) switchAccount(data.user);
-      }).catch(() => {}).finally(finishBoot);
-      auth.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_OUT') queueMicrotask(() => switchAccount(null));
-        if (event === 'SIGNED_IN' && session?.user) queueMicrotask(() => switchAccount(session.user));
-      });
-    } else finishBoot();
+    (async()=>{
+      if(typeof window.fetch==='function'&&location.protocol!=='file:'){
+        try{const response=await fetch('/api/auth',{cache:'no-store',credentials:'same-origin'});const session=await response.json();if(response.ok&&session.owner)switchAccount({id:'owner',username:session.username||'cval'});}catch{}
+        await refreshSharedLibrary({quiet:true});
+      }else state.sharedLibraryStatus='unavailable';
+      finishBoot();
+    })();
   }
   function installLavaLamp() {
     const field = $('#lava-field');

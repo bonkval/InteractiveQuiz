@@ -207,12 +207,9 @@ button:not(:disabled):active{transform:scale(.975)}
 .account-dialog .modal-head{margin-bottom:18px}
 .account-dialog .modal-head h2{margin:0}
 .account-submit{width:100%;min-height:43px}
-.account-switch{display:block;margin:15px auto 0;border:0;background:none;color:var(--accent);font-size:12px;font-weight:700}
-.account-guest{display:block;margin:12px auto 0;border:0;background:none;color:var(--muted);font-size:12px}
-.account-guest:hover{color:var(--text)}
-.account-guest[hidden]{display:none}
 .account-note{margin:16px 0 0;color:var(--muted);font-size:11px;line-height:1.5;text-align:center}
 .account-dialog .import-feedback{min-height:18px}
+.owner-only[hidden]{display:none!important}
 @media(max-width:760px){body.mobile-nav.sidebar-collapsed .account-label{display:initial}body.mobile-nav.sidebar-collapsed .account-button{justify-content:flex-start}body.mobile-nav.sidebar-collapsed .account-signout:not([hidden]){display:block}}
 .skip-link{position:fixed;top:-70px;left:12px;z-index:50;padding:10px 14px;border-radius:8px;background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
 .skip-link:focus{top:12px}
