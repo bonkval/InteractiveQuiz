@@ -40,9 +40,9 @@ html.motion-reduced .question-index-card,html.motion-reduced .question-card,html
 .dark .question-index-card.correct{background:#25372e;color:#bce6cc}
 .dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
 .selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
-.answer-result-overlay{position:fixed;z-index:1000;width:104px;height:104px;display:grid;place-items:center;transform:translate(-50%,-50%);pointer-events:none;animation:answer-result-arrive 1.65s cubic-bezier(.2,.8,.2,1) both}
-.answer-result-mark{display:block;width:100px;height:100px;overflow:visible}
-.answer-result-mark path{fill:none;stroke-width:2.65;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw .5s cubic-bezier(.2,.75,.25,1) .04s both}
+.answer-result-overlay{position:fixed;z-index:1000;width:132px;height:132px;display:grid;place-items:center;transform:translate(-50%,-50%);pointer-events:none;animation:answer-result-arrive 1.65s cubic-bezier(.2,.8,.2,1) both}
+.answer-result-mark{display:block;width:128px;height:128px;overflow:visible}
+.answer-result-mark path{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw .5s cubic-bezier(.2,.75,.25,1) .04s both}
 .answer-result-overlay.correct .answer-result-mark{color:#188038}
 .answer-result-overlay.incorrect .answer-result-mark{color:#c5221f}
 .answer-result-mark path{stroke:currentColor}

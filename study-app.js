@@ -72,6 +72,7 @@ Return only the questions in this format, ready to import into Rev.`;
   let audioQuestion = null;
   let audioUtterance = null;
   let audioStatus = 'idle';
+  let answerAudioContext = null;
   const $ = (s, root = document) => root.querySelector(s);
   const mascotPath = location.protocol === 'file:' ? 'public/revvy-pixel.svg' : '/revvy-pixel.svg';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -138,6 +139,29 @@ Return only the questions in this format, ready to import into Rev.`;
     }
     document.body.append(mark);
     setTimeout(() => mark.remove(), motionReduced() ? 850 : 1650);
+  }
+  function playAnswerSound(correct) {
+    if (get('rev-sounds','on') === 'off') return;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    try {
+      answerAudioContext ||= new AudioContextClass();
+      const context = answerAudioContext;
+      if (context.state === 'suspended') context.resume().catch(() => {});
+      const start = context.currentTime + 0.025;
+      const notes = correct ? [{frequency:587,delay:0,duration:.13},{frequency:784,delay:.11,duration:.2}] : [{frequency:294,delay:0,duration:.14},{frequency:220,delay:.12,duration:.2}];
+      for (const note of notes) {
+        const oscillator = context.createOscillator(), gain = context.createGain();
+        const begins = start + note.delay, ends = begins + note.duration;
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(note.frequency,begins);
+        gain.gain.setValueAtTime(.0001,begins);
+        gain.gain.exponentialRampToValueAtTime(.055,begins+.018);
+        gain.gain.exponentialRampToValueAtTime(.0001,ends);
+        oscillator.connect(gain);gain.connect(context.destination);
+        oscillator.start(begins);oscillator.stop(ends+.015);
+      }
+    } catch {}
   }
   function renderNotepad() {
     const dialog=$('#notepad-dialog'), editor=$('#notepad-editor'), reading=$('#notepad-reading'), save=$('#notepad-save'), status=$('#notepad-status'), label=$('#notepad-editor-label');
@@ -922,6 +946,7 @@ Return only the questions in this format, ready to import into Rev.`;
       if(question.type==='multi-text') state.statementPoints=state.statementPoints||{},state.statementPoints[id]=question.parts.reduce((total,part,index)=>total+([part.answer,...part.acceptedAnswers].some(expected=>expected&&RevCore.normalize(expected)===RevCore.normalize(answer[index]))?1:0),0);
       if(question.correctAnswers.length>1) state.statementPoints=state.statementPoints||{},state.statementPoints[id]=Math.max(0,answer.filter(index=>question.correctAnswers.includes(index)).length-answer.filter(index=>!question.correctAnswers.includes(index)).length);
       showAnswerResult(state.results[id]);
+      playAnswerSound(state.results[id]);
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
     } else if (state.revealed.has(id) && !answer.length) {
@@ -1335,6 +1360,21 @@ Return only the questions in this format, ready to import into Rev.`;
       const choice=get('rev-motion','on');
       put('rev-motion',choice==='on'?'off':choice==='off'?'auto':'on');
       applyMotionPreference();
+    };
+    const applySoundPreference=()=>{
+      const enabled=get('rev-sounds','on')!=='off';
+      $('#sound-state').textContent=enabled?'On':'Off';
+      $('#sound-toggle').setAttribute('aria-checked',String(enabled));
+      $('#sound-toggle').setAttribute('aria-label',`Sound setting: ${enabled?'On':'Off'}. Activate to ${enabled?'mute':'unmute'}.`);
+      $('#sound-toggle').title=enabled?'Answer sounds are on':'Answer sounds are muted';
+      $('#sound-icon').innerHTML=enabled
+        ? '<path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>'
+        : '<path d="M11 5 6 9H3v6h3l5 4zM16 9l5 6m0-6-5 6"/>';
+    };
+    applySoundPreference();
+    $('#sound-toggle').onclick=()=>{
+      put('rev-sounds',get('rev-sounds','on')==='off'?'on':'off');
+      applySoundPreference();
     };
     $('#sidebar-toggle').onclick = () => {
       const collapsed = document.body.classList.toggle('sidebar-collapsed');
