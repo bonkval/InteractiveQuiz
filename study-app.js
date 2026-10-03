@@ -1221,7 +1221,9 @@ Return only the questions in this format, ready to import into Rev.`;
       const imageFiles = state.importPreview?.imageFiles || [];
       if (!state.importPreview) for (const imageFile of exhibitFiles) imageFiles.push({name:imageFile.name,data:await fileToDataUrl(imageFile)});
       if (!state.importPreview && tab==='file' && window.RevPdfJs) {
-        const pdfForImages=/\.pdf$/i.test(sourceFile?.name||'') ? sourceFile : null;
+        // A generated JSON reviewer is preferred for text, but an original PDF
+        // selected alongside it is still the source for embedded figures.
+        const pdfForImages=reviewerFiles.find(candidate=>/\.pdf$/i.test(candidate.name))||null;
         const extracted=pdfForImages ? await extractPdfImages(pdfForImages,message=>{ $('#file-status').textContent=message; }) : [];
         if(extracted.length) for(const question of parsed.questions) {
           const page=Number(question.sourceNumber);
@@ -1412,7 +1414,13 @@ Return only the questions in this format, ready to import into Rev.`;
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
       state.selectedFiles = [...e.target.files];
-      $('#file-status').textContent = state.selectedFiles.map(x => x.name).join(', ') || 'PDF text and OCR run locally. Scanned PDFs download the English model once.';
+      const names=state.selectedFiles.map(x=>x.name).join(', ');
+      const hasImportJson=state.selectedFiles.some(x=>/_Revvy_Import\.json$/i.test(x.name));
+      const hasPdf=state.selectedFiles.some(x=>/\.pdf$/i.test(x.name));
+      const hasImages=state.selectedFiles.some(x=>x.type.startsWith('image/'));
+      $('#file-status').textContent=names
+        ? `${names}${hasImportJson&&!hasPdf&&!hasImages?'. For any figures not embedded in the JSON, also select the original PDF or image files.':''}`
+        : 'PDF text and OCR run locally. Scanned PDFs download the English model once.';
       resetImportPreview();
     };
     $('#paste-text').addEventListener('input', resetImportPreview);
