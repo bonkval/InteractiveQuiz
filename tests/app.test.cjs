@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
@@ -19,7 +19,7 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
   window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
   window.HTMLDialogElement.prototype.close = function() { this.open = false; };
   window.confirm = () => true;
-  let owner = false;
+  let owner = ownerAtStart;
   let sharedReviewers = null, sharedEtag = 'etag-1';
   let libraryPutCount = 0;
   const jsonResponse = (payload, status=200, etag='') => ({ok:status>=200&&status<300,status,headers:{get:name=>name.toLowerCase()==='etag'?etag:''},json:async()=>payload});
@@ -41,7 +41,10 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
       const part=Number(params.get('part'));
       return jsonResponse({part,data:data.slice(part*size,(part+1)*size)},200,sharedEtag);
     }
-    if(path==='/api/library'&&(!options.method||options.method==='GET'))return jsonResponse(chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
+    if(path==='/api/library'&&(!options.method||options.method==='GET')){
+      if(delayLibraryLoad)await new Promise(resolve=>setTimeout(resolve,100));
+      return jsonResponse(chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
+    }
     if(path==='/api/library'&&options.method==='PUT'){
       libraryPutCount++;
       if(conflictOnSecondPut&&libraryPutCount===2){
@@ -138,6 +141,34 @@ test('reviewer rename retries an ETag conflict and keeps reviewers added concurr
   assert.equal(localStorage.getItem('recall-reviewers-v1:user:owner'),null);
   assert.match(document.querySelector('#main-panel').textContent,/CCST/);
   assert.ok(document.querySelectorAll('[data-reviewer]').length>=2,'the concurrently added reviewer is retained');
+  dom.window.close();
+});
+
+test('deleted shared reviewers stay removed after a refresh', async () => {
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  assert.equal(document.querySelectorAll('[data-reviewer]').length,1);
+  document.querySelector('[data-delete]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelectorAll('[data-reviewer]').length,0);
+  document.querySelector('#account-signout').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelectorAll('[data-reviewer]').length,0);
+  dom.window.close();
+});
+
+test('reviewer deletion waits for the shared library to finish loading', async () => {
+  const dom=openApp({ownerAtStart:true,delayLibraryLoad:true}),{document}=dom.window;
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.ok(document.body.classList.contains('owner-session'));
+  document.querySelector('[data-delete]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelectorAll('[data-reviewer]').length,1);
+  assert.match(document.querySelector('.toast')?.textContent||'',/finish loading/);
+  await new Promise(resolve=>setTimeout(resolve,150));
+  document.querySelector('[data-delete]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelectorAll('[data-reviewer]').length,0);
   dom.window.close();
 });
 

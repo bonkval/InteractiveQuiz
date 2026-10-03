@@ -324,6 +324,8 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   async function saveSharedLibrary() {
     if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
+    if(state.sharedLibraryStatus==='loading')throw new Error('Wait for shared reviewers to finish loading before making changes.');
+    if(state.sharedLibraryStatus==='unavailable')throw new Error('Shared reviewers are not synced. Reload the page before making changes.');
     let baseline=cloneReviewers(state.sharedLibrarySnapshot),desired=cloneReviewers(state.reviewers),etag=state.sharedLibraryEtag;
     for(let attempt=0;attempt<3;attempt++){
       const headers={'Content-Type':'application/json'};
@@ -370,6 +372,7 @@ Return only the questions in this format, ready to import into Rev.`;
         state.sharedLibrarySnapshot=[];
       }
       if(!state.sharedLibraryInitialized&&state.user){
+        state.sharedLibraryStatus='ready';
         await saveSharedLibrary();
       }
       state.sharedLibraryStatus='ready';render();return true;
