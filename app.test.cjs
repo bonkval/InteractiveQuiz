@@ -153,6 +153,23 @@ test('pixel lava backdrop exists behind the app without pointer tracking', () =>
   dom.window.close();
 });
 
+test('motion stays visible on desktop and can be reduced or follow the device', () => {
+  const dom=openApp(),{document,localStorage}=dom.window;
+  const toggle=document.querySelector('#motion-toggle');
+  assert.equal(document.documentElement.classList.contains('motion-reduced'),false);
+  assert.equal(document.querySelector('#motion-state').textContent,'On');
+  toggle.click();
+  assert.equal(localStorage.getItem('rev-motion'),'off');
+  assert.ok(document.documentElement.classList.contains('motion-reduced'));
+  toggle.click();
+  assert.equal(localStorage.getItem('rev-motion'),'auto');
+  assert.ok(document.documentElement.classList.contains('motion-reduced'));
+  toggle.click();
+  assert.equal(localStorage.getItem('rev-motion'),'on');
+  assert.equal(document.documentElement.classList.contains('motion-reduced'),false);
+  dom.window.close();
+});
+
 test('public visitors do not see reviewer editing or registration', () => {
   const dom = openApp(), {document} = dom.window;
   assert.equal(document.querySelector('#new-reviewer').hidden,true);
@@ -368,13 +385,13 @@ test('mixed reviewer filters and retry keep a usable reviewer selected', async (
   document.querySelector('[data-mix-reviewer]').checked = true;
   document.querySelector('#study-filter').value = 'flagged';
   document.querySelector('#start-quiz').click();
-  assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);
+  assert.match(document.querySelector('#reviewer-title').textContent, /S2 It0015/);
   document.querySelector('#study-filter').value = 'all';
   document.querySelector('#start-quiz').click();
   document.querySelector('#next-question').click();
   assert.ok(document.querySelector('.question-text'));
   document.querySelector('#exit-quiz').click();
-  assert.match(document.querySelector('.welcome h2').textContent, /S2 It0015/);
+  assert.match(document.querySelector('#reviewer-title').textContent, /S2 It0015/);
   dom.window.close();
 });
 

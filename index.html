@@ -7,11 +7,12 @@
   <meta name="description" content="Rev helps you study one question at a time.">
   <link rel="icon" type="image/svg+xml" href="/revvy-pixel.svg?v=1">
   <title>Revvy</title>
+  <script>try{const choice=localStorage.getItem('rev-motion')||'on';if(choice==='off'||(choice==='auto'&&matchMedia('(prefers-reduced-motion: reduce)').matches))document.documentElement.classList.add('motion-reduced')}catch{}</script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="lava-field" id="lava-field" aria-hidden="true"><span class="lava-blob blob-one"></span><span class="lava-blob blob-two"></span><span class="lava-blob blob-three"></span><span class="lava-blob blob-four"></span><span class="lava-blob blob-five"></span><span class="lava-pixels"></span></div>
-  <div class="boot-screen" id="boot-screen" role="status" aria-live="polite"><div class="boot-mark" aria-hidden="true"><span></span><span></span><span></span></div><strong>Rev</strong><p>Getting your study space ready</p><div class="boot-progress"><i></i></div></div>
+  <div class="boot-screen" id="boot-screen" role="status" aria-live="polite"><div class="boot-orbit" aria-hidden="true"><span class="boot-orbit-ring"></span><span class="boot-orbit-ring boot-orbit-ring-two"></span><img src="/revvy-pixel.svg" alt=""><span class="boot-spark boot-spark-one"></span><span class="boot-spark boot-spark-two"></span></div><strong>Revvy</strong><p>Getting your study space ready</p><div class="boot-progress" aria-hidden="true"><i></i></div></div>
   <a class="skip-link" href="#main-panel">Skip to main content</a>
   <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   <button class="nav-scrim" id="nav-scrim" aria-label="Close navigation" hidden></button>
@@ -32,9 +33,10 @@
     <div class="account-actions"><button class="account-button" id="account-button" aria-label="Owner sign in"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.7-3.5 3.3-5.4 7.5-5.4s6.8 1.9 7.5 5.4"/></svg><span class="account-label" id="account-label">Owner sign in</span></button><button class="account-signout" id="account-signout" type="button" hidden>Sign out</button></div>
     <a class="creator-credit" href="https://github.com/bonkval" target="_blank" rel="noopener noreferrer" aria-label="Made by bonkval — view the GitHub profile">Made by bonkval <span aria-hidden="true">↗</span></a>
     <button class="theme-button" id="theme-toggle" aria-label="Switch to dark mode"><svg class="ui-icon theme-icon" id="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg><span class="theme-label">Appearance</span><span class="theme-state" id="theme-state">Light</span></button>
+    <button class="theme-button motion-button" id="motion-toggle" type="button" aria-label="Motion setting: Auto"><svg class="ui-icon theme-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg><span class="theme-label">Motion</span><span class="theme-state" id="motion-state">Auto</span></button>
   </aside>
   <main class="main-area" id="main-area">
-    <section class="intro" id="intro"><div><p class="eyebrow">YOUR STUDY SPACE</p><h1>Make it <span>stick.</span></h1><p class="intro-copy">Choose a reviewer and take it one question at a time.</p></div></section>
+    <section class="intro" id="intro"><div><p class="eyebrow">YOUR STUDY SPACE</p><h1>Make it <span>stick.</span></h1><p class="intro-copy">Pick a reviewer. Find your rhythm. Learn one card at a time.</p></div><div class="intro-figure" aria-hidden="true"><span class="intro-orbit"></span><span class="intro-orbit intro-orbit-two"></span><img src="/revvy-pixel.svg" alt=""><span class="intro-star">✦</span></div></section>
     <section class="main-panel" id="main-panel" aria-live="polite"></section>
   </main>
   <dialog id="import-dialog" class="modal">
@@ -59,6 +61,7 @@
     if (location.protocol === 'file:') {
       document.body.classList.add('offline-file');
       document.querySelector('link[rel="icon"]').href = 'public/revvy-pixel.svg?v=1';
+      document.querySelectorAll('.boot-orbit img,.intro-figure img').forEach(image => { image.src = 'public/revvy-pixel.svg'; });
       for (const path of ['reviewer-data.js', 'exhibit-alts.js', 'core.js', 'study-app.js']) {
         document.write('<script src="' + path + '"><\/script>');
       }

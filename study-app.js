@@ -71,9 +71,11 @@ Return only the questions in this format, ready to import into Rev.`;
   let audioUtterance = null;
   let audioStatus = 'idle';
   const $ = (s, root = document) => root.querySelector(s);
+  const mascotPath = location.protocol === 'file:' ? 'public/revvy-pixel.svg' : '/revvy-pixel.svg';
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
+  const motionReduced = () => document.documentElement.classList.contains('motion-reduced');
   const storageStatus = () => { try { const key=`rev-storage-check-${Date.now()}`; localStorage.setItem(key,'1'); localStorage.removeItem(key); return true; } catch { return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
@@ -116,7 +118,7 @@ Return only the questions in this format, ready to import into Rev.`;
       : '<path d="m10 10 14 14" pathLength="1" /><path d="m24 10-14 14" pathLength="1" />';
     mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 34 34" fill="none">${icon}</svg></span>`;
     document.body.append(mark);
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = motionReduced();
     setTimeout(() => mark.remove(), reducedMotion ? 280 : 940);
   }
   function load() {
@@ -441,6 +443,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const helpScreen = location.hash === '#help';
     const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg && !dataScreen && !helpScreen;
     document.body.classList.toggle('is-studying', studying);
+    document.body.classList.toggle('home-view',!studying&&!prompt&&!easterEgg&&!dataScreen&&!helpScreen&&Boolean(currentReviewer()));
     document.body.classList.toggle('prompt-open', prompt);
     document.body.classList.toggle('easter-egg-open', easterEgg);
     $('#intro').hidden = prompt || studying || dataScreen || helpScreen || !!currentReviewer();
@@ -453,8 +456,8 @@ Return only the questions in this format, ready to import into Rev.`;
     const reviewer = currentReviewer();
     if (!reviewer) {
       $('#main-panel').innerHTML = state.user
-        ? '<div class="welcome"><button class="primary-button" id="welcome-import">Add reviewer</button></div>'
-        : '<div class="welcome"><h2>No reviewers are available yet</h2><p>Ask cval to add the reviewer you need.</p></div>';
+        ? `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">YOUR LIBRARY STARTS HERE</p><h2>Bring your questions to life.</h2><p>Import a reviewer, then turn it into short, focused study rounds.</p><button class="primary-button" id="welcome-import">Import reviewer</button></div>`
+        : `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">READY WHEN YOU ARE</p><h2>Pick a reviewer to begin.</h2><p>Your next study round is one click away.</p></div>`;
       if(state.user)$('#welcome-import').onclick = () => openImport(); return;
     }
     if (state.screen === 'study') return renderQuestion();
@@ -465,20 +468,29 @@ Return only the questions in this format, ready to import into Rev.`;
     const todayDue = state.reviewers.reduce((total, item) => total + item.questions.filter(question => dueFor(item, question)).length, 0);
     const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
     const topicStats = topics.map(topic=>{const questions=reviewer.questions.filter(question=>question.topic===topic);const correct=questions.filter(question=>state.history[reviewer.id]?.[questionKey(question)]==='correct').length;return `<span class="topic-stat"><strong>${esc(topic)}</strong>${correct}/${questions.length} mastered</span>`;}).join('');
-    $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${esc(reviewer.title)}</h2>
-      <p>${reviewer.questions.length} questions · ${due} due today · daily target ${Number(state.settings.dailyGoal) || 20}</p>
-      <label class="field-label" for="daily-goal">Daily review target</label><input id="daily-goal" class="study-filter" type="number" min="1" max="500" value="${Number(state.settings.dailyGoal) || 20}">
-      <label class="field-label study-filter-label" for="study-filter">Study</label><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select>
-      ${topics.length ? `<label class="field-label" for="topic-filter">Focus topic</label><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select>` : '<p class="hint">Add topic tags while reviewing questions to see progress by topic.</p>'}
-      <p class="sync-status" role="status">${todayDue} questions due across your library &middot; Reviewers ${state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'shared online':'not synced'} &middot; Your progress stays on this device</p>
-      <progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress>
-      ${topicStats ? `<section class="topic-progress"><strong>Progress by topic</strong><div>${topicStats}</div></section>` : ''}
-      <label class="field-label" for="question-search">Find questions in this reviewer</label><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text">
-      <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details>
-      <button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start reviewing</button>
-      <div class="welcome-actions"><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice (no score)</button></div>
-      <div class="welcome-actions"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit questions</button>
-      <button class="mini-control" id="export-reviewer">Export</button></div></div></div>`;
+    $('#main-panel').innerHTML = `<div class="reviewer-home">
+      <section class="reviewer-hero" aria-labelledby="reviewer-title">
+        <div class="reviewer-hero-copy"><p class="hero-kicker">READY FOR YOUR NEXT ROUND</p><h1 id="reviewer-title">${esc(reviewer.title)}</h1>
+          <p class="hero-subtitle">A little practice, a lot of progress.</p>
+          <div class="hero-metrics"><div><strong>${reviewer.questions.length}</strong><span>study cards</span></div><div><strong>${due}</strong><span>due today</span></div><div><strong>${Number(state.settings.dailyGoal) || 20}</strong><span>daily goal</span></div></div>
+          <div class="hero-actions"><button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start studying <span aria-hidden="true">&rarr;</span></button><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice freely</button></div>
+          <p class="sync-status" role="status"><span class="sync-dot"></span>Reviewers ${state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'shared online':'not synced'} <span aria-hidden="true">&middot;</span> Your progress stays on this device</p>
+        </div>
+        <div class="reviewer-hero-visual" aria-hidden="true"><span class="hero-halo"></span><span class="hero-spark hero-spark-one">&#10022;</span><span class="hero-spark hero-spark-two">&#10023;</span><div class="hero-card hero-card-back"><span>02</span><i></i><i></i></div><div class="hero-card hero-card-front"><span class="hero-card-top">REV / STUDY</span><img src="${mascotPath}" alt=""><span class="hero-card-bottom">ONE CARD AT A TIME</span></div></div>
+      </section>
+      <section class="reviewer-lower" aria-label="Study options and progress">
+        <div class="study-prep"><div class="section-heading"><p class="eyebrow">MAKE IT YOURS</p><h2>Choose your session</h2></div>
+          <div class="study-prep-grid"><label class="prep-field" for="study-filter"><span>Study set</span><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></label>
+          ${topics.length ? `<label class="prep-field" for="topic-filter"><span>Focus topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
+          <label class="prep-field goal-field" for="daily-goal"><span>Daily target</span><input id="daily-goal" class="study-filter" type="number" min="1" max="500" value="${Number(state.settings.dailyGoal) || 20}"></label></div>
+          <details class="more-study-options"><summary>More ways to study</summary><div class="more-study-inner"><label class="prep-field" for="question-search"><span>Find questions</span><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text"></label>
+            <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details></div></details>
+        </div>
+        <div class="progress-card"><div class="progress-card-head"><p class="eyebrow">KEEP THE STREAK</p><span>${state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0} / ${Number(state.settings.dailyGoal) || 20}</span></div><h2>Today's pace</h2><progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress><p>${todayDue ? `${todayDue} card${todayDue===1?'':'s'} ready for another look.` : 'All caught up. Practice any set to stay sharp.'}</p>
+          ${topicStats ? `<details class="topic-progress"><summary>Topic progress</summary><div>${topicStats}</div></details>` : ''}</div>
+      </section>
+      <div class="reviewer-footer"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit reviewer</button><button class="mini-control" id="export-reviewer">Export reviewer</button></div>
+    </div>`;
     $('#daily-goal').onchange = event => { state.settings.dailyGoal = Math.max(1, Math.min(500, Number(event.target.value) || 20)); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
     $('#question-search').onchange = event => { state.settings.questionSearch = event.target.value.trim().toLowerCase(); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
     $('#start-quiz').onclick = () => startQuiz(false, 'quiz', $('#study-filter').value, 0, [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
@@ -549,7 +561,7 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function renderDataSettings() {
     saveSession();
-    const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+    const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=motionReduced();
     const checks=[['PDF import',Boolean(window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
       <p>The reviewer library is shared through Vercel Blob. Answers, flags, study progress, and prompts stay on this device.</p>
@@ -709,9 +721,10 @@ Return only the questions in this format, ready to import into Rev.`;
       <button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question" aria-keyshortcuts="Enter ArrowRight">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
     if(q.sourcePage) $('.question-number').append(document.createTextNode(` · Source page ${q.sourcePage}`));
-    if (direction && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (direction && !motionReduced()) {
       const offset = direction === 'next' ? 9 : -9;
       $('#main-panel').querySelectorAll('.question-card,.answer-list,.short-answer').forEach((element, index) => {
+        if (typeof element.animate !== 'function') return;
         const enter = element.animate([
           { opacity: 0, transform: `translateX(${offset}px)` },
           { opacity: 1, transform: 'translateX(0)' }
@@ -722,7 +735,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (direction) $('.question-card').focus({preventScroll:true});
     if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
     updateAudioButton();
-    $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
+    $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:motionReduced()?'auto':'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
       const option = Number(b.dataset.option), multi = q.correctAnswers.length > 1;
       const current = state.answers[id] || [];
@@ -1260,6 +1273,23 @@ Return only the questions in this format, ready to import into Rev.`;
       $('#theme-toggle').setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
     };
     setThemeAppearance(document.body.classList.contains('dark'));
+    const systemMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+    const applyMotionPreference=()=>{
+      const choice=get('rev-motion','on');
+      const reduced=choice==='off'||(choice==='auto'&&systemMotion.matches);
+      document.documentElement.classList.toggle('motion-reduced',reduced);
+      $('#motion-state').textContent=choice==='on'?'On':choice==='off'?'Off':'Auto';
+      $('#motion-toggle').setAttribute('aria-label',`Motion setting: ${choice==='on'?'On':choice==='off'?'Off':'Auto'}. Activate to change.`);
+      $('#motion-toggle').title=choice==='auto'?'Auto follows your device motion setting':choice==='on'?'Animations are on':'Animations are off';
+      installLavaLamp();
+    };
+    applyMotionPreference();
+    systemMotion.addEventListener?.('change',applyMotionPreference);
+    $('#motion-toggle').onclick=()=>{
+      const choice=get('rev-motion','on');
+      put('rev-motion',choice==='on'?'off':choice==='off'?'auto':'on');
+      applyMotionPreference();
+    };
     $('#sidebar-toggle').onclick = () => {
       const collapsed = document.body.classList.toggle('sidebar-collapsed');
       put('rev-sidebar-open', String(!collapsed));
@@ -1308,8 +1338,9 @@ Return only the questions in this format, ready to import into Rev.`;
     const finishBoot = () => {
       const overlay = $('#boot-screen');
       if (!overlay) return;
-      const delay = Math.max(0, 420 - (performance.now() - bootStarted));
-      setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), 520); }, delay);
+      const reduced=motionReduced();
+      const delay=Math.max(0,(reduced?280:1150)-(performance.now()-bootStarted));
+      setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), reduced?40:520); }, delay);
     };
     (async()=>{
       if(typeof window.fetch==='function'&&location.protocol!=='file:'){
@@ -1321,8 +1352,8 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function installLavaLamp() {
     const field = $('#lava-field');
-    if (!field || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    field.classList.add('lava-active');
+    if (!field) return;
+    field.classList.toggle('lava-active',!motionReduced());
   }
   initialize();
 })();
