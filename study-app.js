@@ -125,7 +125,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const icon = correct
       ? '<path d="m3.5 8 3 3 6-6" />'
       : '<path d="m4.5 4.5 7 7m0-7-7 7" />';
-    mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none">${icon}</svg></span><span>${correct ? 'Correct' : 'Incorrect'}</span>`;
+    mark.innerHTML = `<div class="answer-result-card"><span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none">${icon}</svg></span><span class="answer-result-label">${correct ? 'Correct' : 'Incorrect'}</span></div>`;
     document.body.append(mark);
     setTimeout(() => mark.remove(), motionReduced() ? 900 : 1600);
   }
