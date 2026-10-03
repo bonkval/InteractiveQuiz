@@ -23,7 +23,7 @@ export default async function handler(request, response) {
   response.setHeader('X-Content-Type-Options','nosniff');
   if (request.method === 'GET') {
     try {
-      const blob = await get(PATH,{access:'private'});
+      const blob = await get(PATH,{access:'private',useCache:false});
       if (!blob) return response.status(200).json({initialized:false,reviewers:[]});
       if (blob.statusCode !== 200 || !blob.stream) throw new Error('Could not read shared library.');
       const library = JSON.parse(await new Response(blob.stream).text());
