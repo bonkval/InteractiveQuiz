@@ -274,6 +274,13 @@ Return only the questions in this format, ready to import into Rev.`;
     return put(scopedKey(KEY), JSON.stringify(state.reviewers));
   }
   function cloneReviewers(reviewers) { return JSON.parse(JSON.stringify(reviewers || [])); }
+  function compactReviewers(reviewers) {
+    return reviewers.map(reviewer => ({...reviewer,questions:reviewer.questions.map(question => {
+      if (!question.images?.includes(question.image)) return question;
+      const {image, ...withoutDuplicate} = question;
+      return withoutDuplicate;
+    })}));
+  }
   function mergeReviewerChanges(base, desired, latest) {
     const baseById=new Map(base.map(item=>[item.id,item]));
     const desiredById=new Map(desired.map(item=>[item.id,item]));
@@ -294,8 +301,11 @@ Return only the questions in this format, ready to import into Rev.`;
     for(let attempt=0;attempt<3;attempt++){
       const headers={'Content-Type':'application/json'};
       if(etag)headers['If-Match']=etag;
-      const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body:JSON.stringify({reviewers:desired})});
+      const body=JSON.stringify({reviewers:compactReviewers(desired)});
+      if(new Blob([body]).size>4_000_000)throw new Error('The shared library exceeds the upload limit. Export a backup, then reduce or compress large exhibits.');
+      const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body});
       const result=await response.json().catch(()=>({}));
+      if(response.status===413)throw new Error('The shared library exceeds Vercel’s upload limit. Reduce or compress large exhibits, then try again.');
       if(response.status===412&&attempt<2){
         const latestResponse=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
         const latestResult=await latestResponse.json().catch(()=>({}));
@@ -1199,7 +1209,9 @@ Return only the questions in this format, ready to import into Rev.`;
             try{context.drawImage(drawable,0,0,image.width,image.height);copied=true;}catch{}
           }
           if(!copied){canvas.width=canvas.height=0;continue;}
-          const data=canvas.toDataURL('image/png');
+          const png=canvas.toDataURL('image/png');
+          const webp=canvas.toDataURL('image/webp',0.93);
+          const data=webp.startsWith('data:image/webp;')&&webp.length<png.length?webp:png;
           if(!images.some(entry=>entry.page===number&&entry.data===data)) images.push({page:number,data});
         } catch { /* Ignore unsupported PDF image formats and keep importing text. */ }
         canvas.width=canvas.height=0;
