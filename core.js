@@ -25,9 +25,11 @@ const RevCore = (() => {
     ].filter(value => value && normalize(value) !== normalize(answer)));
     return {
       sourceNumber: String(raw?.sourceNumber ?? index + 1),
+      ...(raw?.sourcePage ? {sourcePage:String(raw.sourcePage)} : {}),
       text: cleanReadingText(raw?.text),
       ...(Array.isArray(raw?.statements) ? {statements:raw.statements.map(cleanReadingText),statementAnswers:Array.isArray(raw?.statementAnswers)?raw.statementAnswers.map(value=>/^(?:T|True)$/i.test(String(value))?'True':'False'):[]} : {}),
       ...(Array.isArray(raw?.matches) ? {matches:raw.matches.map(pair=>({answer:cleanReadingText(pair.answer),prompt:cleanReadingText(pair.prompt),correct:Boolean(pair.correct)})),answerTiles:Array.isArray(raw?.answerTiles)?raw.answerTiles.map(cleanReadingText):[]} : {}),
+      ...(Array.isArray(raw?.parts) ? {parts:raw.parts.map(part=>({prompt:cleanReadingText(part.prompt),answer:cleanReadingText(part.answer),acceptedAnswers:Array.isArray(part.acceptedAnswers)?part.acceptedAnswers.map(cleanReadingText):[]}))} : {}),
       options,
       correctAnswers,
       answer,
@@ -35,7 +37,7 @@ const RevCore = (() => {
       ...(raw?.topic ? {topic: cleanReadingText(raw.topic)} : {}),
       ...(raw?.optionExplanations && typeof raw.optionExplanations === 'object' ? {optionExplanations: Object.fromEntries(Object.entries(raw.optionExplanations).map(([i, value]) => [i, cleanReadingText(value)]))} : {}),
       ...(acceptedAnswers.length ? {acceptedAnswers} : {}),
-      type: Array.isArray(raw?.statements) ? 'grouped-boolean' : Array.isArray(raw?.matches) ? 'matching' : options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
+      type: Array.isArray(raw?.parts) ? 'multi-text' : Array.isArray(raw?.statements) ? 'grouped-boolean' : Array.isArray(raw?.matches) ? 'matching' : options.length ? (options.length === 2 && options.every(x => /^(true|false)$/i.test(x)) ? 'boolean' : 'choice') : 'text',
       ...(raw?.image ? { image: String(raw.image) } : {}),
       ...(Array.isArray(raw?.images) ? { images: raw.images.map(x => String(x)).filter(Boolean) } : []),
       ...(Array.isArray(raw?.imageAlts) ? { imageAlts: raw.imageAlts.map(x => cleanReadingText(x)) } : []),
@@ -343,18 +345,21 @@ const RevCore = (() => {
   function deduplicate(questions, warnings) {
     const result = [], byText = new Map();
     for (const q of questions) {
-      const key = normalize(q.text);
+      const key = JSON.stringify([normalize(q.text),q.options.map(normalize),q.statements?.map(normalize),q.matches?.map(pair=>normalize(pair.prompt)),q.parts?.map(part=>normalize(part.prompt))]);
       if (!key) continue;
       const prior = byText.get(key);
       if (prior === undefined) { byText.set(key, result.length); result.push(q); continue; }
       const existing = result[prior];
-      const keyed = q.correctAnswers.length > 0 || !!q.answer;
-      const existingKeyed = existing.correctAnswers.length > 0 || !!existing.answer;
+      const keyed = q.correctAnswers.length > 0 || !!q.answer || q.statementAnswers?.length > 0 || q.matches?.length > 0 || q.parts?.some(part=>part.answer);
+      const existingKeyed = existing.correctAnswers.length > 0 || !!existing.answer || existing.statementAnswers?.length > 0 || existing.matches?.length > 0 || existing.parts?.some(part=>part.answer);
       const preferred = keyed && !existingKeyed ? q : existing;
       const alternate = preferred === q ? existing : q;
       const sameKey = !keyed || !existingKeyed ||
         (normalize(existing.answer) === normalize(q.answer) &&
-          existing.correctAnswers.join(',') === q.correctAnswers.join(','));
+          existing.correctAnswers.join(',') === q.correctAnswers.join(',') &&
+          JSON.stringify(existing.statementAnswers||[])===JSON.stringify(q.statementAnswers||[]) &&
+          JSON.stringify(existing.matches?.map(pair=>pair.answer)||[])===JSON.stringify(q.matches?.map(pair=>pair.answer)||[]) &&
+          JSON.stringify(existing.parts?.map(part=>part.answer)||[])===JSON.stringify(q.parts?.map(part=>part.answer)||[]));
       if (sameKey) {
         if (!preferred.explanation && alternate.explanation) preferred.explanation = alternate.explanation;
         if (!preferred.optionExplanations && alternate.optionExplanations) preferred.optionExplanations = alternate.optionExplanations;
@@ -372,6 +377,7 @@ const RevCore = (() => {
     const warnings = [], blocks = [];
     const text = String(input ?? '').replace(/\r/g, '').replace(/[\u200b\ufeff]/g, '')
       .replace(/^\s*```[^\n]*$/gm, '').replace(/\f/g, '\n');
+    if (/^QUESTION\s+\d+\s*\|\s*SOURCE PAGE\s+\d+/im.test(text)) return parsePageReviewer(text);
     let block = null, expectedNumber = 1;
     for (const raw of text.split('\n')) {
       const line = raw.trim();
@@ -399,6 +405,80 @@ const RevCore = (() => {
     return { questions, warnings };
   }
 
+  // Reviewers with one question per page and a worked answer section, such as
+  // Start_Completed.pdf, need their subquestions kept together as one activity.
+  function parsePageReviewer(text) {
+    const warnings = [], questions = [];
+    const parts = text.split(/(?=^QUESTION\s+\d+\s*\|\s*SOURCE PAGE\s+\d+)/im);
+    for (const part of parts) {
+      const heading = part.match(/^QUESTION\s+(\d+)\s*\|\s*SOURCE PAGE\s+(\d+)/im);
+      if (!heading) continue;
+      const number = heading[1], sourcePage = heading[2];
+      const rawLines = part.slice(heading.index + heading[0].length).split('\n').map(x => x.trim()).filter(Boolean);
+      const lines = rawLines.filter(line => !/^CCST NETWORKING REVIEWER$/i.test(line) && !/^\d{1,3}$/.test(line));
+      const split = lines.findIndex(line => /^ANSWER\s*(?:\+|AND)\s*EXPLANATION$/i.test(line));
+      const body = split < 0 ? lines : lines.slice(0, split);
+      const notes = split < 0 ? [] : lines.slice(split + 1);
+      const explanation = cleanReadingText(notes.join('\n'));
+      const base = {sourceNumber:number,sourcePage,text:'',options:[],correctAnswers:[],answer:'',explanation};
+      const choiceStart = body.findIndex(line => /^A[.)]\s+/.test(line));
+      if (choiceStart >= 0) {
+        const options = [];
+        for (const line of body.slice(choiceStart)) {
+          const option = line.match(/^([A-Z])[.)]\s+(.+)$/);
+          if (option) options.push(option[2]);
+          else if (options.length) options[options.length-1] += ` ${line}`;
+        }
+        base.text = cleanReadingText(body.slice(0,choiceStart).join('\n'));
+        base.options = options.map(cleanReadingText);
+        const key = explanation.match(/\bAnswers?\s*:\s*((?:[A-Z](?:\s*(?:,|and|&)\s*[A-Z])*))(?:\b|\s*[-.])/i);
+        if (key) base.correctAnswers = [...new Set(key[1].split(/\s*(?:,|and|&)\s*/i).map(letter=>letter.toUpperCase().charCodeAt(0)-65))].filter(i=>i>=0&&i<options.length);
+        if (/no listed answer is fully correct/i.test(explanation)) {
+          base.correctAnswers = [];
+          base.answer = cleanReadingText((explanation.match(/\bresult is\s+([\w.:/-]+)/i)?.[1] || '').replace(/\.$/,''));
+          warnings.push(`Question ${number}: source choices contain no fully correct answer; use the written answer.`);
+        }
+        if (!base.correctAnswers.length && !base.answer) warnings.push(`Question ${number}: check the answer key.`);
+      } else {
+        const rows = [], prompt = [];
+        let row = null;
+        for (const line of body) {
+          const numbered = line.match(/^(\d+)[.)]\s+(.+)$/);
+          const answer = line.match(/^Answer\s*:\s*(.*)$/i);
+          if (numbered) { if (row) rows.push(row); row={prompt:numbered[2],answer:''}; }
+          else if (answer && row) row.answer=answer[1];
+          else if (row && !row.answer) row.prompt += ` ${line}`;
+          else if (!row) prompt.push(line);
+        }
+        if (row) rows.push(row);
+        base.text = cleanReadingText(prompt.join('\n'));
+        if (rows.length >= 2 && /(?:true or false|select true|select false)/i.test(base.text)) {
+          base.statements = rows.map(x=>cleanReadingText(x.prompt));
+          base.statementAnswers = rows.map(x=>x.answer);
+          if (rows.some(x=>!/^(true|false)$/i.test(x.answer))) warnings.push(`Question ${number}: some true/false answers need review.`);
+        } else if (rows.length >= 2) {
+          base.matches = rows.map(x=>({prompt:cleanReadingText(x.prompt),answer:cleanReadingText(x.answer)}));
+          const bank = base.text.match(/\bOptions(?: as printed)?\s*:\s*([\s\S]+?)(?:\.\s*$|$)/i)?.[1];
+          const tiles=new Map();
+          for(const value of [...(bank ? bank.split(/,\s*/) : []),...rows.map(x=>x.answer)]) {
+            const tile=cleanReadingText(value);if(tile)tiles.set(normalize(tile),tile);
+          }
+          base.answerTiles=[...tiles.values()];
+          if (rows.some(x=>!x.answer)) warnings.push(`Question ${number}: some matching answers need review.`);
+        } else {
+          const answerLine = body.find(line=>/^Answer\s*:/i.test(line));
+          base.answer = cleanReadingText(answerLine?.replace(/^Answer\s*:\s*/i,'') || explanation.match(/\bAnswer\s*:\s*([^.;]+)/i)?.[1] || '');
+          base.text = cleanReadingText(body.filter(line=>line!==answerLine).join('\n'));
+          if (!base.answer) warnings.push(`Question ${number}: no answer key was found.`);
+        }
+      }
+      if (!base.text) warnings.push(`Question ${number}: question text is empty.`);
+      if (/cut off|missing word|cannot determine|unreliable|uncertain/i.test(explanation)) warnings.push(`Question ${number}: source explanation reports an incomplete or uncertain answer.`);
+      questions.push(normalizeQuestion(base));
+    }
+    return {questions,warnings};
+  }
+
   function parseImport(input) {
     const text = String(input ?? '').trim();
     if (!text) return { questions: [], warnings: [] };
@@ -418,6 +498,8 @@ const RevCore = (() => {
 
   function formatPdfRows(pages) {
     const flat = pages.flatMap((rows, page) => rows.map(row => ({...row, page})));
+    if(flat.some(row=>/^QUESTION\s+\d+\s*\|\s*SOURCE PAGE\s+\d+/i.test(row.text)))
+      return pages.map(rows=>rows.map(row=>row.text).join('\n')).join('\n');
     const headings = flat.filter(row => /^Question\s+\d+\s*$/i.test(row.text));
     if (!headings.length) {
       const questionPages = pages.map((rows, page) => {
@@ -495,6 +577,7 @@ const RevCore = (() => {
     if (!Array.isArray(answer) || !answer.length) return false;
     if(question.type==='grouped-boolean') return answer.length===question.statements.length&&answer.every((value,index)=>normalize(value)===normalize(question.statementAnswers[index]));
     if(question.type==='matching') return answer.length===question.matches.length&&answer.every((value,index)=>normalize(value)===normalize(question.matches[index].answer));
+    if(question.type==='multi-text') return answer.length===question.parts.length&&answer.every((value,index)=>[question.parts[index].answer,...question.parts[index].acceptedAnswers].some(expected=>expected&&normalize(value)===normalize(expected)));
     if (question.options.length && question.correctAnswers.length) {
       return answer.length === question.correctAnswers.length && answer.every(i => question.correctAnswers.includes(i));
     }

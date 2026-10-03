@@ -18,6 +18,45 @@ test('imports multiple correct choices', () => {
   assert.equal(core.isCorrect(questions[0], [0]), false);
 });
 
+test('parses one-question-per-page reviewer with repeated matching answers and multi-select keys', () => {
+  const source = `CCST NETWORKING REVIEWER
+1
+QUESTION 1 | SOURCE PAGE 17
+Move each protocol to its characteristics. Options: SFTP, TFTP.
+1. Uses SSH keys.
+Answer: SFTP
+2. Transfers files over port 22.
+Answer: SFTP
+3. Transfers small files over UDP.
+Answer: TFTP
+ANSWER + EXPLANATION
+SFTP uses SSH. TFTP uses UDP.
+CCST NETWORKING REVIEWER
+2
+QUESTION 2 | SOURCE PAGE 29
+Choose two answers.
+A. First
+B. Second
+C. Third
+D. Fourth
+ANSWER + EXPLANATION
+Answers: B and D. These are correct.`;
+  const parsed=core.parseImport(source);
+  assert.equal(parsed.questions.length,2);
+  assert.equal(parsed.questions[0].type,'matching');
+  assert.equal(parsed.questions[0].sourcePage,'17');
+  assert.deepEqual(parsed.questions[0].matches.map(pair=>pair.answer),['SFTP','SFTP','TFTP']);
+  assert.equal(core.isCorrect(parsed.questions[0],['SFTP','SFTP','TFTP']),true);
+  assert.deepEqual(parsed.questions[1].correctAnswers,[1,3]);
+});
+
+test('grades several written parts independently within one card', () => {
+  const q=core.parseImport(JSON.stringify({questions:[{text:'Configure both interfaces.',type:'multi-text',parts:[{prompt:'First',answer:'up'},{prompt:'Second',answer:'down',acceptedAnswers:['shutdown']}]}]})).questions[0];
+  assert.equal(q.type,'multi-text');
+  assert.equal(core.isCorrect(q,['up','shutdown']),true);
+  assert.equal(core.isCorrect(q,['up','up']),false);
+});
+
 test('imports identification answers and true or false with a wrong student response', () => {
   const identification = core.parseImport('Question 1\nName the protocol.\nAnswer: STP').questions[0];
   assert.equal(identification.answer, 'STP');

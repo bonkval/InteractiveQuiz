@@ -110,12 +110,14 @@ test('quick filters separate incorrect and I-dont-know cards', () => {
   dom.window.close();
 });
 
-test('Import prompt requests one parser-ready PDF and PDF import selection is preferred', () => {
+test('Import prompt requests typed JSON and direct PDF import remains available', () => {
   const studyApp = fs.readFileSync('study-app.js','utf8');
   const html = fs.readFileSync('index.html','utf8');
-  assert.match(studyApp,/Deliver exactly one file: a parser-ready PDF/);
-  assert.match(studyApp,/_Revvy_Import\\\.pdf/);
-  assert.match(html,/select its single \*_Revvy_Import\.pdf file/);
+  assert.match(studyApp,/_Revvy_Import\.json/);
+  assert.match(studyApp,/"type":"grouped-boolean"/);
+  assert.match(studyApp,/"type":"matching"/);
+  assert.match(studyApp,/"type":"multi-text"/);
+  assert.match(html,/reviewer PDF directly/);
 });
 
 test('pixel lava backdrop exists behind the app without pointer tracking', () => {
@@ -290,6 +292,42 @@ test('matching answer tiles can be selected and dropped onto one-card targets',a
   const placements=[['IaaS',0],['SaaS',1],['PaaS',2]];
   for(const [tile,index] of placements){document.querySelector(`[data-match-tile="${tile}"]`).click();document.querySelector(`[data-match-target="${index}"]`).click();}
   document.querySelector('#next-question').click();assert.match(document.querySelector('.result-score').textContent,/3\s*\/\s*3/);
+  dom.window.close();
+});
+
+test('matching answers can be reused and written parts score separately',async()=>{
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value=JSON.stringify({questions:[
+    {text:'Match protocols.',matches:[{prompt:'Uses SSH',answer:'SFTP'},{prompt:'Uses port 22',answer:'SFTP'}],answerTiles:['SFTP','TFTP']},
+    {text:'Name both commands.',parts:[{prompt:'First command',answer:'ping'},{prompt:'Second command',answer:'tracert'}]}
+  ]});
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();
+  document.querySelector('[data-match-tile="SFTP"]').click();document.querySelector('[data-match-target="0"]').click();
+  document.querySelector('[data-match-tile="SFTP"]').click();document.querySelector('[data-match-target="1"]').click();
+  document.querySelector('#next-question').click();
+  assert.equal(document.querySelectorAll('[data-part]').length,2);
+  const first=document.querySelector('[data-part="0"]');first.value='ping';first.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  const second=document.querySelector('[data-part="1"]');second.value='wrong';second.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  document.querySelector('#next-question').click();
+  assert.match(document.querySelector('.result-score').textContent,/3\s*\/\s*4/);
+  dom.window.close();
+});
+
+test('multi-select cards award partial points for correct selections',async()=>{
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value=JSON.stringify({questions:[{text:'Choose two.',options:['A','B','C','D'],correctAnswers:[1,3]}]});
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();
+  document.querySelector('[data-option="1"]').click();
+  document.querySelector('#next-question').click();
+  assert.match(document.querySelector('.result-score').textContent,/1\s*\/\s*2/);
   dom.window.close();
 });
 
