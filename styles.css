@@ -58,6 +58,8 @@ html.motion-reduced .answer-result-mark path{animation-duration:.12s;animation-d
 .sidebar-settings .icon-only-control[data-tooltip]::after{top:auto;bottom:calc(100% + 8px);transform:translate(-50%,3px)}
 .sidebar-settings .icon-only-control[data-tooltip]::before{top:auto;bottom:calc(100% + 3px);border-top-color:var(--text);border-bottom-color:transparent;transform:translate(-50%,3px)}
 .sidebar-collapsed:not(.mobile-nav) .sidebar-settings{position:fixed;left:8px;bottom:104px;z-index:30;padding:6px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+.sidebar-settings .motion-button{margin-top:0}
+.sidebar-settings .theme-icon{color:var(--muted)}
 .dark .prompt-link.active{background:#302e46}
 .dark .import-card:hover{background:#302e46}
 .dark .short-answer{border-color:var(--line)}
