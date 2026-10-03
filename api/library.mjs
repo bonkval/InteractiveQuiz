@@ -57,10 +57,17 @@ export default async function handler(request, response) {
     if (error?.name === 'BlobPreconditionFailedError') return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
     const errorName = typeof error?.name === 'string' ? error.name : 'UnknownBlobError';
     console.error('Shared library Blob write failed.', {
+      pathname:PATH,
+      conditionalWrite:Boolean(request.headers?.['if-match']),
       name:errorName,
       message:typeof error?.message === 'string' ? error.message.slice(0,500) : '',
       statusCode:Number.isInteger(error?.statusCode) ? error.statusCode : undefined,
-      code:typeof error?.code === 'string' ? error.code : undefined
+      code:typeof error?.code === 'string' ? error.code : undefined,
+      cause:error?.cause ? {
+        name:typeof error.cause.name === 'string' ? error.cause.name : undefined,
+        message:typeof error.cause.message === 'string' ? error.cause.message.slice(0,500) : String(error.cause).slice(0,500)
+      } : undefined,
+      stack:typeof error?.stack === 'string' ? error.stack.slice(0,2500) : undefined
     });
     const guidance = errorName === 'BlobAccessError'
       ? 'Vercel rejected the Blob credentials or project access.'
