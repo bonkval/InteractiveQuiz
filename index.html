@@ -60,14 +60,6 @@
       <button class="primary-button account-submit" id="account-submit" type="submit">Sign in</button></form>
     <p class="account-note">Only the owner account can add, edit, restore, or remove reviewers. Study progress stays on this device.</p>
   </dialog>
-  <dialog id="notepad-dialog" class="modal notepad-dialog" aria-labelledby="notepad-heading">
-    <div class="modal-head"><div class="notepad-drag-handle" id="notepad-drag-handle"><p class="eyebrow">SHARED STUDY AID</p><h2 id="notepad-heading">Notepad</h2></div><button class="icon-button close-button" id="notepad-close" type="button" aria-label="Close notepad">×</button></div>
-    <p class="notepad-status" id="notepad-status" role="status" aria-live="polite">Loading shared notes…</p>
-    <label class="field-label" for="notepad-editor" id="notepad-editor-label">Your study notes</label>
-    <textarea id="notepad-editor" maxlength="50000" placeholder="Write mnemonics, reminders, or quick reference notes…" spellcheck="true" hidden></textarea>
-    <pre class="notepad-reading" id="notepad-reading" hidden></pre>
-    <div class="modal-actions"><button class="secondary-button" id="notepad-reload" type="button">Reload</button><button class="primary-button owner-only" id="notepad-save" type="button" hidden>Save notes</button></div>
-  </dialog>
   <script>
     if (location.protocol === 'file:') {
       document.body.classList.add('offline-file');

@@ -83,7 +83,6 @@ Return only the questions in this format, ready to import into Rev.`;
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
     sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'', sharedLibrarySnapshot:[],
-    notepadNotes:'', notepadEtag:'', notepadLoaded:false, notepadLoading:false, notepadBusy:false,
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
@@ -163,109 +162,6 @@ Return only the questions in this format, ready to import into Rev.`;
       }
     } catch {}
   }
-  function renderNotepad() {
-    const dialog=$('#notepad-dialog'), editor=$('#notepad-editor'), reading=$('#notepad-reading'), save=$('#notepad-save'), status=$('#notepad-status'), label=$('#notepad-editor-label');
-    if(!dialog||!editor||!reading||!save||!status)return;
-    syncOwnerControls();
-    const owner=Boolean(state.user);
-    editor.hidden=!owner||!state.notepadLoaded;
-    reading.hidden=owner||!state.notepadLoaded;
-    label.hidden=!owner||!state.notepadLoaded;
-    save.hidden=!owner||!state.notepadLoaded;
-    save.disabled=state.notepadBusy||state.notepadLoading;
-    $('#notepad-reload').disabled=state.notepadBusy||state.notepadLoading;
-    reading.textContent=state.notepadNotes||'No shared notes yet.';
-    if(state.notepadBusy)status.textContent='Saving notes…';
-    else if(!state.notepadLoaded)status.textContent='Loading shared notes…';
-    else status.textContent=state.notepadNotes.trim()?`Shared with everyone${state.notepadUpdatedAt?` · Updated ${new Date(state.notepadUpdatedAt).toLocaleString()}`:''}`:'No notes saved yet.';
-  }
-  async function loadNotepad({force=false,silent=false}={}) {
-    if(state.notepadLoading||(!force&&state.notepadLoaded))return;
-    const status=$('#notepad-status');
-    state.notepadLoading=true;
-    if(status&&!silent)status.textContent='Loading shared notes…';
-    try{
-      const response=await fetch('/api/notepad',{cache:'no-store'}), result=await response.json();
-      if(!response.ok)throw new Error(result.error||'Could not load shared notes.');
-      state.notepadNotes=typeof result.notes==='string'?result.notes:'';
-      state.notepadEtag=response.headers.get('ETag')||'';
-      state.notepadUpdatedAt=result.updatedAt||null;
-      state.notepadLoaded=true;
-      if(state.user)$('#notepad-editor').value=state.notepadNotes;
-      renderNotepad();
-    }catch(error){
-      if(status&&!silent)status.textContent=error.message||'Could not load shared notes.';
-    }finally{state.notepadLoading=false;}
-  }
-  async function saveNotepad() {
-    const editor=$('#notepad-editor');
-    if(!state.user||!editor||state.notepadBusy)return;
-    const notes=editor.value;
-    state.notepadBusy=true;renderNotepad();
-    try{
-      const response=await fetch('/api/notepad',{method:'PUT',headers:{'Content-Type':'application/json',...(state.notepadEtag?{'If-Match':state.notepadEtag}:{})},body:JSON.stringify({notes})});
-      const result=await response.json();
-      if(response.status===412){state.notepadBusy=false;renderNotepad();toast(result.error||'Notes changed in another session. Reload before saving.');return;}
-      if(!response.ok)throw new Error(result.error||'Could not save shared notes.');
-      state.notepadNotes=notes;state.notepadEtag=response.headers.get('ETag')||result.etag||'';state.notepadUpdatedAt=Date.now();
-      toast('Shared notes saved.');
-    }catch(error){toast(error.message||'Could not save shared notes.');}
-    finally{state.notepadBusy=false;renderNotepad();}
-  }
-  function openNotepad() {
-    const dialog=$('#notepad-dialog');
-    if(!dialog)return;
-    if(!dialog.open){
-      dialog.show();
-      if(dialog.dataset.positioned!=='true')requestAnimationFrame(()=>{
-        const rect=dialog.getBoundingClientRect();
-        dialog.style.left=`${Math.max(8,innerWidth-rect.width-20)}px`;
-        dialog.style.top=`${Math.max(48,Math.min(96,innerHeight-rect.height-20))}px`;
-        dialog.style.transform='none';
-        dialog.dataset.positioned='true';
-        clampNotepadToViewport();
-      });
-    }
-    renderNotepad();
-    if(!state.notepadLoaded)loadNotepad();
-  }
-  function clampNotepadToViewport(){
-    const dialog=$('#notepad-dialog');
-    if(!dialog?.open)return;
-    const rect=dialog.getBoundingClientRect(),pad=8;
-    dialog.style.left=`${Math.min(Math.max(pad,rect.left),Math.max(pad,innerWidth-rect.width-pad))}px`;
-    dialog.style.top=`${Math.min(Math.max(pad,rect.top),Math.max(pad,innerHeight-rect.height-pad))}px`;
-  }
-  const notepadHandle=$('#notepad-drag-handle');
-  let notepadDrag=null;
-  notepadHandle?.addEventListener('pointerdown',event=>{
-    if(event.button!==0||event.target.closest('button'))return;
-    const dialog=$('#notepad-dialog');
-    if(!dialog?.open)return;
-    const rect=dialog.getBoundingClientRect();
-    notepadDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
-    notepadHandle.setPointerCapture(event.pointerId);
-    dialog.classList.add('is-dragging');
-    event.preventDefault();
-  });
-  notepadHandle?.addEventListener('pointermove',event=>{
-    if(!notepadDrag||event.pointerId!==notepadDrag.pointerId)return;
-    const dialog=$('#notepad-dialog'),rect=dialog.getBoundingClientRect(),pad=8;
-    const left=notepadDrag.left+event.clientX-notepadDrag.x,top=notepadDrag.top+event.clientY-notepadDrag.y;
-    dialog.style.left=`${Math.min(Math.max(pad,left),Math.max(pad,innerWidth-rect.width-pad))}px`;
-    dialog.style.top=`${Math.min(Math.max(pad,top),Math.max(pad,innerHeight-rect.height-pad))}px`;
-  });
-  const stopNotepadDrag=event=>{
-    if(!notepadDrag||event.pointerId!==notepadDrag.pointerId)return;
-    notepadDrag=null;$('#notepad-dialog')?.classList.remove('is-dragging');
-  };
-  notepadHandle?.addEventListener('pointerup',stopNotepadDrag);
-  notepadHandle?.addEventListener('pointercancel',stopNotepadDrag);
-  $('#notepad-dialog')?.addEventListener('pointerup',clampNotepadToViewport);
-  window.addEventListener('resize',clampNotepadToViewport);
-  $('#notepad-close')?.addEventListener('click',()=>$('#notepad-dialog')?.close());
-  $('#notepad-reload')?.addEventListener('click',()=>loadNotepad({force:true}));
-  $('#notepad-save')?.addEventListener('click',saveNotepad);
   function load() {
     state.reviewers = [];
     try { state.flags = JSON.parse(get(scopedKey(FLAGS_KEY), '{}')) || {}; } catch { state.flags = {}; }
@@ -856,7 +752,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle cards" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M10.3 9.5C9.4 8.1 8.4 7 7 7H4"/></svg></button><button class="mini-control icon-only-control" id="open-notepad" type="button" aria-label="Notepad" data-tooltip="Notepad"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3zM5 16.5a3 3 0 0 1 3-3h10M9 8h5M9 11h5"/></svg></button><button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button><button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
+      <button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle cards" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m16 3 4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M10.3 9.5C9.4 8.1 8.4 7 7 7H4"/></svg></button><button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button><button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
@@ -1011,7 +907,6 @@ Return only the questions in this format, ready to import into Rev.`;
       state.position = target; renderQuestion(direction);
     });
     $('#exit-quiz').onclick = () => { stopAudio(); leaveStudy(); render(); };
-    $('#open-notepad').onclick = openNotepad;
     $('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
@@ -1530,7 +1425,6 @@ Return only the questions in this format, ready to import into Rev.`;
       const delay=Math.max(0,(reduced?280:1150)-(performance.now()-bootStarted));
       setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), reduced?40:520); }, delay);
     };
-    if(location.protocol!=='file:')loadNotepad({silent:true});
     (async()=>{
       if(typeof window.fetch==='function'&&location.protocol!=='file:'){
         try{const response=await fetch('/api/auth',{cache:'no-store',credentials:'same-origin'});const session=await response.json();if(response.ok&&session.owner)switchAccount({id:'owner',username:session.username||'cval'});}catch{}
