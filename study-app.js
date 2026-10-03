@@ -114,14 +114,12 @@ Return only the questions in this format, ready to import into Rev.`;
     const mark = document.createElement('div');
     mark.className = `answer-result-overlay ${correct ? 'correct' : 'incorrect'}`;
     mark.setAttribute('role', 'status');
-    mark.setAttribute('aria-label', correct ? 'Correct answer' : 'Incorrect answer');
     const icon = correct
-      ? '<path d="M7 17.5 13 23.5 25 10.5" pathLength="1" />'
-      : '<path d="m10 10 14 14" pathLength="1" /><path d="m24 10-14 14" pathLength="1" />';
-    mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 34 34" fill="none">${icon}</svg></span>`;
+      ? '<path d="m3.5 8 3 3 6-6" />'
+      : '<path d="m4.5 4.5 7 7m0-7-7 7" />';
+    mark.innerHTML = `<span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none">${icon}</svg></span><span>${correct ? 'Correct' : 'Incorrect'}</span>`;
     document.body.append(mark);
-    const reducedMotion = motionReduced();
-    setTimeout(() => mark.remove(), reducedMotion ? 280 : 940);
+    setTimeout(() => mark.remove(), motionReduced() ? 900 : 1600);
   }
   function load() {
     state.reviewers = [];
@@ -305,6 +303,14 @@ Return only the questions in this format, ready to import into Rev.`;
     return RevCore.isCorrect(question, answer);
   }
   function isQuestionKeyed(question) { return question.type==='grouped-boolean' ? question.statementAnswers.length>0 : question.type==='matching' ? question.matches.length>0 : question.type==='multi-text' ? question.parts.length>0&&question.parts.every(part=>part.answer) : Boolean(question.correctAnswers.length||question.answer); }
+  function answerToFill(question) {
+    if (question.type === 'matching') return question.matches.length && question.matches.every(pair => pair.answer) ? question.matches.map(pair => pair.answer) : null;
+    if (question.type === 'grouped-boolean') return question.statements.length && question.statementAnswers.length === question.statements.length ? [...question.statementAnswers] : null;
+    if (question.type === 'multi-text') return question.parts.length && question.parts.every(part => part.answer) ? question.parts.map(part => part.answer) : null;
+    if (state.mode === 'written' && question.correctAnswers.length) return [question.correctAnswers.map(index => question.options[index]).filter(Boolean).join(', ')];
+    if (question.correctAnswers.length) return [...question.correctAnswers];
+    return question.answer ? [question.answer] : null;
+  }
   function isFlagged(question) { return Boolean(state.flags[state.activeId]?.includes(questionKey(question))); }
   function toggleFlag(question) {
     const key = questionKey(question), flags = new Set(state.flags[state.activeId] || []);
@@ -412,7 +418,6 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#import-prompt-link').classList.toggle('active', location.hash === '#import-prompt');
     $('#pdf-prompt-link').classList.toggle('active', location.hash === '#pdf-prompt');
     $('#data-link').classList.toggle('active', location.hash === '#data');
-    $('#help-link').classList.toggle('active', location.hash === '#help');
   }
   function selectReviewer(id) {
     const selectedFromMobileNav = document.body.classList.contains('mobile-nav-open');
@@ -438,23 +443,22 @@ Return only the questions in this format, ready to import into Rev.`;
     render();
   }
   function render() {
+    if (location.hash === '#help') clearHash();
     syncOwnerControls();
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt' || location.hash === '#pdf-prompt';
     const easterEgg = location.hash === '#easter-egg';
     const dataScreen = location.hash === '#data';
-    const helpScreen = location.hash === '#help';
-    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg && !dataScreen && !helpScreen;
+    const studying = ['study', 'retry-prompt', 'results'].includes(state.screen) && !prompt && !easterEgg && !dataScreen;
     document.body.classList.toggle('is-studying', studying);
-    document.body.classList.toggle('home-view',!studying&&!prompt&&!easterEgg&&!dataScreen&&!helpScreen&&Boolean(currentReviewer()));
+    document.body.classList.toggle('home-view',!studying&&!prompt&&!easterEgg&&!dataScreen&&Boolean(currentReviewer()));
     document.body.classList.toggle('prompt-open', prompt);
     document.body.classList.toggle('easter-egg-open', easterEgg);
-    $('#intro').hidden = prompt || studying || dataScreen || helpScreen || !!currentReviewer();
+    $('#intro').hidden = prompt || studying || dataScreen || !!currentReviewer();
     renderLibrary();
     syncOwnerControls();
     if (easterEgg) return renderEasterEgg();
     if (prompt) return renderPrompt(location.hash === '#import-prompt', location.hash === '#pdf-prompt');
     if (dataScreen) return renderDataSettings();
-    if (helpScreen) return renderHelp();
     const reviewer = currentReviewer();
     if (!reviewer) {
       $('#main-panel').innerHTML = state.user
@@ -500,51 +504,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
-  function renderHelp() {
-    saveSession();
-    const reviewer = currentReviewer();
-    $('#main-panel').innerHTML = `<section class="help-page" aria-labelledby="help-title"><div class="help-head"><div><p class="eyebrow">TRY A SAMPLE</p><h1 id="help-title">See how a study card works</h1><p class="help-lede">Pick an answer or reveal it. This sample won’t affect your score or saved progress.</p></div><button class="secondary-button" id="help-back" type="button">Back</button></div>
-      <div class="help-stage"><div class="help-orbit orbit-a"></div><div class="help-orbit orbit-b"></div><span class="help-spark spark-a">✦</span><span class="help-spark spark-b">✧</span><div class="help-demo"><div class="help-demo-top"><span class="study-chip" id="help-count">SAMPLE · 1 OF 2</span><span class="help-demo-status" id="help-status" aria-live="polite">Choose an answer to try it.</span></div>
-      <h2 id="help-question">Which choice is the correct one?</h2><div class="help-options" id="help-options"><button class="help-option" data-correct="false"><span class="help-option-letter">A</span><span>A plausible distractor</span></button><button class="help-option" data-correct="true"><span class="help-option-letter">B</span><span>The marked correct answer</span></button><button class="help-option" data-correct="false"><span class="help-option-letter">C</span><span>Another distractor</span></button></div>
-      <div class="help-demo-actions"><button class="secondary-button" id="help-reveal" type="button">Show answer</button><button class="secondary-button" id="help-unknown" type="button">I don’t know</button><button class="primary-button" id="help-next" type="button" disabled>Next question <span>→</span></button></div></div>
-      </div><div class="help-guide" id="help-revvy"><div class="revvy-stage" aria-hidden="true"><div class="revvy-shadow"></div><div class="revvy-avatar"><img src="${location.protocol === 'file:' ? 'public/revvy-pixel.svg' : '/revvy-pixel.svg'}" alt="" decoding="async"></div></div><div class="revvy-talk-wrap"><div class="revvy-speech" aria-live="polite"><span class="speech-tail"></span><strong>Revvy <span>your study buddy</span></strong><p id="revvy-message">Pick an answer and I’ll show you how feedback works.</p></div><div class="revvy-nudge">I’ll point out what to try <span>✦</span></div></div></div>
-      <div class="help-next-step"><div class="help-tip-copy"><strong>Tip: adapt a reviewer with the Import prompt</strong><p>Open <b>Prompts → Import prompt</b> in the sidebar and give it to your AI tool with your existing reviewer. It will reformat the questions to match Rev’s parser, ready for import.</p><button class="text-button help-prompt-link" id="help-open-import-prompt" type="button">Open Import prompt <span>↗</span></button></div><div class="help-real-feature"><div><strong>Ready to study for real?</strong><p>${reviewer ? `Continue with ${esc(reviewer.title)} or pick a question set to start.` : 'Add a reviewer from a file or paste your questions to get started.'}</p></div><button class="primary-button" id="help-go-feature" type="button">${reviewer ? 'Open reviewer' : 'Import reviewer'} <span>→</span></button></div></div></section>`;
-    $('#help-back').onclick = () => { clearHash(); render(); };
-    $('#help-open-import-prompt').onclick = () => { location.hash = '#import-prompt'; };
-    const status = $('#help-status'), options = $('#help-options'), revvy = $('#revvy-message');
-    const say = (message, target = '#help-question', pose = 'point') => {
-      revvy.textContent = message;
-      const guide = $('#help-revvy'), stage = $('.help-stage'), avatar = $('.revvy-avatar');
-      guide.dataset.pose = pose;
-      stage.classList.remove('revvy-guiding');
-      const targetEl = document.querySelector(target);
-      if (targetEl) {
-        const stageRect = stage.getBoundingClientRect(), targetRect = targetEl.getBoundingClientRect();
-        const x = Math.max(42, Math.min(stageRect.width - 42, targetRect.left + targetRect.width * .72 - stageRect.left));
-        const y = Math.max(68, Math.min(stageRect.height - 35, targetRect.top + targetRect.height * .5 - stageRect.top));
-        stage.style.setProperty('--revvy-x', `${x}px`); stage.style.setProperty('--revvy-y', `${y}px`);
-      }
-      guide.classList.remove('revvy-talk'); void guide.offsetWidth; guide.classList.add('revvy-talk'); stage.classList.add('revvy-guiding');
-    };
-    let step = 1, done = false;
-    const finishSample = message => { done = true; status.textContent = message; $('#help-next').disabled = false; };
-    options.onclick = event => {
-      const choice = event.target.closest('.help-option'); if (!choice || done) return;
-      options.querySelectorAll('.help-option').forEach(button => { button.classList.toggle('help-correct', button.dataset.correct === 'true'); button.disabled = true; });
-      choice.classList.add(choice.dataset.correct === 'true' ? 'picked-correct' : 'picked-wrong');
-      const correct = choice.dataset.correct === 'true'; finishSample(correct ? 'Correct! Rev shows the answer right away.' : 'Not quite. Rev shows the correct answer after your choice.'); say(correct ? 'Nice! The green highlight confirms your answer is right.' : 'That one’s a distractor. Look at the green answer.', '.help-option.help-correct', 'answers');
-    };
-    const revealSample = () => { options.querySelectorAll('.help-option').forEach(button => { button.classList.toggle('help-correct', button.dataset.correct === 'true'); button.disabled = true; }); };
-    $('#help-reveal').onclick = () => { revealSample(); finishSample('Answer revealed. Use this whenever you need a hint.'); say('Show answer is your hint. The correct choice lights up, then you can keep going.', '#help-reveal', 'reveal'); };
-    $('#help-unknown').onclick = () => { revealSample(); finishSample('Marked to revisit. \u201cI don\u2019t know\u201d brings this card back later.'); say('I don\u2019t know saves this card for another pass. No pressure, you can learn it next time.', '#help-unknown', 'unknown'); };
-    $('#help-next').onclick = () => {
-      if (!done) return;
-      if (step === 1) { step = 2; done = false; say('Next card! When the set ends, I’ll show you how to review missed questions.', '#help-next', 'next'); const card = document.querySelector('.help-demo'); card.classList.add('is-changing'); setTimeout(() => { $('#help-count').textContent = 'SAMPLE · 2 OF 2'; $('#help-question').textContent = 'What happens when you finish a study set?'; options.innerHTML = '<button class="help-option" data-correct="false"><span class="help-option-letter">A</span><span>Your progress is deleted</span></button><button class="help-option" data-correct="true"><span class="help-option-letter">B</span><span>You can review missed cards</span></button><button class="help-option" data-correct="false"><span class="help-option-letter">C</span><span>You must start over</span></button>'; status.textContent = 'Try this second sample question.'; $('#help-next').disabled = true; $('#help-next').innerHTML = 'Finish sample <span>✓</span>'; card.classList.remove('is-changing'); say('Answer this one to see how Rev helps you review a set.', '#help-question', 'answers'); }, 190); }
-      else { status.textContent = 'That’s the flow: answer, move on, then review what you missed.'; say('You did it! Try the real reviewer now, or open the Import prompt to prep your questions.'); $('#help-next').disabled = true; document.querySelector('.help-demo').classList.add('sample-complete'); }
-    };
-    $('#help-go-feature').textContent=reviewer?'Open reviewer':state.user?'Import reviewer':'Request a reviewer';
-    $('#help-go-feature').onclick = () => { clearHash(); if (reviewer) render(); else if(state.user)openImport();else toast('Ask cval to add the reviewer you need.'); };
-  }  function renderEasterEgg() {
+  function renderEasterEgg() {
     $('#intro').hidden = true;
     $('#main-panel').innerHTML = `<section class="easter-egg-page"><p>09655236422 - alam nyo na gagawin</p><button class="secondary-button" id="egg-back">Back to reviewer</button></section>`;
     $('#egg-back').onclick = () => { clearHash(); render(); };
@@ -671,11 +631,11 @@ Return only the questions in this format, ready to import into Rev.`;
       const label = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'marked to review' : '';
       const flagged = isFlagged(item);
       return `<button class="question-index-card ${position === state.position ? 'current' : ''} ${status} ${flagged ? 'flagged' : ''} ${state.answers[key]?.length ? 'answered' : ''}"
-        data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true ? '<small class="card-result">&#10003;</small>' : result === false ? '<small class="card-result">&#10005;</small>' : ''}</button>`;
+        data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true || result === false ? '<small class="card-result" aria-hidden="true"></small>' : ''}</button>`;
     }).join('');
     let input;
     if (q.type === 'matching') {
-      input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
+      input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${revealed?'Answer filled for review.':selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
     } else if (q.type === 'multi-text') {
       input = `<div class="statement-list written-parts" role="group" aria-label="Written answer parts">${q.parts.map((part,index)=>`<label class="statement-item"><span class="statement-label">Part ${index+1} of ${q.parts.length}</span><span class="part-prompt">${esc(part.prompt)}</span><input class="short-answer" data-part="${index}" type="text" autocomplete="off" value="${esc(selected[index]||'')}" placeholder="Type your answer"></label>`).join('')}</div>`;
     } else if (q.type === 'grouped-boolean') {
@@ -696,7 +656,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const explanationPanel = `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>`;
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
     const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
-    const feedback = revealed ? (knownAnswer ? `<span class="feedback neutral">Answer: ${esc(knownAnswer)}</span>` : '<span class="feedback neutral">No answer key in this reviewer.</span>') : '';
+    const feedback = revealed ? '<span class="feedback neutral">Answer filled for review</span>' : '';
     const feedbackContent = `${status || feedback}`;
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
     const unmatchedChoices = q.options.length && !q.correctAnswers.length && q.answer
@@ -711,12 +671,11 @@ Return only the questions in this format, ready to import into Rev.`;
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
-      <p class="shortcut-hint">1&ndash;9 choose &middot; &uarr;/&darr; choices &middot; &larr;/&rarr; move &middot; Enter next</p>
       <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button audio-text-button" id="read-question" aria-label="Use audio to read question aloud" title="Read aloud" aria-pressed="false">Use audio</button><button type="button" class="copy-question-button audio-text-button" id="stop-reading" aria-label="Stop audio" title="Stop audio">Stop audio</button></div><button type="button" class="copy-question-button flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-pressed="${isFlagged(q)}">${isFlagged(q) ? 'Flagged' : 'Flag for later'}</button><button type="button" class="copy-question-button" id="copy-question" aria-label="Copy question, choices, and exhibits">Copy all</button>${exhibits.length ? '<button type="button" class="copy-question-button" id="download-exhibits">Download exhibits</button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${unmatchedChoices}${input}${q.type === 'grouped-boolean' ? `<div id="explanation-anchor" class="grouped-explanation">${state.explanationsVisible ? explanationPanel : ''}</div>` : ''}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
-      <div class="nav-buttons"><button class="secondary-button" id="show-answer">Show answer</button>
+      <div class="nav-buttons"><button class="secondary-button" id="show-answer">${revealed ? 'Answer filled' : 'Show answer'}</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
       <button class="secondary-button" id="undo-answer" ${state.lastAction ? '' : 'disabled'}>Undo</button>
@@ -784,7 +743,14 @@ Return only the questions in this format, ready to import into Rev.`;
       const answers=[...(state.answers[id]||[])];answers[Number(field.dataset.part)]=field.value;state.answers[id]=answers;
       state.revealed.delete(id);delete state.results[id];$('.feedback-area').innerHTML='';syncCurrentCard(answers.some(Boolean));saveSession();
     }));
-    $('#show-answer').onclick = () => { state.revealed.add(id); renderQuestion(); };
+    $('#show-answer').onclick = () => {
+      const answer = answerToFill(q);
+      if (!answer) { $('.feedback-area').innerHTML = '<span class="feedback neutral">No answer key in this reviewer.</span>'; return; }
+      state.answers[id] = answer;
+      delete state.results[id];
+      state.revealed.add(id);
+      renderQuestion();
+    };
     $('#toggle-explanations').onclick = () => {
       state.explanationsVisible = !state.explanationsVisible;
       const toggle = $('#toggle-explanations');
@@ -865,7 +831,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const question = currentReviewer().questions[id];
     state.lastAction = {position:state.position, answers:{...state.answers}, results:{...state.results}, unknown:[...state.unknown], revealed:[...state.revealed]};
     const answer = state.answers[id] || [];
-    if (dontKnow) {
+    if (dontKnow || state.revealed.has(id)) {
       state.unknown.add(id);
       delete state.results[id];
     } else if (state.mode === 'practice') {
@@ -1309,7 +1275,6 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#import-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#pdf-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#data-link').addEventListener('click', () => setMobileNav(false));
-    $('#help-link').addEventListener('click', () => setMobileNav(false));
     $('#reviewer-search').oninput = event => { state.reviewerSearch = event.target.value; renderLibrary(); };
     $('#reviewer-sort').onchange = event => { state.reviewerSort = event.target.value; renderLibrary(); };
     $('#backup-library').onclick = exportLibraryBackup;

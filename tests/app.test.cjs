@@ -63,6 +63,8 @@ test('guest can review, flag a question, and start a flagged set', () => {
   assert.equal(document.querySelector('#flag-question').getAttribute('aria-pressed'), 'true');
   document.querySelector('[data-option="1"]').click();
   document.querySelector('#next-question').click();
+  assert.equal(document.querySelector('.answer-result-overlay.correct')?.textContent,'Correct');
+  assert.equal(document.querySelector('.answer-result-badge svg')?.getAttribute('viewBox'),'0 0 16 16');
   const history = JSON.parse(localStorage.getItem('rev-question-history-v1'));
   assert.equal(Object.values(history['reviewer-s2-it0015'])[0], 'correct');
   document.querySelector('#exit-quiz').click();
@@ -300,6 +302,67 @@ test('a corrected PDF answer is entered as text and can be graded', async () => 
   answer.dispatchEvent(new dom.window.Event('input', {bubbles:true}));
   document.querySelector('#next-question').click();
   assert.match(document.querySelector('.result-score').textContent, /1\s*\/\s*1/);
+  dom.window.close();
+});
+
+test('Show answer fills written, matching, grouped, and choice controls', async () => {
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value=JSON.stringify({questions:[
+    {sourceNumber:'1',text:'Compute the CIDR.',options:['Wrong /20','Wrong /21'],correctAnswers:[],answer:'172.16.199.25/22'},
+    {sourceNumber:'2',text:'Match the protocols.',answerTiles:['SFTP','TFTP'],matches:[{prompt:'Uses SSH',answer:'SFTP'},{prompt:'Uses port 22',answer:'SFTP'}]},
+    {sourceNumber:'3',text:'Enter both commands.',parts:[{prompt:'First',answer:'ping'},{prompt:'Second',answer:'tracert'}]},
+    {sourceNumber:'4',text:'Judge each statement.',statements:['One','Two'],statementAnswers:['True','False']},
+    {sourceNumber:'5',text:'Choose two.',options:['A','B','C','D'],correctAnswers:[1,3]},
+    {sourceNumber:'6',text:'Single choice.',options:['A','B'],correctAnswers:[0]},
+    {sourceNumber:'7',text:'Unkeyed question.',options:['A','B'],correctAnswers:[]}
+  ]});
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();
+  const openCard=index=>document.querySelector(`[data-jump="${index}"]`).click();
+  document.querySelector('#show-answer').click();
+  assert.equal(document.querySelector('#short-answer').value,'172.16.199.25/22');
+  openCard(1);document.querySelector('#show-answer').click();
+  assert.deepEqual([...document.querySelectorAll('[data-match-target]')].map(target=>target.textContent),['SFTP','SFTP']);
+  openCard(2);document.querySelector('#show-answer').click();
+  assert.deepEqual([...document.querySelectorAll('[data-part]')].map(field=>field.value),['ping','tracert']);
+  openCard(3);document.querySelector('#show-answer').click();
+  assert.deepEqual(['True','False'].map((value,index)=>document.querySelector(`[data-statement="${index}"][data-value="${value}"]`).getAttribute('aria-pressed')),['true','true']);
+  openCard(4);document.querySelector('#show-answer').click();
+  assert.deepEqual([...document.querySelectorAll('[data-option][aria-pressed="true"]')].map(button=>Number(button.dataset.option)),[1,3]);
+  openCard(5);document.querySelector('#show-answer').click();
+  assert.equal(document.querySelector('[data-option="0"]').getAttribute('aria-pressed'),'true');
+  openCard(6);document.querySelector('#show-answer').click();
+  assert.match(document.querySelector('.feedback-area').textContent,/No answer key/);
+  assert.equal(document.querySelectorAll('[data-option][aria-pressed="true"]').length,0);
+  dom.window.close();
+});
+
+test('a filled answer is saved for review without earning a correct point', async () => {
+  const dom=openApp(),{document}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#paste-text').value=JSON.stringify({questions:[{text:'Name the command.',answer:'tracert'}]});
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#start-quiz').click();
+  document.querySelector('#show-answer').click();
+  assert.equal(document.querySelector('#short-answer').value,'tracert');
+  document.querySelector('#next-question').click();
+  assert.ok(document.querySelector('#finish-now'));
+  document.querySelector('#finish-now').click();
+  assert.match(document.querySelector('.result-score').textContent,/0\s*\/\s*1/);
+  dom.window.close();
+});
+
+test('tutorial entry and study shortcut bar are removed', () => {
+  const dom=openApp(),{document}=dom.window;
+  assert.equal(document.querySelector('#help-link'),null);
+  document.querySelector('[data-reviewer]').click();
+  document.querySelector('#start-quiz').click();
+  assert.equal(document.querySelector('.shortcut-hint'),null);
   dom.window.close();
 });
 
