@@ -544,7 +544,7 @@ html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transfo
 .brand-version{color:var(--accent);font-size:9px;font-weight:750;letter-spacing:.025em}
 .sidebar-collapsed .brand-meta{display:none}
 .notepad-dialog:not([open]){display:none}
-.notepad-dialog{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;width:min(620px,calc(100vw - 32px));height:min(540px,calc(100dvh - 32px));min-width:min(320px,calc(100vw - 16px));min-height:min(280px,calc(100dvh - 16px));max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);resize:both;overflow:auto;gap:0;animation:notepad-open 160ms ease-out both}
+.notepad-dialog{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;width:min(420px,calc(100vw - 32px));height:min(440px,72dvh);min-width:min(280px,calc(100vw - 16px));min-height:min(240px,calc(100dvh - 16px));max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);resize:both;overflow:auto;gap:0;animation:notepad-open 160ms ease-out both}
 .notepad-dialog[open]{animation:notepad-open 160ms ease-out both}
 .notepad-dialog [hidden]{display:none!important}
 .notepad-dialog .modal-head,.notepad-dialog .notepad-status,.notepad-dialog .field-label,.notepad-dialog .modal-actions{flex:none}
@@ -554,3 +554,4 @@ html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transfo
 .notepad-dialog textarea,.notepad-dialog .notepad-reading{width:100%;min-height:120px;max-height:none;flex:1;resize:none}
 .notepad-dialog .modal-actions{margin-top:14px}
 @keyframes notepad-open{from{opacity:0}to{opacity:1}}
+@media(max-width:600px){.notepad-dialog{width:calc(100vw - 24px);height:min(400px,58dvh);max-width:calc(100vw - 16px);max-height:78dvh;min-width:min(260px,calc(100vw - 16px));min-height:min(220px,calc(100dvh - 16px))}}

@@ -216,11 +216,11 @@ Return only the questions in this format, ready to import into Rev.`;
     const dialog=$('#notepad-dialog');
     if(!dialog)return;
     if(!dialog.open){
-      dialog.showModal();
+      dialog.show();
       if(dialog.dataset.positioned!=='true')requestAnimationFrame(()=>{
         const rect=dialog.getBoundingClientRect();
-        dialog.style.left=`${Math.max(8,(innerWidth-rect.width)/2)}px`;
-        dialog.style.top=`${Math.max(8,(innerHeight-rect.height)/2)}px`;
+        dialog.style.left=`${Math.max(8,innerWidth-rect.width-20)}px`;
+        dialog.style.top=`${Math.max(48,Math.min(96,innerHeight-rect.height-20))}px`;
         dialog.style.transform='none';
         dialog.dataset.positioned='true';
         clampNotepadToViewport();
