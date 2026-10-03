@@ -1337,11 +1337,12 @@ Return only the questions in this format, ready to import into Rev.`;
     document.body.classList.toggle('dark', get('rev-theme') === 'dark');
     const setThemeAppearance = dark => {
       $('meta[name="theme-color"]').content = dark ? '#17181c' : '#f4f5f7';
-      $('#theme-state').textContent = dark ? 'Dark' : 'Light';
       $('#theme-icon').innerHTML = dark
         ? '<path d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"/>'
         : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';
-      $('#theme-toggle').setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
+      const label=`Theme: ${dark?'Dark':'Light'}. Switch to ${dark?'light':'dark'} mode.`;
+      $('#theme-toggle').setAttribute('aria-label',label);
+      $('#theme-toggle').dataset.tooltip=`Theme: ${dark?'Dark':'Light'} · Switch to ${dark?'Light':'Dark'}`;
     };
     setThemeAppearance(document.body.classList.contains('dark'));
     const systemMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1349,9 +1350,13 @@ Return only the questions in this format, ready to import into Rev.`;
       const choice=get('rev-motion','on');
       const reduced=choice==='off'||(choice==='auto'&&systemMotion.matches);
       document.documentElement.classList.toggle('motion-reduced',reduced);
-      $('#motion-state').textContent=choice==='on'?'On':choice==='off'?'Off':'Auto';
-      $('#motion-toggle').setAttribute('aria-label',`Motion setting: ${choice==='on'?'On':choice==='off'?'Off':'Auto'}. Activate to change.`);
-      $('#motion-toggle').title=choice==='auto'?'Auto follows your device motion setting':choice==='on'?'Animations are on':'Animations are off';
+      const motionLabel=choice==='auto'?`Motion: Auto, currently ${reduced?'off':'on'}. Click to change.`:`Motion: ${reduced?'Off':'On'}. Click to turn ${reduced?'on':'off'}.`;
+      $('#motion-toggle').setAttribute('aria-checked',String(!reduced));
+      $('#motion-toggle').setAttribute('aria-label',motionLabel);
+      $('#motion-toggle').dataset.tooltip=choice==='auto'?`Motion: Auto (${reduced?'Off':'On'})`:`Motion: ${reduced?'Off':'On'} · Click to turn ${reduced?'on':'off'}`;
+      $('#motion-icon').innerHTML=reduced
+        ? '<path d="M3 12h4l2-5 4 10 2-5h6"/><path d="m4 4 16 16"/>'
+        : '<path d="M3 12h4l2-5 4 10 2-5h6"/>';
       installLavaLamp();
     };
     applyMotionPreference();
@@ -1363,10 +1368,9 @@ Return only the questions in this format, ready to import into Rev.`;
     };
     const applySoundPreference=()=>{
       const enabled=get('rev-sounds','on')!=='off';
-      $('#sound-state').textContent=enabled?'On':'Off';
       $('#sound-toggle').setAttribute('aria-checked',String(enabled));
       $('#sound-toggle').setAttribute('aria-label',`Sound setting: ${enabled?'On':'Off'}. Activate to ${enabled?'mute':'unmute'}.`);
-      $('#sound-toggle').title=enabled?'Answer sounds are on':'Answer sounds are muted';
+      $('#sound-toggle').dataset.tooltip=enabled?'Sound: On · Click to mute':'Sound: Muted · Click to unmute';
       $('#sound-icon').innerHTML=enabled
         ? '<path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>'
         : '<path d="M11 5 6 9H3v6h3l5 4zM16 9l5 6m0-6-5 6"/>';
