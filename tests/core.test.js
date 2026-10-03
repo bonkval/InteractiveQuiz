@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const core = require('./core');
+const core = require('../core');
 
 test('imports labeled choices and keeps their positions', () => {
   const input = 'Question 1\nWhat is X?\nChoice A: alpha\nCorrect! Choice B: beta\nChoice C: gamma\nChoice D: delta';
@@ -324,7 +324,7 @@ test('ignores descriptive missing-exhibit placeholders without treating them as 
 
 test('bundled reviewer has complete questions and answer keys', () => {
   global.window = {};
-  require('./reviewer-data');
+  require('../reviewer-data');
   const questions = window.RECALL_STARTER_REVIEWER.questions;
   assert.equal(questions.length, 170);
   assert.equal(questions.filter(q => q.options.length === 4).length, 147);

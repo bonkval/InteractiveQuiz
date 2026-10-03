@@ -1081,7 +1081,7 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   async function getPdfJs() {
     if(location.protocol!=='file:'&&window.RevPdfJs)return {lib:window.RevPdfJs,worker:window.RevPdfWorkerUrl};
-    const base='public/vendor/';
+    const base='offline/vendor/';
     if(!window.pdfjsLib){pdfLoad ||= new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=base+'pdf.min.js';script.onload=resolve;script.onerror=()=>reject(Error('PDF reader could not load.'));document.head.append(script);});await pdfLoad;}
     if(!window.pdfjsLib)throw Error('PDF reader is unavailable. Reload and try again.');
     return {lib:window.pdfjsLib,worker:base+'pdf.worker.min.js'};

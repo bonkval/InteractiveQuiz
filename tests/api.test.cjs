@@ -9,7 +9,7 @@ test('owner authentication has no registration path and signs in with the config
   const previous = {...process.env};
   process.env.OWNER_USERNAME='cval';process.env.OWNER_PASSWORD='test-password';process.env.OWNER_SESSION_SECRET='test-session-secret-that-is-at-least-thirty-two-characters';
   try {
-    const {default:handler}=await import('./api/auth.mjs');
+    const {default:handler}=await import('../api/auth.mjs');
     const registration=response();
     await handler({method:'POST',headers:{origin:'https://study.test',host:'study.test'},body:{action:'signup',username:'other',password:'test-password'}},registration);
     assert.equal(registration.code,400);
@@ -40,7 +40,7 @@ test('owner login fails closed when deployment secrets are missing', async () =>
   const previous={...process.env};
   delete process.env.OWNER_USERNAME;delete process.env.OWNER_PASSWORD;delete process.env.OWNER_SESSION_SECRET;
   try{
-    const {default:handler}=await import('./api/auth.mjs');
+    const {default:handler}=await import('../api/auth.mjs');
     const status=response();await handler({method:'GET',headers:{}},status);
     assert.deepEqual(status.payload,{owner:false,configured:false});
     const login=response();await handler({method:'POST',headers:{},body:{action:'login',username:'cval',password:'anything'}},login);
@@ -55,7 +55,7 @@ test('shared library writes require owner session and same-origin requests', asy
   const previous = {...process.env};
   process.env.OWNER_USERNAME='cval';process.env.OWNER_PASSWORD='test-password';process.env.OWNER_SESSION_SECRET='test-session-secret-that-is-at-least-thirty-two-characters';
   try {
-    const {default:handler}=await import('./api/library.mjs');
+    const {default:handler}=await import('../api/library.mjs');
     const missingSession=response();
     await handler({method:'PUT',headers:{origin:'https://study.test',host:'study.test'},body:{reviewers:[]}},missingSession);
     assert.equal(missingSession.code,401);

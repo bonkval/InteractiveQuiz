@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test core.test.js app.test.cjs api.test.cjs"
+    "test": "node --test tests/core.test.js tests/app.test.cjs tests/api.test.cjs"
   },
   "repository": {
     "type": "git",

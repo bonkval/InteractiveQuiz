@@ -4,9 +4,4 @@ dist/
 .env.local
 .env.*.local
 .vercel/
-
-# Local source-material inspection scratch
-.review-exhibits/
-inspect_exhibits.py
-__pycache__/
-*.py[cod]
+output/
