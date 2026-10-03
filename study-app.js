@@ -264,7 +264,15 @@ Return only the questions in this format, ready to import into Rev.`;
     }
     restoreSession();
   }
-  function saveReviewers() { return put(scopedKey(KEY), JSON.stringify(state.reviewers)); }
+  function saveReviewers() {
+    if (state.sharedLibraryInitialized) {
+      // The server is the source of truth. Keeping image data in localStorage
+      // duplicates the whole library and can exhaust the browser quota.
+      try { localStorage.removeItem(scopedKey(KEY)); } catch {}
+      return true;
+    }
+    return put(scopedKey(KEY), JSON.stringify(state.reviewers));
+  }
   function cloneReviewers(reviewers) { return JSON.parse(JSON.stringify(reviewers || [])); }
   function mergeReviewerChanges(base, desired, latest) {
     const baseById=new Map(base.map(item=>[item.id,item]));
@@ -532,7 +540,6 @@ Return only the questions in this format, ready to import into Rev.`;
     if (!reviewer || !confirm(`Delete "${reviewer.title}"?`)) return;
     const previous = state.reviewers;
     state.reviewers = state.reviewers.filter(x => x.id !== id);
-    if (!saveReviewers()) { state.reviewers = previous; return toast('Could not save this change on this device.'); }
     try{await saveSharedLibrary();}catch(error){state.reviewers=previous;saveReviewers();return toast(error.message||'Could not update the shared reviewers.');}
     delete state.flags[id]; delete state.history[id]; delete state.schedule[id];
     put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
@@ -1081,7 +1088,6 @@ Return only the questions in this format, ready to import into Rev.`;
         if (at >= 0) merged[at] = reviewer; else merged.push(reviewer);
       }
       state.reviewers = merged;
-      if (!saveReviewers()) { state.reviewers = previous; return; }
       try{await saveSharedLibrary();}catch(error){state.reviewers=previous;saveReviewers();throw error;}
       if (data && !Array.isArray(data)) {
         for (const reviewer of restored) {
@@ -1258,11 +1264,6 @@ Return only the questions in this format, ready to import into Rev.`;
       const index = state.reviewers.findIndex(x => x.id === editId);
       const previous = index >= 0 ? state.reviewers[index] : null;
       if (index >= 0) state.reviewers[index] = reviewer; else state.reviewers.unshift(reviewer);
-      if (!saveReviewers()) {
-        if (index >= 0) state.reviewers[index] = previous;
-        else state.reviewers.shift();
-        return feedback('Browser storage is full. Export or remove a reviewer, then try again.', true);
-      }
       try{await saveSharedLibrary();}catch(error){
         if(index>=0)state.reviewers[index]=previous;else state.reviewers.shift();
         saveReviewers();throw error;

@@ -3,10 +3,17 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
+  if(reviewerStorageFull){
+    const setItem=window.Storage.prototype.setItem;
+    window.Storage.prototype.setItem=function(key,value){
+      if(String(key).startsWith('recall-reviewers-v1'))throw new window.DOMException('Storage quota exceeded','QuotaExceededError');
+      return setItem.call(this,key,value);
+    };
+  }
   window.matchMedia = query => ({matches:query.includes('prefers-reduced-motion'), addEventListener(){}});
   window.HTMLElement.prototype.scrollIntoView = function() {};
   window.HTMLDialogElement.prototype.showModal = function() { this.open = true; };
@@ -75,8 +82,8 @@ test('guest can review, flag a question, and start a flagged set', () => {
   dom.window.close();
 });
 
-test('import previews before saving and local deletion clears the library', async () => {
-  const dom = openApp(), {document, localStorage} = dom.window;
+test('import previews and saves online when browser reviewer storage is full', async () => {
+  const dom = openApp({reviewerStorageFull:true}), {document, localStorage} = dom.window;
   await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#paste-text').value = 'Question 1\nWhich choice is right?\nChoice A: one\nCorrect! Choice B: two\nChoice C: three\nChoice D: four';
@@ -89,13 +96,15 @@ test('import previews before saving and local deletion clears the library', asyn
   assert.ok(questionEditor, 'import preview has a direct question editor');
   document.querySelector('#import-submit').click();
   await new Promise(resolve => setTimeout(resolve, 0));
-  assert.equal(JSON.parse(localStorage.getItem('recall-reviewers-v1:user:owner')).length, 2);
+  assert.equal(document.querySelector('#import-dialog').open,false);
+  assert.equal(localStorage.getItem('recall-reviewers-v1:user:owner'),null);
+  assert.match(document.querySelector('#main-panel').textContent,/New reviewer/);
   dom.window.location.hash = '#data';
   dom.window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));
   assert.match(document.querySelector('#main-panel').textContent, /Browser compatibility/);
   assert.match(document.querySelector('#main-panel').textContent, /Local storage/);
   document.querySelector('#delete-local-data').click();
-  assert.deepEqual(JSON.parse(localStorage.getItem('recall-reviewers-v1')), []);
+  assert.equal(localStorage.getItem('recall-reviewers-v1'),null);
   dom.window.close();
 });
 
@@ -110,9 +119,9 @@ test('reviewer rename retries an ETag conflict and keeps reviewers added concurr
   document.querySelector('#import-submit').click();
   for(let i=0;i<20&&document.querySelector('#import-dialog').open;i++)await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(document.querySelector('#import-dialog').open,false,'rename completes after refreshing the stale ETag');
-  const reviewers=JSON.parse(localStorage.getItem('recall-reviewers-v1:user:owner'));
-  assert.ok(reviewers.some(item=>item.title==='CCST'));
-  assert.ok(reviewers.some(item=>item.id==='remote-reviewer'),'the concurrently added reviewer is retained');
+  assert.equal(localStorage.getItem('recall-reviewers-v1:user:owner'),null);
+  assert.match(document.querySelector('#main-panel').textContent,/CCST/);
+  assert.ok(document.querySelectorAll('[data-reviewer]').length>=2,'the concurrently added reviewer is retained');
   dom.window.close();
 });
 
