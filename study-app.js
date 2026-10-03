@@ -82,6 +82,7 @@ Return only the questions in this format, ready to import into Rev.`;
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
     sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'', sharedLibrarySnapshot:[],
+    notepadNotes:'', notepadEtag:'', notepadLoaded:false, notepadBusy:false,
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
@@ -121,6 +122,63 @@ Return only the questions in this format, ready to import into Rev.`;
     document.body.append(mark);
     setTimeout(() => mark.remove(), motionReduced() ? 900 : 1600);
   }
+  function renderNotepad() {
+    const dialog=$('#notepad-dialog'), editor=$('#notepad-editor'), reading=$('#notepad-reading'), save=$('#notepad-save'), status=$('#notepad-status'), label=$('#notepad-editor-label');
+    if(!dialog||!editor||!reading||!save||!status)return;
+    syncOwnerControls();
+    const owner=Boolean(state.user);
+    editor.hidden=!owner||!state.notepadLoaded;
+    reading.hidden=owner||!state.notepadLoaded;
+    label.hidden=!owner||!state.notepadLoaded;
+    save.hidden=!owner||!state.notepadLoaded;
+    save.disabled=state.notepadBusy;
+    $('#notepad-reload').disabled=state.notepadBusy;
+    reading.textContent=state.notepadNotes||'No shared notes yet.';
+    if(state.notepadBusy)status.textContent='Saving notes…';
+    else if(!state.notepadLoaded)status.textContent='Loading shared notes…';
+    else status.textContent=state.notepadNotes.trim()?`Shared with everyone${state.notepadUpdatedAt?` · Updated ${new Date(state.notepadUpdatedAt).toLocaleString()}`:''}`:'No notes saved yet.';
+  }
+  async function loadNotepad() {
+    const status=$('#notepad-status');
+    if(status)status.textContent='Loading shared notes…';
+    try{
+      const response=await fetch('/api/notepad',{cache:'no-store'}), result=await response.json();
+      if(!response.ok)throw new Error(result.error||'Could not load shared notes.');
+      state.notepadNotes=typeof result.notes==='string'?result.notes:'';
+      state.notepadEtag=response.headers.get('ETag')||'';
+      state.notepadUpdatedAt=result.updatedAt||null;
+      state.notepadLoaded=true;
+      if(state.user)$('#notepad-editor').value=state.notepadNotes;
+      renderNotepad();
+    }catch(error){
+      if(status)status.textContent=error.message||'Could not load shared notes.';
+    }
+  }
+  async function saveNotepad() {
+    const editor=$('#notepad-editor');
+    if(!state.user||!editor||state.notepadBusy)return;
+    const notes=editor.value;
+    state.notepadBusy=true;renderNotepad();
+    try{
+      const response=await fetch('/api/notepad',{method:'PUT',headers:{'Content-Type':'application/json',...(state.notepadEtag?{'If-Match':state.notepadEtag}:{})},body:JSON.stringify({notes})});
+      const result=await response.json();
+      if(response.status===412){state.notepadBusy=false;renderNotepad();toast(result.error||'Notes changed in another session. Reload before saving.');return;}
+      if(!response.ok)throw new Error(result.error||'Could not save shared notes.');
+      state.notepadNotes=notes;state.notepadEtag=response.headers.get('ETag')||result.etag||'';state.notepadUpdatedAt=Date.now();
+      toast('Shared notes saved.');
+    }catch(error){toast(error.message||'Could not save shared notes.');}
+    finally{state.notepadBusy=false;renderNotepad();}
+  }
+  function openNotepad() {
+    const dialog=$('#notepad-dialog');
+    if(!dialog)return;
+    if(!dialog.open)dialog.showModal();
+    renderNotepad();
+    loadNotepad();
+  }
+  $('#notepad-close')?.addEventListener('click',()=>$('#notepad-dialog')?.close());
+  $('#notepad-reload')?.addEventListener('click',loadNotepad);
+  $('#notepad-save')?.addEventListener('click',saveNotepad);
   function load() {
     state.reviewers = [];
     try { state.flags = JSON.parse(get(scopedKey(FLAGS_KEY), '{}')) || {}; } catch { state.flags = {}; }
@@ -667,7 +725,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control explanation-toggle" id="toggle-explanations" role="switch" aria-checked="${state.explanationsVisible}" aria-label="Show explanations"><span>Explanations</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
+      <button class="mini-control" id="shuffle-questions">Shuffle cards</button><button class="mini-control" id="open-notepad">Notepad</button><button class="mini-control explanation-toggle" id="toggle-explanations" role="switch" aria-checked="${state.explanationsVisible}" aria-label="Show explanations"><span>Explanations</span><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control" id="print-review">Print</button><button class="mini-control" id="exit-quiz">Exit</button></div></div>
       <nav class="question-deck" aria-label="Question cards">${deck}</nav>
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
@@ -820,6 +878,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.position = target; renderQuestion(direction);
     });
     $('#exit-quiz').onclick = () => { stopAudio(); leaveStudy(); render(); };
+    $('#open-notepad').onclick = openNotepad;
     $('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
