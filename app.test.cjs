@@ -144,14 +144,16 @@ test('Import prompt requests typed JSON and direct PDF import remains available'
   assert.match(html,/reviewer PDF directly/);
 });
 
-test('default import prompt follows the supported one-page reviewer shapes', () => {
+test('default import prompt adapts the supported shapes to the source reviewer', () => {
   const dom=openApp(),{window}=dom,{document,localStorage}=window;
   localStorage.setItem('rev-import-prompt-v2','obsolete prompt');
   window.location.hash='#import-prompt';
   window.dispatchEvent(new window.Event('hashchange'));
   const prompt=document.querySelector('#master-prompt').value;
   assert.match(prompt,/Start_Completed\.pdf/);
-  assert.match(prompt,/one numbered question per PDF page/);
+  assert.match(prompt,/Use only the question and answer types that actually appear/);
+  assert.match(prompt,/only ordinary multiple-choice questions is completely valid/);
+  assert.match(prompt,/one question per page, several on a page/);
   assert.match(prompt,/"sourcePage"/);
   assert.match(prompt,/"correctAnswers":\[\]/);
   assert.match(prompt,/"imageRefs"/);

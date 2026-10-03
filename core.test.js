@@ -10,6 +10,18 @@ test('imports labeled choices and keeps their positions', () => {
   assert.deepEqual(questions[0].correctAnswers, [1]);
 });
 
+test('JSON reviewer with only ordinary choices needs no other activity fields', () => {
+  const input=JSON.stringify({title:'Simple reviewer',questions:[
+    {sourceNumber:'1',text:'Which layer routes packets?',type:'choice',options:['Data Link','Network','Application'],correctAnswers:[1]},
+    {sourceNumber:'2',text:'Which protocol resolves names?',type:'choice',options:['DNS','ARP','STP'],correctAnswers:[0]}
+  ]});
+  const {questions,warnings}=core.parseImport(input);
+  assert.equal(questions.length,2);
+  assert.deepEqual(questions.map(q=>q.type),['choice','choice']);
+  assert.deepEqual(questions.map(q=>q.correctAnswers),[[1],[0]]);
+  assert.deepEqual(warnings,[]);
+});
+
 test('imports multiple correct choices', () => {
   const input = 'Question 1\nSelect both:\nCorrect! Choice A: alpha\nChoice B: beta\nCorrect! Choice C: gamma\nChoice D: delta';
   const {questions} = core.parseImport(input);
