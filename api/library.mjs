@@ -60,7 +60,9 @@ export default async function handler(request, response) {
       // overwrite disabled, a concurrent recreation cannot be clobbered.
       if (!match || !/specified key does not exist/i.test(String(error?.message || ''))) throw error;
       console.warn('Shared library ETag referenced a missing Blob; retrying as a create.', {pathname:PATH});
-      blob = await put(PATH,content,{...options,allowOverwrite:false});
+      const createOptions = {...options,allowOverwrite:false};
+      delete createOptions.ifMatch;
+      blob = await put(PATH,content,createOptions);
     }
     response.setHeader('ETag',blob.etag);
     return response.status(200).json({saved:true,etag:blob.etag});
