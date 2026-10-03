@@ -539,3 +539,7 @@ html.motion-reduced .boot-orbit img,html.motion-reduced .boot-orbit-ring,html.mo
 @keyframes lava-flow{0%{transform:translate3d(-50%,-50%,0) rotate(-3deg) scale(.98)}50%{transform:translate3d(-50%,-50%,0) translate3d(var(--flow-x,4vw),calc(0px - var(--flow-y,4vh)),0) rotate(3deg) scale(1.035)}100%{transform:translate3d(-50%,-50%,0) translate3d(calc(0px - var(--flow-x,4vw)),var(--flow-y,4vh),0) rotate(-2deg) scale(.995)}}
 html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transform:translate3d(-50%,-50%,0)}
 @media(max-width:760px){.reviewer-lower{grid-template-columns:minmax(0,1fr)}}
+.brand-meta{display:grid;gap:2px;flex:none;margin-right:4px;text-align:right;line-height:1.15}
+.brand-credit{color:var(--muted);font-size:9px;font-weight:600}
+.brand-version{color:var(--accent);font-size:9px;font-weight:750;letter-spacing:.025em}
+.sidebar-collapsed .brand-meta{display:none}
