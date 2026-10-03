@@ -342,10 +342,10 @@ const RevCore = (() => {
     return question;
   }
 
-  function deduplicate(questions, warnings) {
+  function deduplicate(questions, warnings, preserveSourcePages = false) {
     const result = [], byText = new Map();
     for (const q of questions) {
-      const key = JSON.stringify([normalize(q.text),q.options.map(normalize),q.statements?.map(normalize),q.matches?.map(pair=>normalize(pair.prompt)),q.parts?.map(part=>normalize(part.prompt))]);
+      const key = JSON.stringify([normalize(q.text),q.options.map(normalize),q.statements?.map(normalize),q.matches?.map(pair=>normalize(pair.prompt)),q.parts?.map(part=>normalize(part.prompt)),preserveSourcePages ? q.sourcePage || null : null]);
       if (!key) continue;
       const prior = byText.get(key);
       if (prior === undefined) { byText.set(key, result.length); result.push(q); continue; }
@@ -488,7 +488,7 @@ const RevCore = (() => {
         const source = Array.isArray(data) ? data : data?.questions;
         if (Array.isArray(source)) {
           const warnings = [];
-          const questions = deduplicate(source.map(normalizeQuestion), warnings);
+          const questions = deduplicate(source.map(normalizeQuestion), warnings, true);
           return { questions, warnings, title: !Array.isArray(data) ? String(data.title ?? '') : '' };
         }
       } catch { /* Continue as plain text. */ }

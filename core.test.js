@@ -134,6 +134,17 @@ test('deduplicates and prefers the copy with a key', () => {
   assert.deepEqual(questions[0].correctAnswers, [0]);
 });
 
+test('JSON import keeps repeated questions from distinct source pages', () => {
+  const repeated = {text:'Which two gateway statements are true?',type:'choice',options:['First','Second','Third'],correctAnswers:[0,2]};
+  const {questions,warnings} = core.parseImport(JSON.stringify({title:'CCST',questions:[
+    {...repeated,sourceNumber:'25',sourcePage:'29',explanation:'First source page.'},
+    {...repeated,sourceNumber:'26',sourcePage:'30',explanation:'Second source page.'}
+  ]}));
+  assert.equal(questions.length,2);
+  assert.deepEqual(questions.map(q=>q.sourcePage),['29','30']);
+  assert.deepEqual(warnings,[]);
+});
+
 test('deduplication keeps an available explanation with the retained answer key', () => {
   const input = 'Question 1\nSame question?\nChoice A: one\nChoice B: two\nExplanation: The second choice follows the rule.\nQuestion 2\nSame question?\nChoice A: one\nCorrect! Choice B: two';
   const {questions} = core.parseImport(input);

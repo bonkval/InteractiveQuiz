@@ -144,6 +144,23 @@ test('Import prompt requests typed JSON and direct PDF import remains available'
   assert.match(html,/reviewer PDF directly/);
 });
 
+test('default import prompt follows the supported one-page reviewer shapes', () => {
+  const dom=openApp(),{window}=dom,{document,localStorage}=window;
+  localStorage.setItem('rev-import-prompt-v2','obsolete prompt');
+  window.location.hash='#import-prompt';
+  window.dispatchEvent(new window.Event('hashchange'));
+  const prompt=document.querySelector('#master-prompt').value;
+  assert.match(prompt,/Start_Completed\.pdf/);
+  assert.match(prompt,/one numbered question per PDF page/);
+  assert.match(prompt,/"sourcePage"/);
+  assert.match(prompt,/"correctAnswers":\[\]/);
+  assert.match(prompt,/"imageRefs"/);
+  assert.match(prompt,/"statementAnswers"/);
+  assert.match(prompt,/"answerTiles"/);
+  assert.doesNotMatch(prompt,/obsolete prompt/);
+  dom.window.close();
+});
+
 test('pixel lava backdrop exists behind the app without pointer tracking', () => {
   const dom = openApp(), {document} = dom.window;
   const field = document.querySelector('#lava-field');
