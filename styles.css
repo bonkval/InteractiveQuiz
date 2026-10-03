@@ -507,3 +507,13 @@ html.motion-reduced .boot-orbit img,html.motion-reduced .boot-orbit-ring,html.mo
 @media(max-width:480px){.intro-figure{display:none}.hero-metrics{gap:18px}.hero-metrics strong{font-size:25px}.hero-metrics span{font-size:10px}.hero-actions .primary-button,.hero-actions .secondary-button{width:100%;text-align:center}.reviewer-hero{padding:29px 21px}.study-prep-grid{grid-template-columns:minmax(0,1fr)}.goal-field{max-width:none}.reviewer-footer{justify-content:stretch}.reviewer-footer button{flex:1}.boot-orbit{width:160px;height:160px}}
 @media(max-width:760px){.reviewer-hero{padding-top:70px}}
 .reviewer-hero .sync-status{color:#e4d8f6!important}
+.icon-only-control{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0;flex:0 0 auto;overflow:visible}
+.control-icon{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.study-controls .icon-only-control{width:38px;height:38px}
+.study-controls .explanation-toggle.icon-only-control{width:72px;gap:5px}
+.explanation-toggle .control-icon{width:17px;height:17px}
+.icon-only-control[data-tooltip]::after{content:attr(data-tooltip);position:absolute;z-index:1000;top:calc(100% + 8px);left:50%;transform:translate(-50%,-3px);padding:6px 9px;border-radius:7px;background:var(--text);color:var(--surface);font-size:11px;font-weight:600;line-height:1.2;white-space:nowrap;opacity:0;visibility:hidden;pointer-events:none;box-shadow:0 5px 16px #0002;transition:opacity .12s ease,transform .12s ease,visibility .12s ease}
+.icon-only-control[data-tooltip]::before{content:"";position:absolute;z-index:1001;top:calc(100% + 3px);left:50%;transform:translate(-50%,-3px);border:5px solid transparent;border-bottom-color:var(--text);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .12s ease,transform .12s ease,visibility .12s ease}
+.icon-only-control[data-tooltip]:hover::after,.icon-only-control[data-tooltip]:focus-visible::after,.icon-only-control[data-tooltip]:hover::before,.icon-only-control[data-tooltip]:focus-visible::before{opacity:1;visibility:visible;transform:translate(-50%,0)}
+.icon-only-control:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media(hover:none){.icon-only-control[data-tooltip]::before,.icon-only-control[data-tooltip]::after{display:none}}
