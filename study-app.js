@@ -86,7 +86,7 @@ Return only the questions in this format, ready to import into Rev.`;
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
-    flags: {}, history: {}, schedule: {}, settings: {dailyGoal:20}, lastAction: null,
+    flags: {}, history: {}, schedule: {}, settings: {}, lastAction: null,
     timerQuestionId:null, timerQuestionKey:null, questionStarted:0, timerExpired:false,
     sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
     reviewerSearch: '', reviewerSort: 'recent'
@@ -168,6 +168,7 @@ Return only the questions in this format, ready to import into Rev.`;
     try { state.history = JSON.parse(get(scopedKey(HISTORY_KEY), '{}')) || {}; } catch { state.history = {}; }
     try { state.schedule = JSON.parse(get(scopedKey(SCHEDULE_KEY), '{}')) || {}; } catch { state.schedule = {}; }
     try { state.settings = {...state.settings, ...JSON.parse(get(scopedKey(SETTINGS_KEY), '{}'))}; } catch {}
+    delete state.settings.dailyGoal;
     try {
       const saved = JSON.parse(get(scopedKey(KEY), '[]'));
       if (Array.isArray(saved)) state.reviewers = saved.filter(x => x && Array.isArray(x.questions))
@@ -559,30 +560,32 @@ Return only the questions in this format, ready to import into Rev.`;
     if (state.screen === 'retry-prompt') return renderRetryPrompt();
     if (state.screen === 'results') return renderResults();
     const due = reviewer.questions.filter(question => dueFor(reviewer, question)).length;
-    const filters = [['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown',"I don't know"],['flagged','Flagged']];
+    const filters = [['all','All questions','Study every card in this reviewer.'],['due','Due for review','Cards ready for another review.'],['incorrect','Incorrect','Cards you answered incorrectly.'],['unanswered','Unanswered','Cards you have not tried yet.'],['unknown',"I don't know",'Cards you marked for more practice.'],['flagged','Flagged','Cards you saved to revisit.']];
     const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
     $('#main-panel').innerHTML = `<div class="reviewer-home">
       <section class="reviewer-hero" aria-labelledby="reviewer-title">
         <div class="reviewer-hero-copy"><p class="hero-kicker">READY FOR YOUR NEXT ROUND</p><h1 id="reviewer-title">${esc(reviewer.title)}</h1>
           <p class="hero-subtitle">A little practice, a lot of progress.</p>
-          <div class="hero-metrics"><div><strong>${reviewer.questions.length}</strong><span>study cards</span></div><div><strong>${due}</strong><span>due today</span></div><div><strong>${Number(state.settings.dailyGoal) || 20}</strong><span>daily goal</span></div></div>
+          <div class="hero-metrics"><div><strong>${reviewer.questions.length}</strong><span>study cards</span></div><div><strong>${due}</strong><span>due today</span></div></div>
           <div class="hero-actions"><button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start studying <span aria-hidden="true">&rarr;</span></button><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice freely</button></div>
           <p class="sync-status" role="status"><span class="sync-dot"></span>Reviewers ${state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'shared online':'not synced'} <span aria-hidden="true">&middot;</span> Your progress stays on this device</p>
         </div>
         <div class="reviewer-hero-visual" aria-hidden="true"><span class="hero-halo"></span><span class="hero-spark hero-spark-one">&#10022;</span><span class="hero-spark hero-spark-two">&#10023;</span><div class="hero-card hero-card-back"><span>02</span><i></i><i></i></div><div class="hero-card hero-card-front"><span class="hero-card-top">REV / STUDY</span><img src="${mascotPath}" alt=""><span class="hero-card-bottom">ONE CARD AT A TIME</span></div></div>
       </section>
       <section class="reviewer-lower" aria-label="Study options">
-        <div class="study-prep"><div class="section-heading"><p class="eyebrow">MAKE IT YOURS</p><h2>Choose your session</h2></div>
-          <div class="study-prep-grid"><label class="prep-field" for="study-filter"><span>Study set</span><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></label>
-          ${topics.length ? `<label class="prep-field" for="topic-filter"><span>Focus topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
-          <label class="prep-field goal-field" for="daily-goal"><span>Daily target</span><input id="daily-goal" class="study-filter" type="number" min="1" max="500" value="${Number(state.settings.dailyGoal) || 20}"></label></div>
+        <div class="study-prep"><div class="section-heading"><p class="eyebrow">MAKE IT YOURS</p><h2>Choose your session</h2><p class="study-set-hint">Pick a set to see what you’ll practice.</p></div>
+          <div class="study-set-picker"><span class="study-set-label">Study set</span><div class="study-set-grid" role="group" aria-label="Choose a study set">${filters.map(([value,label,description]) => {const count=filteredQuestionIds(reviewer,value).length;return `<button class="study-set-option ${value==='all'?'is-selected':''}" type="button" data-study-set="${value}" aria-pressed="${value==='all'}" ${count?'':'disabled'}><span class="study-set-copy"><strong>${label}</strong><small>${description}</small></span><span class="study-set-count">${count}</span></button>`;}).join('')}</div><select id="study-filter" class="study-filter study-filter-state" aria-hidden="true" tabindex="-1">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></div>
+          ${topics.length ? `<label class="prep-field topic-filter-field" for="topic-filter"><span>Focus topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
           <details class="more-study-options"><summary>More ways to study</summary><div class="more-study-inner"><label class="prep-field" for="question-search"><span>Find questions</span><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text"></label>
             <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details></div></details>
         </div>
       </section>
       <div class="reviewer-footer"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit reviewer</button><button class="mini-control" id="export-reviewer">Export reviewer</button></div>
     </div>`;
-    $('#daily-goal').onchange = event => { state.settings.dailyGoal = Math.max(1, Math.min(500, Number(event.target.value) || 20)); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
+    document.querySelectorAll('[data-study-set]').forEach(button => button.onclick = () => {
+      $('#study-filter').value=button.dataset.studySet;
+      document.querySelectorAll('[data-study-set]').forEach(option=>{const selected=option===button;option.classList.toggle('is-selected',selected);option.setAttribute('aria-pressed',String(selected));});
+    });
     $('#question-search').onchange = event => { state.settings.questionSearch = event.target.value.trim().toLowerCase(); put(scopedKey(SETTINGS_KEY), JSON.stringify(state.settings)); };
     $('#start-quiz').onclick = () => startQuiz(false, 'quiz', $('#study-filter').value, 0, [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
     $('#practice-quiz').onclick = () => startQuiz(false, 'practice', $('#study-filter').value, 0, [...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item => item.dataset.mixReviewer), $('#topic-filter')?.value || '');
@@ -601,7 +604,7 @@ Return only the questions in this format, ready to import into Rev.`;
       localStorage.setItem(KEY, '[]'); localStorage.setItem(SEED_KEY, '1');
       if (state.user) { localStorage.setItem(scopedKey(KEY), '[]'); localStorage.setItem(scopedKey(SEED_KEY), '1'); }
     } catch { toast('Some browser data could not be removed. Check browser site storage.'); }
-    state.reviewers = []; state.flags = {}; state.history = {}; state.schedule = {}; state.settings={dailyGoal:20};state.sessionReviewer=null;state.activeId = null;
+    state.reviewers = []; state.flags = {}; state.history = {}; state.schedule = {}; state.settings={};state.sessionReviewer=null;state.activeId = null;
     state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); render();
