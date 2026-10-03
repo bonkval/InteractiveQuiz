@@ -137,7 +137,7 @@ Return only the questions in this format, ready to import into Rev.`;
       mark.style.top = '50%';
     }
     document.body.append(mark);
-    setTimeout(() => mark.remove(), motionReduced() ? 850 : 1450);
+    setTimeout(() => mark.remove(), motionReduced() ? 850 : 1650);
   }
   function renderNotepad() {
     const dialog=$('#notepad-dialog'), editor=$('#notepad-editor'), reading=$('#notepad-reading'), save=$('#notepad-save'), status=$('#notepad-status'), label=$('#notepad-editor-label');

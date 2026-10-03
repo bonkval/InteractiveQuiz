@@ -40,14 +40,14 @@ html.motion-reduced .question-index-card,html.motion-reduced .question-card,html
 .dark .question-index-card.correct{background:#25372e;color:#bce6cc}
 .dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
 .selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
-.answer-result-overlay{position:fixed;z-index:1000;width:68px;height:68px;display:grid;place-items:center;transform:translate(-50%,-50%);pointer-events:none;animation:answer-result-arrive 1.45s cubic-bezier(.2,.8,.2,1) both}
-.answer-result-mark{display:block;width:68px;height:68px;overflow:visible}
-.answer-result-mark path{fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw .42s cubic-bezier(.2,.75,.25,1) .06s both}
+.answer-result-overlay{position:fixed;z-index:1000;width:104px;height:104px;display:grid;place-items:center;transform:translate(-50%,-50%);pointer-events:none;animation:answer-result-arrive 1.65s cubic-bezier(.2,.8,.2,1) both}
+.answer-result-mark{display:block;width:100px;height:100px;overflow:visible}
+.answer-result-mark path{fill:none;stroke-width:2.65;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw .5s cubic-bezier(.2,.75,.25,1) .04s both}
 .answer-result-overlay.correct .answer-result-mark{color:#188038}
 .answer-result-overlay.incorrect .answer-result-mark{color:#c5221f}
 .answer-result-mark path{stroke:currentColor}
 @keyframes answer-result-draw{to{stroke-dashoffset:0}}
-@keyframes answer-result-arrive{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}13%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}23%,78%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+@keyframes answer-result-arrive{0%{opacity:0;transform:translate(-50%,-50%) scale(.62)}14%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}25%,78%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.94)}}
 @keyframes answer-result-fade{0%,15%,80%{opacity:1}100%{opacity:0}}
 html.motion-reduced .answer-result-overlay{animation:answer-result-fade 850ms linear both}
 html.motion-reduced .answer-result-mark path{animation-duration:.12s;animation-delay:0s}
