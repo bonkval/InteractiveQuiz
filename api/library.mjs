@@ -47,10 +47,21 @@ export default async function handler(request, response) {
   try {
     const headers = {'Content-Type':'application/json; charset=utf-8'};
     const match = request.headers?.['if-match'];
+    const options = {access:'private',addRandomSuffix:false,allowOverwrite:Boolean(match),contentType:headers['Content-Type'],...(match?{ifMatch:match}:{})};
     // A first write must create the key. Only permit overwrites when the caller
     // supplies the ETag returned by a prior read, so an uninitialized library
     // cannot accidentally enter the Blob overwrite path.
-    const blob = await put(PATH,content,{access:'private',addRandomSuffix:false,allowOverwrite:Boolean(match),contentType:headers['Content-Type'],...(match?{ifMatch:match}:{})});
+    let blob;
+    try {
+      blob = await put(PATH,content,options);
+    } catch (error) {
+      // The ETag can outlive a Blob that was removed from the Vercel dashboard.
+      // Recreate only when the failed condition proves the key is gone. With
+      // overwrite disabled, a concurrent recreation cannot be clobbered.
+      if (!match || !/specified key does not exist/i.test(String(error?.message || ''))) throw error;
+      console.warn('Shared library ETag referenced a missing Blob; retrying as a create.', {pathname:PATH});
+      blob = await put(PATH,content,{...options,allowOverwrite:false});
+    }
     response.setHeader('ETag',blob.etag);
     return response.status(200).json({saved:true,etag:blob.etag});
   } catch (error) {
