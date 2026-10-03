@@ -543,3 +543,14 @@ html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transfo
 .brand-credit{color:var(--muted);font-size:9px;font-weight:600}
 .brand-version{color:var(--accent);font-size:9px;font-weight:750;letter-spacing:.025em}
 .sidebar-collapsed .brand-meta{display:none}
+.notepad-dialog:not([open]){display:none}
+.notepad-dialog{position:fixed;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;width:min(620px,calc(100vw - 32px));height:min(540px,calc(100dvh - 32px));min-width:min(320px,calc(100vw - 16px));min-height:min(280px,calc(100dvh - 16px));max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);resize:both;overflow:auto;gap:0;animation:notepad-open 160ms ease-out both}
+.notepad-dialog[open]{animation:notepad-open 160ms ease-out both}
+.notepad-dialog [hidden]{display:none!important}
+.notepad-dialog .modal-head,.notepad-dialog .notepad-status,.notepad-dialog .field-label,.notepad-dialog .modal-actions{flex:none}
+.notepad-dialog .modal-head{align-items:center}
+.notepad-drag-handle{min-width:0;flex:1;cursor:grab;touch-action:none;user-select:none}
+.notepad-dialog.is-dragging .notepad-drag-handle{cursor:grabbing}
+.notepad-dialog textarea,.notepad-dialog .notepad-reading{width:100%;min-height:120px;max-height:none;flex:1;resize:none}
+.notepad-dialog .modal-actions{margin-top:14px}
+@keyframes notepad-open{from{opacity:0}to{opacity:1}}

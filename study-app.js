@@ -83,7 +83,7 @@ Return only the questions in this format, ready to import into Rev.`;
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
     sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'', sharedLibrarySnapshot:[],
-    notepadNotes:'', notepadEtag:'', notepadLoaded:false, notepadBusy:false,
+    notepadNotes:'', notepadEtag:'', notepadLoaded:false, notepadLoading:false, notepadBusy:false,
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
@@ -172,16 +172,18 @@ Return only the questions in this format, ready to import into Rev.`;
     reading.hidden=owner||!state.notepadLoaded;
     label.hidden=!owner||!state.notepadLoaded;
     save.hidden=!owner||!state.notepadLoaded;
-    save.disabled=state.notepadBusy;
-    $('#notepad-reload').disabled=state.notepadBusy;
+    save.disabled=state.notepadBusy||state.notepadLoading;
+    $('#notepad-reload').disabled=state.notepadBusy||state.notepadLoading;
     reading.textContent=state.notepadNotes||'No shared notes yet.';
     if(state.notepadBusy)status.textContent='Saving notes…';
     else if(!state.notepadLoaded)status.textContent='Loading shared notes…';
     else status.textContent=state.notepadNotes.trim()?`Shared with everyone${state.notepadUpdatedAt?` · Updated ${new Date(state.notepadUpdatedAt).toLocaleString()}`:''}`:'No notes saved yet.';
   }
-  async function loadNotepad() {
+  async function loadNotepad({force=false,silent=false}={}) {
+    if(state.notepadLoading||(!force&&state.notepadLoaded))return;
     const status=$('#notepad-status');
-    if(status)status.textContent='Loading shared notes…';
+    state.notepadLoading=true;
+    if(status&&!silent)status.textContent='Loading shared notes…';
     try{
       const response=await fetch('/api/notepad',{cache:'no-store'}), result=await response.json();
       if(!response.ok)throw new Error(result.error||'Could not load shared notes.');
@@ -192,8 +194,8 @@ Return only the questions in this format, ready to import into Rev.`;
       if(state.user)$('#notepad-editor').value=state.notepadNotes;
       renderNotepad();
     }catch(error){
-      if(status)status.textContent=error.message||'Could not load shared notes.';
-    }
+      if(status&&!silent)status.textContent=error.message||'Could not load shared notes.';
+    }finally{state.notepadLoading=false;}
   }
   async function saveNotepad() {
     const editor=$('#notepad-editor');
@@ -213,12 +215,56 @@ Return only the questions in this format, ready to import into Rev.`;
   function openNotepad() {
     const dialog=$('#notepad-dialog');
     if(!dialog)return;
-    if(!dialog.open)dialog.showModal();
+    if(!dialog.open){
+      dialog.showModal();
+      if(dialog.dataset.positioned!=='true')requestAnimationFrame(()=>{
+        const rect=dialog.getBoundingClientRect();
+        dialog.style.left=`${Math.max(8,(innerWidth-rect.width)/2)}px`;
+        dialog.style.top=`${Math.max(8,(innerHeight-rect.height)/2)}px`;
+        dialog.style.transform='none';
+        dialog.dataset.positioned='true';
+        clampNotepadToViewport();
+      });
+    }
     renderNotepad();
-    loadNotepad();
+    if(!state.notepadLoaded)loadNotepad();
   }
+  function clampNotepadToViewport(){
+    const dialog=$('#notepad-dialog');
+    if(!dialog?.open)return;
+    const rect=dialog.getBoundingClientRect(),pad=8;
+    dialog.style.left=`${Math.min(Math.max(pad,rect.left),Math.max(pad,innerWidth-rect.width-pad))}px`;
+    dialog.style.top=`${Math.min(Math.max(pad,rect.top),Math.max(pad,innerHeight-rect.height-pad))}px`;
+  }
+  const notepadHandle=$('#notepad-drag-handle');
+  let notepadDrag=null;
+  notepadHandle?.addEventListener('pointerdown',event=>{
+    if(event.button!==0||event.target.closest('button'))return;
+    const dialog=$('#notepad-dialog');
+    if(!dialog?.open)return;
+    const rect=dialog.getBoundingClientRect();
+    notepadDrag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:rect.left,top:rect.top};
+    notepadHandle.setPointerCapture(event.pointerId);
+    dialog.classList.add('is-dragging');
+    event.preventDefault();
+  });
+  notepadHandle?.addEventListener('pointermove',event=>{
+    if(!notepadDrag||event.pointerId!==notepadDrag.pointerId)return;
+    const dialog=$('#notepad-dialog'),rect=dialog.getBoundingClientRect(),pad=8;
+    const left=notepadDrag.left+event.clientX-notepadDrag.x,top=notepadDrag.top+event.clientY-notepadDrag.y;
+    dialog.style.left=`${Math.min(Math.max(pad,left),Math.max(pad,innerWidth-rect.width-pad))}px`;
+    dialog.style.top=`${Math.min(Math.max(pad,top),Math.max(pad,innerHeight-rect.height-pad))}px`;
+  });
+  const stopNotepadDrag=event=>{
+    if(!notepadDrag||event.pointerId!==notepadDrag.pointerId)return;
+    notepadDrag=null;$('#notepad-dialog')?.classList.remove('is-dragging');
+  };
+  notepadHandle?.addEventListener('pointerup',stopNotepadDrag);
+  notepadHandle?.addEventListener('pointercancel',stopNotepadDrag);
+  $('#notepad-dialog')?.addEventListener('pointerup',clampNotepadToViewport);
+  window.addEventListener('resize',clampNotepadToViewport);
   $('#notepad-close')?.addEventListener('click',()=>$('#notepad-dialog')?.close());
-  $('#notepad-reload')?.addEventListener('click',loadNotepad);
+  $('#notepad-reload')?.addEventListener('click',()=>loadNotepad({force:true}));
   $('#notepad-save')?.addEventListener('click',saveNotepad);
   function load() {
     state.reviewers = [];
@@ -1484,6 +1530,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const delay=Math.max(0,(reduced?280:1150)-(performance.now()-bootStarted));
       setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), reduced?40:520); }, delay);
     };
+    if(location.protocol!=='file:')loadNotepad({silent:true});
     (async()=>{
       if(typeof window.fetch==='function'&&location.protocol!=='file:'){
         try{const response=await fetch('/api/auth',{cache:'no-store',credentials:'same-origin'});const session=await response.json();if(response.ok&&session.owner)switchAccount({id:'owner',username:session.username||'cval'});}catch{}
