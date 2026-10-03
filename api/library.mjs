@@ -52,6 +52,18 @@ export default async function handler(request, response) {
     return response.status(200).json({saved:true,etag:blob.etag});
   } catch (error) {
     if (error?.name === 'BlobPreconditionFailedError') return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
-    return response.status(503).json({error:'Could not save the shared library. Check Vercel Blob storage configuration.'});
+    const errorName = typeof error?.name === 'string' ? error.name : 'UnknownBlobError';
+    console.error('Shared library Blob write failed.', {
+      name:errorName,
+      message:typeof error?.message === 'string' ? error.message.slice(0,500) : '',
+      statusCode:Number.isInteger(error?.statusCode) ? error.statusCode : undefined,
+      code:typeof error?.code === 'string' ? error.code : undefined
+    });
+    const guidance = errorName === 'BlobAccessError'
+      ? 'Vercel rejected the Blob credentials or project access.'
+      : errorName === 'BlobStoreNotFoundError'
+        ? 'This deployment cannot find its connected Blob store.'
+        : 'Check the Vercel Function logs for the Blob write failure.';
+    return response.status(503).json({error:`Could not save the shared library: ${guidance} (${errorName}).`});
   }
 }
