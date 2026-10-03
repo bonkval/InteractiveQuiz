@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
@@ -31,7 +31,17 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false}={}) {
       if(body.username==='cval'&&body.password==='test-password'){owner=true;return jsonResponse({owner:true,username:'cval'});}
       return jsonResponse({error:'Username or password is incorrect.'},401);
     }
-    if(path==='/api/library'&&(!options.method||options.method==='GET'))return jsonResponse({initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
+    if(path.startsWith('/api/library?id=')&&(!options.method||options.method==='GET')){
+      const params=new URL(path,'http://localhost').searchParams;
+      const reviewer=(sharedReviewers||[]).find(item=>item.id===params.get('id'));
+      if(!reviewer)return jsonResponse({error:'Reviewer not found.'},404);
+      const data=JSON.stringify(reviewer),size=200_000;
+      if(data.length<=size)return jsonResponse({reviewer},200,sharedEtag);
+      if(!params.has('part'))return jsonResponse({chunks:Math.ceil(data.length/size)},200,sharedEtag);
+      const part=Number(params.get('part'));
+      return jsonResponse({part,data:data.slice(part*size,(part+1)*size)},200,sharedEtag);
+    }
+    if(path==='/api/library'&&(!options.method||options.method==='GET'))return jsonResponse(chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
     if(path==='/api/library'&&options.method==='PUT'){
       libraryPutCount++;
       if(conflictOnSecondPut&&libraryPutCount===2){
@@ -39,7 +49,13 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false}={}) {
         sharedEtag='etag-concurrent';
         return jsonResponse({error:'The shared library changed in another session. Refresh and try again.'},412);
       }
-      sharedReviewers=JSON.parse(options.body||'{}').reviewers||[];sharedEtag=`etag-${Date.now()}`;
+      const changes=JSON.parse(options.body||'{}').changes||[];
+      sharedReviewers=[...(sharedReviewers||[])];
+      for(const change of changes){
+        sharedReviewers=sharedReviewers.filter(item=>item.id!==change.id);
+        if(change.reviewer)sharedReviewers.push(change.reviewer);
+      }
+      sharedEtag=`etag-${Date.now()}`;
       return jsonResponse({saved:true,etag:sharedEtag},200,sharedEtag);
     }
     return jsonResponse({error:'Not found'},404);
@@ -211,8 +227,8 @@ test('public visitors do not see reviewer editing or registration', () => {
   dom.window.close();
 });
 
-test('owner reviewer changes become visible to signed-out visitors after refresh', async () => {
-  const dom=openApp(),{document}=dom.window;
+test('chunked shared reviewers become visible to signed-out visitors after refresh', async () => {
+  const dom=openApp({chunkedLibrary:true}),{document}=dom.window;
   await signInOwner(dom);
   document.querySelector('#new-reviewer').click();
   document.querySelector('#reviewer-name').value='Shared set';

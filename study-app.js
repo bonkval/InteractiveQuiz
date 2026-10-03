@@ -295,24 +295,54 @@ Return only the questions in this format, ready to import into Rev.`;
     for(const item of desired)if(!baseById.has(item.id)&&!merged.some(entry=>entry.id===item.id))merged.push(item);
     return merged;
   }
+  async function fetchSharedLibrary() {
+    const response=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(result.error||'Shared reviewer storage is unavailable.');
+    if(Array.isArray(result.entries)){
+      const reviewers=[];
+      for(const entry of result.entries){
+        const url=`/api/library?id=${encodeURIComponent(entry.id)}`;
+        const detailResponse=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+        const detail=await detailResponse.json().catch(()=>({}));
+        if(!detailResponse.ok)throw new Error(detail.error||`Could not load reviewer ${entry.id}.`);
+        if(detail.reviewer)reviewers.push(detail.reviewer);
+        else if(Number.isInteger(detail.chunks)&&detail.chunks>0){
+          const parts=[];
+          for(let part=0;part<detail.chunks;part++){
+            const partResponse=await fetch(`${url}&part=${part}`,{cache:'no-store',credentials:'same-origin'});
+            const item=await partResponse.json().catch(()=>({}));
+            if(!partResponse.ok||typeof item.data!=='string')throw new Error(item.error||`Could not load reviewer ${entry.id}.`);
+            parts.push(item.data);
+          }
+          reviewers.push(JSON.parse(parts.join('')));
+        }else throw new Error(`Could not load reviewer ${entry.id}.`);
+      }
+      result.reviewers=reviewers;
+    }
+    return {result,etag:response.headers.get('ETag')||''};
+  }
   async function saveSharedLibrary() {
     if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
     let baseline=cloneReviewers(state.sharedLibrarySnapshot),desired=cloneReviewers(state.reviewers),etag=state.sharedLibraryEtag;
     for(let attempt=0;attempt<3;attempt++){
       const headers={'Content-Type':'application/json'};
       if(etag)headers['If-Match']=etag;
-      const body=JSON.stringify({reviewers:compactReviewers(desired)});
+      const baseById=new Map(baseline.map(item=>[item.id,item]));
+      const changes=[];
+      for(const reviewer of desired)if(JSON.stringify(baseById.get(reviewer.id))!==JSON.stringify(reviewer))changes.push({id:reviewer.id,reviewer:compactReviewers([reviewer])[0]});
+      for(const reviewer of baseline)if(!desired.some(item=>item.id===reviewer.id))changes.push({id:reviewer.id,reviewer:null});
+      if(!changes.length)return;
+      const body=JSON.stringify({changes});
       if(new Blob([body]).size>4_000_000)throw new Error('The shared library exceeds the upload limit. Export a backup, then reduce or compress large exhibits.');
       const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body});
       const result=await response.json().catch(()=>({}));
       if(response.status===413)throw new Error('The shared library exceeds Vercel’s upload limit. Reduce or compress large exhibits, then try again.');
       if(response.status===412&&attempt<2){
-        const latestResponse=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
-        const latestResult=await latestResponse.json().catch(()=>({}));
-        if(!latestResponse.ok)throw new Error(latestResult.error||'Could not refresh the shared reviewers after a concurrent change.');
+        const {result:latestResult,etag:latestEtag}=await fetchSharedLibrary();
         const latest=Array.isArray(latestResult.reviewers)?latestResult.reviewers.filter(item=>item&&Array.isArray(item.questions)).map(item=>({...item,questions:item.questions.map(RevCore.normalizeQuestion)})):[];
         desired=mergeReviewerChanges(baseline,desired,latest);
-        baseline=cloneReviewers(latest);etag=latestResponse.headers.get('ETag')||'';
+        baseline=cloneReviewers(latest);etag=latestEtag;
         state.reviewers=cloneReviewers(desired);state.sharedLibrarySnapshot=cloneReviewers(latest);state.sharedLibraryEtag=etag;
         saveReviewers();
         continue;
@@ -327,11 +357,9 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   async function refreshSharedLibrary({quiet=false}={}) {
     try{
-      const response=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
-      const result=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(result.error||'Shared reviewer storage is unavailable.');
+      const {result,etag}=await fetchSharedLibrary();
       state.sharedLibraryInitialized=Boolean(result.initialized);
-      state.sharedLibraryEtag=response.headers.get('ETag')||'';
+      state.sharedLibraryEtag=etag;
       if(state.sharedLibraryInitialized){
         state.reviewers=Array.isArray(result.reviewers)?result.reviewers.filter(item=>item&&Array.isArray(item.questions)).map(item=>({...item,questions:item.questions.map(RevCore.normalizeQuestion)})):[];
         state.sharedLibrarySnapshot=cloneReviewers(state.reviewers);
