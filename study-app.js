@@ -618,9 +618,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (state.screen === 'results') return renderResults();
     const due = reviewer.questions.filter(question => dueFor(reviewer, question)).length;
     const filters = [['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown',"I don't know"],['flagged','Flagged']];
-    const todayDue = state.reviewers.reduce((total, item) => total + item.questions.filter(question => dueFor(item, question)).length, 0);
     const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
-    const topicStats = topics.map(topic=>{const questions=reviewer.questions.filter(question=>question.topic===topic);const correct=questions.filter(question=>state.history[reviewer.id]?.[questionKey(question)]==='correct').length;return `<span class="topic-stat"><strong>${esc(topic)}</strong>${correct}/${questions.length} mastered</span>`;}).join('');
     $('#main-panel').innerHTML = `<div class="reviewer-home">
       <section class="reviewer-hero" aria-labelledby="reviewer-title">
         <div class="reviewer-hero-copy"><p class="hero-kicker">READY FOR YOUR NEXT ROUND</p><h1 id="reviewer-title">${esc(reviewer.title)}</h1>
@@ -631,7 +629,7 @@ Return only the questions in this format, ready to import into Rev.`;
         </div>
         <div class="reviewer-hero-visual" aria-hidden="true"><span class="hero-halo"></span><span class="hero-spark hero-spark-one">&#10022;</span><span class="hero-spark hero-spark-two">&#10023;</span><div class="hero-card hero-card-back"><span>02</span><i></i><i></i></div><div class="hero-card hero-card-front"><span class="hero-card-top">REV / STUDY</span><img src="${mascotPath}" alt=""><span class="hero-card-bottom">ONE CARD AT A TIME</span></div></div>
       </section>
-      <section class="reviewer-lower" aria-label="Study options and progress">
+      <section class="reviewer-lower" aria-label="Study options">
         <div class="study-prep"><div class="section-heading"><p class="eyebrow">MAKE IT YOURS</p><h2>Choose your session</h2></div>
           <div class="study-prep-grid"><label class="prep-field" for="study-filter"><span>Study set</span><select id="study-filter" class="study-filter">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></label>
           ${topics.length ? `<label class="prep-field" for="topic-filter"><span>Focus topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
@@ -639,8 +637,6 @@ Return only the questions in this format, ready to import into Rev.`;
           <details class="more-study-options"><summary>More ways to study</summary><div class="more-study-inner"><label class="prep-field" for="question-search"><span>Find questions</span><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text"></label>
             <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details></div></details>
         </div>
-        <div class="progress-card"><div class="progress-card-head"><p class="eyebrow">KEEP THE STREAK</p><span>${state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0} / ${Number(state.settings.dailyGoal) || 20}</span></div><h2>Today's pace</h2><progress class="daily-progress" max="${Number(state.settings.dailyGoal) || 20}" value="${Math.min(Number(state.settings.dailyGoal) || 20, state.settings.reviewDay===localDay()?(state.settings.reviewsToday||0):0)}" aria-label="Daily review target progress"></progress><p>${todayDue ? `${todayDue} card${todayDue===1?'':'s'} ready for another look.` : 'All caught up. Practice any set to stay sharp.'}</p>
-          ${topicStats ? `<details class="topic-progress"><summary>Topic progress</summary><div>${topicStats}</div></details>` : ''}</div>
       </section>
       <div class="reviewer-footer"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit reviewer</button><button class="mini-control" id="export-reviewer">Export reviewer</button></div>
     </div>`;

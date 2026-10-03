@@ -528,3 +528,14 @@ html.motion-reduced .boot-orbit img,html.motion-reduced .boot-orbit-ring,html.mo
 .icon-only-control[data-tooltip]:hover::after,.icon-only-control[data-tooltip]:focus-visible::after,.icon-only-control[data-tooltip]:hover::before,.icon-only-control[data-tooltip]:focus-visible::before{opacity:1;visibility:visible;transform:translate(-50%,0)}
 .icon-only-control:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(hover:none){.icon-only-control[data-tooltip]::before,.icon-only-control[data-tooltip]::after{display:none}}
+
+/* Keep the pixel silhouette crisp while the blobs drift smoothly on the compositor. */
+.reviewer-lower{grid-template-columns:minmax(0,1fr)}
+.lava-blob{will-change:transform;animation-name:lava-flow;animation-timing-function:cubic-bezier(.45,0,.55,1);animation-duration:var(--lava-duration,76s);animation-delay:var(--lava-delay,0s);animation-iteration-count:infinite;animation-direction:alternate}
+.blob-two{--lava-x:75%;--lava-y:74%;--flow-x:5vw;--flow-y:4vh;--lava-duration:88s;--lava-delay:-23s}
+.blob-three{--lava-x:29%;--lava-y:82%;--flow-x:4vw;--flow-y:5vh;--lava-duration:102s;--lava-delay:-47s}
+.blob-four{--lava-x:88%;--lava-y:30%;--flow-x:3vw;--flow-y:4vh;--lava-duration:94s;--lava-delay:-32s}
+.blob-five{--lava-x:13%;--lava-y:32%;--flow-x:5vw;--flow-y:3vh;--lava-duration:110s;--lava-delay:-61s}
+@keyframes lava-flow{0%{transform:translate3d(-50%,-50%,0) rotate(-3deg) scale(.98)}50%{transform:translate3d(-50%,-50%,0) translate3d(var(--flow-x,4vw),calc(0px - var(--flow-y,4vh)),0) rotate(3deg) scale(1.035)}100%{transform:translate3d(-50%,-50%,0) translate3d(calc(0px - var(--flow-x,4vw)),var(--flow-y,4vh),0) rotate(-2deg) scale(.995)}}
+html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transform:translate3d(-50%,-50%,0)}
+@media(max-width:760px){.reviewer-lower{grid-template-columns:minmax(0,1fr)}}
