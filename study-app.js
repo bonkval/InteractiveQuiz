@@ -122,12 +122,22 @@ Return only the questions in this format, ready to import into Rev.`;
     const mark = document.createElement('div');
     mark.className = `answer-result-overlay ${correct ? 'correct' : 'incorrect'}`;
     mark.setAttribute('role', 'status');
+    mark.setAttribute('aria-label', correct ? 'Correct' : 'Incorrect');
     const icon = correct
-      ? '<path d="m3.5 8 3 3 6-6" />'
-      : '<path d="m4.5 4.5 7 7m0-7-7 7" />';
-    mark.innerHTML = `<div class="answer-result-card"><span class="answer-result-badge" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none">${icon}</svg></span><span class="answer-result-label">${correct ? 'Correct' : 'Incorrect'}</span></div>`;
+      ? '<path class="answer-check-path" pathLength="1" d="m5 12.5 4.2 4L19.5 6.5" />'
+      : '<path class="answer-x-path" pathLength="1" d="m7 7 10 10M17 7 7 17" />';
+    mark.innerHTML = `<svg class="answer-result-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">${icon}</svg>`;
+    const card = $('.question-card');
+    const bounds = card?.getBoundingClientRect();
+    if (bounds) {
+      mark.style.left = `${bounds.left + bounds.width / 2}px`;
+      mark.style.top = `${bounds.top + bounds.height / 2}px`;
+    } else {
+      mark.style.left = '50%';
+      mark.style.top = '50%';
+    }
     document.body.append(mark);
-    setTimeout(() => mark.remove(), motionReduced() ? 900 : 1600);
+    setTimeout(() => mark.remove(), motionReduced() ? 850 : 1450);
   }
   function renderNotepad() {
     const dialog=$('#notepad-dialog'), editor=$('#notepad-editor'), reading=$('#notepad-reading'), save=$('#notepad-save'), status=$('#notepad-status'), label=$('#notepad-editor-label');

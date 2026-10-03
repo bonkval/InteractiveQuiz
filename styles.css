@@ -40,17 +40,17 @@ html.motion-reduced .question-index-card,html.motion-reduced .question-card,html
 .dark .question-index-card.correct{background:#25372e;color:#bce6cc}
 .dark .question-index-card.incorrect{background:#3c292b;color:#f0c0c1}
 .selection-hint{margin:0 0 10px;font-size:13px;color:var(--muted)}
-.answer-result-overlay{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;pointer-events:none}
-.answer-result-card{width:150px;min-height:148px;padding:20px 18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--text);box-shadow:0 18px 60px #17181c24;animation:answer-result-pop 1.55s cubic-bezier(.2,.8,.2,1) both}
-.answer-result-badge{width:76px;height:76px;display:grid;place-items:center;border-radius:50%;background:#e6f4ea;color:#287a4c}
-.answer-result-overlay.incorrect .answer-result-badge{background:#fbe9ea;color:#b95058}
-.dark .answer-result-badge{background:#254031;color:#b6e9c8}
-.dark .answer-result-overlay.incorrect .answer-result-badge{background:#452d32;color:#f0b9bf}
-.answer-result-badge svg{width:38px;height:38px}
-.answer-result-badge path{stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-.answer-result-label{font-size:15px;font-weight:700;letter-spacing:-.2px}
-@keyframes answer-result-pop{0%{opacity:0;transform:translateY(9px) scale(.88)}12%,78%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(-4px) scale(.98)}}
-html.motion-reduced .answer-result-card{animation:answer-result-pop 900ms linear both}
+.answer-result-overlay{position:fixed;z-index:1000;width:68px;height:68px;display:grid;place-items:center;transform:translate(-50%,-50%);pointer-events:none;animation:answer-result-arrive 1.45s cubic-bezier(.2,.8,.2,1) both}
+.answer-result-mark{display:block;width:68px;height:68px;overflow:visible}
+.answer-result-mark path{fill:none;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:answer-result-draw .42s cubic-bezier(.2,.75,.25,1) .06s both}
+.answer-result-overlay.correct .answer-result-mark{color:#188038}
+.answer-result-overlay.incorrect .answer-result-mark{color:#c5221f}
+.answer-result-mark path{stroke:currentColor}
+@keyframes answer-result-draw{to{stroke-dashoffset:0}}
+@keyframes answer-result-arrive{0%{opacity:0;transform:translate(-50%,-50%) scale(.72)}13%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}23%,78%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(.96)}}
+@keyframes answer-result-fade{0%,15%,80%{opacity:1}100%{opacity:0}}
+html.motion-reduced .answer-result-overlay{animation:answer-result-fade 850ms linear both}
+html.motion-reduced .answer-result-mark path{animation-duration:.12s;animation-delay:0s}
 .dark .prompt-link.active{background:#302e46}
 .dark .import-card:hover{background:#302e46}
 .dark .short-answer{border-color:var(--line)}
