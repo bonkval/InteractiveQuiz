@@ -77,7 +77,7 @@ Return only the questions in this format, ready to import into Rev.`;
   const storageStatus = () => { try { const key=`rev-storage-check-${Date.now()}`; localStorage.setItem(key,'1'); localStorage.removeItem(key); return true; } catch { return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
-    sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'',
+    sharedLibraryInitialized:false, sharedLibraryStatus:'loading', sharedLibraryEtag:'', sharedLibrarySnapshot:[],
     sessionReviewer: null,
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
@@ -164,15 +164,47 @@ Return only the questions in this format, ready to import into Rev.`;
     restoreSession();
   }
   function saveReviewers() { return put(scopedKey(KEY), JSON.stringify(state.reviewers)); }
+  function cloneReviewers(reviewers) { return JSON.parse(JSON.stringify(reviewers || [])); }
+  function mergeReviewerChanges(base, desired, latest) {
+    const baseById=new Map(base.map(item=>[item.id,item]));
+    const desiredById=new Map(desired.map(item=>[item.id,item]));
+    const merged=cloneReviewers(latest);
+    for(const [id,previous] of baseById){
+      const wanted=desiredById.get(id),index=merged.findIndex(item=>item.id===id);
+      if(wanted&&JSON.stringify(wanted)===JSON.stringify(previous))continue;
+      if(!wanted){if(index>=0)merged.splice(index,1);}
+      else if(index>=0)merged[index]=wanted;
+      else merged.push(wanted);
+    }
+    for(const item of desired)if(!baseById.has(item.id)&&!merged.some(entry=>entry.id===item.id))merged.push(item);
+    return merged;
+  }
   async function saveSharedLibrary() {
     if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
-    const headers={'Content-Type':'application/json'};
-    if(state.sharedLibraryEtag)headers['If-Match']=state.sharedLibraryEtag;
-    const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body:JSON.stringify({reviewers:state.reviewers})});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok){if(response.status===412)state.sharedLibraryEtag='';throw new Error(result.error||'Could not save the shared reviewers.');}
-    state.sharedLibraryEtag=response.headers.get('ETag')||result.etag||'';
-    state.sharedLibraryInitialized=true;state.sharedLibraryStatus='ready';
+    let baseline=cloneReviewers(state.sharedLibrarySnapshot),desired=cloneReviewers(state.reviewers),etag=state.sharedLibraryEtag;
+    for(let attempt=0;attempt<3;attempt++){
+      const headers={'Content-Type':'application/json'};
+      if(etag)headers['If-Match']=etag;
+      const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body:JSON.stringify({reviewers:desired})});
+      const result=await response.json().catch(()=>({}));
+      if(response.status===412&&attempt<2){
+        const latestResponse=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
+        const latestResult=await latestResponse.json().catch(()=>({}));
+        if(!latestResponse.ok)throw new Error(latestResult.error||'Could not refresh the shared reviewers after a concurrent change.');
+        const latest=Array.isArray(latestResult.reviewers)?latestResult.reviewers.filter(item=>item&&Array.isArray(item.questions)).map(item=>({...item,questions:item.questions.map(RevCore.normalizeQuestion)})):[];
+        desired=mergeReviewerChanges(baseline,desired,latest);
+        baseline=cloneReviewers(latest);etag=latestResponse.headers.get('ETag')||'';
+        state.reviewers=cloneReviewers(desired);state.sharedLibrarySnapshot=cloneReviewers(latest);state.sharedLibraryEtag=etag;
+        saveReviewers();
+        continue;
+      }
+      if(!response.ok){if(response.status===412)state.sharedLibraryEtag='';throw new Error(result.error||'Could not save the shared reviewers.');}
+      state.reviewers=desired;state.sharedLibrarySnapshot=cloneReviewers(desired);
+      state.sharedLibraryEtag=response.headers.get('ETag')||result.etag||'';
+      state.sharedLibraryInitialized=true;state.sharedLibraryStatus='ready';
+      saveReviewers();
+      return;
+    }
   }
   async function refreshSharedLibrary({quiet=false}={}) {
     try{
@@ -183,10 +215,14 @@ Return only the questions in this format, ready to import into Rev.`;
       state.sharedLibraryEtag=response.headers.get('ETag')||'';
       if(state.sharedLibraryInitialized){
         state.reviewers=Array.isArray(result.reviewers)?result.reviewers.filter(item=>item&&Array.isArray(item.questions)).map(item=>({...item,questions:item.questions.map(RevCore.normalizeQuestion)})):[];
+        state.sharedLibrarySnapshot=cloneReviewers(state.reviewers);
         saveReviewers();
         if(!state.reviewers.some(item=>item.id===state.activeId)){state.activeId=null;state.sessionReviewer=null;}
         restoreSession();
-      }else if(state.user){
+      }else{
+        state.sharedLibrarySnapshot=[];
+      }
+      if(!state.sharedLibraryInitialized&&state.user){
         await saveSharedLibrary();
       }
       state.sharedLibraryStatus='ready';render();return true;

@@ -67,7 +67,7 @@ export default async function handler(request, response) {
     response.setHeader('ETag',blob.etag);
     return response.status(200).json({saved:true,etag:blob.etag});
   } catch (error) {
-    if (error?.name === 'BlobPreconditionFailedError') return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
+    if (error?.name === 'BlobPreconditionFailedError' || /Precondition failed: ETag mismatch/i.test(String(error?.message || ''))) return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
     const errorName = typeof error?.name === 'string' ? error.name : 'UnknownBlobError';
     console.error('Shared library Blob write failed.', {
       pathname:PATH,

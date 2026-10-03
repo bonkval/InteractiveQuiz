@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp() {
+function openApp({conflictOnSecondPut=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
@@ -14,6 +14,7 @@ function openApp() {
   window.confirm = () => true;
   let owner = false;
   let sharedReviewers = null, sharedEtag = 'etag-1';
+  let libraryPutCount = 0;
   const jsonResponse = (payload, status=200, etag='') => ({ok:status>=200&&status<300,status,headers:{get:name=>name.toLowerCase()==='etag'?etag:''},json:async()=>payload});
   window.fetch = async (path, options={}) => {
     if(path==='/api/auth'&&(!options.method||options.method==='GET'))return jsonResponse({owner,configured:true});
@@ -25,6 +26,12 @@ function openApp() {
     }
     if(path==='/api/library'&&(!options.method||options.method==='GET'))return jsonResponse({initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
     if(path==='/api/library'&&options.method==='PUT'){
+      libraryPutCount++;
+      if(conflictOnSecondPut&&libraryPutCount===2){
+        sharedReviewers=[...(sharedReviewers||[]),{id:'remote-reviewer',title:'Concurrent reviewer',questions:[{text:'Remote question',options:[],answer:'Remote answer'}]}];
+        sharedEtag='etag-concurrent';
+        return jsonResponse({error:'The shared library changed in another session. Refresh and try again.'},412);
+      }
       sharedReviewers=JSON.parse(options.body||'{}').reviewers||[];sharedEtag=`etag-${Date.now()}`;
       return jsonResponse({saved:true,etag:sharedEtag},200,sharedEtag);
     }
@@ -87,6 +94,23 @@ test('import previews before saving and local deletion clears the library', asyn
   assert.match(document.querySelector('#main-panel').textContent, /Local storage/);
   document.querySelector('#delete-local-data').click();
   assert.deepEqual(JSON.parse(localStorage.getItem('recall-reviewers-v1')), []);
+  dom.window.close();
+});
+
+test('reviewer rename retries an ETag conflict and keeps reviewers added concurrently', async () => {
+  const dom=openApp({conflictOnSecondPut:true}),{document,localStorage}=dom.window;
+  await signInOwner(dom);
+  document.querySelector('[data-reviewer]').click();
+  document.querySelector('#edit-reviewer').click();
+  document.querySelector('#reviewer-name').value='CCST';
+  document.querySelector('#import-submit').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  document.querySelector('#import-submit').click();
+  for(let i=0;i<20&&document.querySelector('#import-dialog').open;i++)await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(document.querySelector('#import-dialog').open,false,'rename completes after refreshing the stale ETag');
+  const reviewers=JSON.parse(localStorage.getItem('recall-reviewers-v1:user:owner'));
+  assert.ok(reviewers.some(item=>item.title==='CCST'));
+  assert.ok(reviewers.some(item=>item.id==='remote-reviewer'),'the concurrently added reviewer is retained');
   dom.window.close();
 });
 
