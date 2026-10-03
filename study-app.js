@@ -1178,16 +1178,21 @@ Return only the questions in this format, ready to import into Rev.`;
           const timeout=setTimeout(()=>resolve(null),1500);
           page.objs.get(objectId,value=>{clearTimeout(timeout);resolve(value);});
         });
-        if(!image?.data||!image.width||!image.height) continue;
+        if(!image||!image.width||!image.height) continue;
         const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
         const context=canvas.getContext('2d');
         try {
-          const pixels=new Uint8ClampedArray(image.data.length);
-          if(image.data.length===image.width*image.height*4) pixels.set(image.data);
-          else if(image.data.length===image.width*image.height*3) for(let p=0;p<image.width*image.height;p++) pixels.set([image.data[p*3],image.data[p*3+1],image.data[p*3+2],255],p*4);
-          else if(image.data.length===image.width*image.height) for(let p=0;p<image.data.length;p++){const v=image.data[p];pixels.set([v,v,v,255],p*4);}
-          else {canvas.width=canvas.height=0;continue;}
-          context.putImageData(new ImageData(pixels,image.width,image.height),0,0);
+          const rawData=image.data, pixelCount=image.width*image.height;
+          let copied=false;
+          if(rawData?.length===pixelCount*4){context.putImageData(new ImageData(new Uint8ClampedArray(rawData),image.width,image.height),0,0);copied=true;}
+          else if(rawData?.length===pixelCount*3){const pixels=new Uint8ClampedArray(pixelCount*4);for(let p=0;p<pixelCount;p++)pixels.set([rawData[p*3],rawData[p*3+1],rawData[p*3+2],255],p*4);context.putImageData(new ImageData(pixels,image.width,image.height),0,0);copied=true;}
+          else if(rawData?.length===pixelCount){const pixels=new Uint8ClampedArray(pixelCount*4);for(let p=0;p<pixelCount;p++){const v=rawData[p];pixels.set([v,v,v,255],p*4);}context.putImageData(new ImageData(pixels,image.width,image.height),0,0);copied=true;}
+          if(!copied){
+            // Browser PDF.js builds can expose a drawable bitmap without raw pixel data.
+            const drawable=image.bitmap||image;
+            try{context.drawImage(drawable,0,0,image.width,image.height);copied=true;}catch{}
+          }
+          if(!copied){canvas.width=canvas.height=0;continue;}
           const data=canvas.toDataURL('image/png');
           if(!images.some(entry=>entry.page===number&&entry.data===data)) images.push({page:number,data});
         } catch { /* Ignore unsupported PDF image formats and keep importing text. */ }
