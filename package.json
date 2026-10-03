@@ -1,6 +1,6 @@
 {
   "name": "rev-interactive-quiz",
-  "version": "1.1.0",
+  "version": "2.0.101",
   "description": "Rev quiz reviewer",
   "private": true,
   "scripts": {
