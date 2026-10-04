@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
@@ -47,12 +47,13 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
     }
     if(path==='/api/library'&&options.method==='PUT'){
       libraryPutCount++;
+      const changes=JSON.parse(options.body||'{}').changes||[];
+      if(delayImportSave&&changes.some(change=>change.reviewer?.title==='Loading test'))await new Promise(resolve=>setTimeout(resolve,80));
       if(conflictOnSecondPut&&libraryPutCount===2){
         sharedReviewers=[...(sharedReviewers||[]),{id:'remote-reviewer',title:'Concurrent reviewer',questions:[{text:'Remote question',options:[],answer:'Remote answer'}]}];
         sharedEtag='etag-concurrent';
         return jsonResponse({error:'The shared library changed in another session. Refresh and try again.'},412);
       }
-      const changes=JSON.parse(options.body||'{}').changes||[];
       sharedReviewers=[...(sharedReviewers||[])];
       for(const change of changes){
         sharedReviewers=sharedReviewers.filter(item=>item.id!==change.id);
@@ -127,6 +128,27 @@ test('import previews and saves online when browser reviewer storage is full', a
   dom.window.close();
 });
 
+test('import shows progress while saving and confirms completion', async () => {
+  const dom=openApp({delayImportSave:true}),{document}=dom.window;
+  await signInOwner(dom);
+  await new Promise(resolve=>setTimeout(resolve,100));
+  document.querySelector('#new-reviewer').click();
+  document.querySelector('#reviewer-name').value='Loading test';
+  document.querySelector('#paste-text').value='Question 1\nWhich choice is right?\nChoice A: one\nCorrect! Choice B: two';
+  document.querySelector('#import-submit').click();
+  assert.match(document.querySelector('#import-feedback').textContent,/Found 1 question/);
+  document.querySelector('#import-submit').click();
+  assert.match(document.querySelector('#import-feedback').textContent,/Saving reviewer/);
+  assert.ok(document.querySelector('#import-feedback').classList.contains('loading'));
+  assert.equal(document.querySelector('#import-submit').disabled,true);
+  assert.equal(document.querySelector('#cancel-import').disabled,true);
+  await new Promise(resolve=>setTimeout(resolve,120));
+  assert.equal(document.querySelector('#import-dialog').open,false);
+  assert.match(document.querySelector('#main-panel').textContent,/Loading test/);
+  assert.match([...document.querySelectorAll('.toast')].at(-1)?.textContent||'',/Import complete: 1 question/);
+  dom.window.close();
+});
+
 test('reviewer rename retries an ETag conflict and keeps reviewers added concurrently', async () => {
   const dom=openApp({conflictOnSecondPut:true}),{document,localStorage}=dom.window;
   await signInOwner(dom);
@@ -134,9 +156,10 @@ test('reviewer rename retries an ETag conflict and keeps reviewers added concurr
   document.querySelector('#edit-reviewer').click();
   document.querySelector('#reviewer-name').value='CCST';
   document.querySelector('#import-submit').click();
-  await new Promise(resolve=>setTimeout(resolve,0));
+  for(let i=0;i<50&&document.querySelector('#import-preview').hidden;i++)await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(document.querySelector('#import-preview').hidden,false);
   document.querySelector('#import-submit').click();
-  for(let i=0;i<20&&document.querySelector('#import-dialog').open;i++)await new Promise(resolve=>setTimeout(resolve,0));
+  for(let i=0;i<50&&document.querySelector('#import-dialog').open;i++)await new Promise(resolve=>setTimeout(resolve,10));
   assert.equal(document.querySelector('#import-dialog').open,false,'rename completes after refreshing the stale ETag');
   assert.equal(localStorage.getItem('recall-reviewers-v1:user:owner'),null);
   assert.match(document.querySelector('#main-panel').textContent,/CCST/);

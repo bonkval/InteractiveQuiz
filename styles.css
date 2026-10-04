@@ -27,6 +27,12 @@ html.motion-reduced .question-index-card,html.motion-reduced .question-card,html
 .import-name:focus{border-color:var(--accent)}
 .import-feedback{min-height:17px;margin:11px 0 0;font-size:11px;color:#39845e}
 .import-feedback.error{color:#c45b60}
+.import-feedback.loading{display:flex;align-items:center;gap:8px;color:var(--accent)}
+.import-feedback.loading::before{content:"";width:13px;height:13px;flex:none;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:import-spin .7s linear infinite}
+.modal-actions button:disabled{opacity:.65;cursor:wait;transform:none}
+@keyframes import-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.import-feedback.loading::before{animation:none;border-right-color:currentColor}}
+html.motion-reduced .import-feedback.loading::before{animation:none;border-right-color:currentColor}
 .review-row.result-jump{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
 .review-row.result-jump:hover{background:color-mix(in srgb,var(--accent) 6%,transparent)}
 .score-total{font-size:22px;color:var(--muted)}

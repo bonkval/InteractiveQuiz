@@ -1126,7 +1126,14 @@ Return only the questions in this format, ready to import into Rev.`;
   }
 
   function feedback(message, error = false) {
-    const el = $('#import-feedback'); el.textContent = message; el.classList.toggle('error', error);
+    const el = $('#import-feedback'); el.textContent = message; el.classList.toggle('error', error); el.classList.remove('loading');
+  }
+  function importProgress(message, saving = false) {
+    const el = $('#import-feedback');
+    el.textContent = message;
+    el.classList.remove('error');
+    el.classList.add('loading');
+    $('#import-submit').textContent = saving ? 'Saving...' : 'Importing...';
   }
   async function getPdfJs() {
     if(location.protocol!=='file:'&&window.RevPdfJs)return {lib:window.RevPdfJs,worker:window.RevPdfWorkerUrl};
@@ -1186,7 +1193,11 @@ Return only the questions in this format, ready to import into Rev.`;
   async function submitImport(forceOcr=false) {
     if(!state.user){toast('Only the owner account can add or edit reviewers.');return;}
     if (state.importBusy) return;
-    state.importBusy = true; $('#import-submit').disabled = true;
+    state.importBusy = true;
+    const controls = [...$('#import-dialog').querySelectorAll('button, input, textarea')];
+    const disabledBefore = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    importProgress('Preparing reviewer...');
     try {
       const tab = $('.import-tab.active').dataset.tab, files = state.selectedFiles;
       const reviewerFiles = files.filter(x => !x.type.startsWith('image/'));
@@ -1197,20 +1208,31 @@ Return only the questions in this format, ready to import into Rev.`;
       const exhibitFiles = files.filter(x => x.type.startsWith('image/'));
       if (forceOcr && (!file || !/\.pdf$/i.test(file.name))) return feedback('Choose a PDF before starting OCR.', true);
       let source = state.importPreview?.source || $('#paste-text').value;
-      if ((!state.importPreview||forceOcr) && tab === 'file' && sourceFile) source = /\.pdf$/i.test(sourceFile.name) ? await extractPdf(sourceFile,message=>{ $('#file-status').textContent=message; },forceOcr) : await sourceFile.text();
+      if ((!state.importPreview||forceOcr) && tab === 'file' && sourceFile) {
+        if (/\.pdf$/i.test(sourceFile.name)) {
+          source = await extractPdf(sourceFile,message=>{ $('#file-status').textContent=message; importProgress(message); },forceOcr);
+        } else {
+          importProgress('Reading reviewer file...');
+          source = await sourceFile.text();
+        }
+      }
       else if (tab === 'file' && !source.trim() && !forceOcr) return feedback('Choose a reviewer file or paste text, then attach any exhibit images.', true);
       if (!source.trim()) return feedback('Paste questions or choose a file.', true);
       if(forceOcr&&state.importPreview){state.importPreview=null;$('#import-preview').hidden=true;$('#import-submit').textContent='Preview questions';}
+      importProgress('Parsing questions...');
+      if(source.length>10000)await new Promise(resolve=>setTimeout(resolve,0));
       const parsed = state.importPreview?.parsed || RevCore.parseImport(source);
       if (!parsed.questions.length) return feedback('No questions found. Use Question 1 headings or the Import prompt.', true);
       const empty = parsed.questions.filter(q => !q.text);
       if (empty.length) return feedback(`${empty.length} question(s) have no question text. Check the formatting before saving.`, true);
       const imageFiles = state.importPreview?.imageFiles || [];
+      if (!state.importPreview && exhibitFiles.length) importProgress('Adding exhibit images...');
       if (!state.importPreview) for (const imageFile of exhibitFiles) imageFiles.push({name:imageFile.name,data:await fileToDataUrl(imageFile)});
       if (!state.importPreview && tab==='file') {
         // Keep embedded PDF figures with the question on the corresponding page.
         const pdfForImages=reviewerFiles.find(candidate=>/\.pdf$/i.test(candidate.name))||null;
-        const extracted=pdfForImages ? await extractPdfImages(pdfForImages,message=>{ $('#file-status').textContent=message; }) : [];
+        if(pdfForImages)importProgress('Checking PDF figures...');
+        const extracted=pdfForImages ? await extractPdfImages(pdfForImages,message=>{ $('#file-status').textContent=message; importProgress(message); }) : [];
         if(extracted.length) for(const question of parsed.questions) {
           const page=Number(question.sourceNumber);
           const figures=extracted.filter(entry=>entry.page===page).map(entry=>entry.data);
@@ -1228,10 +1250,12 @@ Return only the questions in this format, ready to import into Rev.`;
       const fallbackQuestions = window.RECALL_STARTER_REVIEWER?.questions || [];
       const resolved = state.importPreview?.resolved || RevCore.resolveImageFiles(parsed.questions, imageFiles, fallbackQuestions, previousReviewer?.questions || []);
       if (!state.importPreview) {
+        importProgress('Building question preview...');
+        if(parsed.questions.length>100)await new Promise(resolve=>setTimeout(resolve,0));
         state.importPreview = {source, parsed, resolved, imageFiles};
         renderImportPreview(state.importPreview);
         $('#import-submit').textContent = 'Save reviewer';
-        return feedback('Review the questions and choices, then save.');
+        return feedback(`Found ${parsed.questions.length} question${parsed.questions.length===1?'':'s'}. Review the choices, then save.`);
       }
       if (resolved.unresolved.length) return feedback(`Attach image file(s) matching: ${resolved.unresolved.join(', ')}`, true);
       const title = ($('#reviewer-name').value.trim() || parsed.title || sourceFile?.name?.replace(/(?:_Revvy_Import)?\.[^.]+$/i, '') || 'New reviewer').slice(0, 70);
@@ -1239,6 +1263,7 @@ Return only the questions in this format, ready to import into Rev.`;
       const index = state.reviewers.findIndex(x => x.id === editId);
       const previous = index >= 0 ? state.reviewers[index] : null;
       if (index >= 0) state.reviewers[index] = reviewer; else state.reviewers.unshift(reviewer);
+      importProgress('Saving reviewer to the shared library...', true);
       try{await saveSharedLibrary();}catch(error){
         if(index>=0)state.reviewers[index]=previous;else state.reviewers.shift();
         saveReviewers();throw error;
@@ -1247,12 +1272,15 @@ Return only the questions in this format, ready to import into Rev.`;
       state.activeId = reviewer.id; state.screen = 'home'; clearHash();
       $('#import-dialog').close(); render();
       state.importPreview = null;
-      if (parsed.warnings.length) toast(`Imported ${parsed.questions.length} questions. ${parsed.warnings.length} formatting note(s).`);
-      else toast(`Imported ${parsed.questions.length} questions.`);
+      if (parsed.warnings.length) toast(`Import complete: ${parsed.questions.length} question${parsed.questions.length===1?'':'s'}. ${parsed.warnings.length} formatting note(s).`);
+      else toast(`Import complete: ${parsed.questions.length} question${parsed.questions.length===1?'':'s'}.`);
     } catch (error) {
       feedback(error.message || 'Could not read the reviewer or exhibit image.', true);
     } finally {
-      state.importBusy = false; $('#import-submit').disabled = false;
+      state.importBusy = false;
+      controls.forEach((control,index) => { control.disabled = disabledBefore[index]; });
+      $('#import-submit').textContent = state.importPreview ? 'Save reviewer' : 'Preview questions';
+      $('#import-feedback').classList.remove('loading');
     }
   }
   function fileToDataUrl(file) {
@@ -1392,6 +1420,7 @@ Return only the questions in this format, ready to import into Rev.`;
       switchAccount(null);await refreshSharedLibrary({quiet:true});setMobileNav(false);toast('Signed out.');
     };
     $('#cancel-import').onclick = () => $('#import-dialog').close();
+    $('#import-dialog').addEventListener('cancel', event => { if(state.importBusy)event.preventDefault(); });
     document.querySelectorAll('.import-tab').forEach(b => b.onclick = () => showImportTab(b.dataset.tab));
     $('#file-input').onchange = e => {
       state.selectedFiles = [...e.target.files];
