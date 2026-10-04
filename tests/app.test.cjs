@@ -192,14 +192,13 @@ test('quick filters separate incorrect and I-dont-know cards', () => {
   dom.window.close();
 });
 
-test('Import prompt requests typed JSON and direct PDF import remains available', () => {
+test('Import prompt requests an image-capable PDF for direct import', () => {
   const studyApp = fs.readFileSync('study-app.js','utf8');
   const html = fs.readFileSync('index.html','utf8');
-  assert.match(studyApp,/_Revvy_Import\.json/);
-  assert.match(studyApp,/"type":"grouped-boolean"/);
-  assert.match(studyApp,/"type":"matching"/);
-  assert.match(studyApp,/"type":"multi-text"/);
-  assert.match(html,/reviewer PDF directly/);
+  assert.match(studyApp,/_Revvy_Import\.pdf/);
+  assert.match(studyApp,/exactly one complete question on each PDF page/);
+  assert.match(studyApp,/embedded PNG or JPEG image/);
+  assert.match(html,/_Revvy_Import\.pdf/);
 });
 
 test('default import prompt adapts the supported shapes to the source reviewer', () => {
@@ -208,15 +207,15 @@ test('default import prompt adapts the supported shapes to the source reviewer',
   window.location.hash='#import-prompt';
   window.dispatchEvent(new window.Event('hashchange'));
   const prompt=document.querySelector('#master-prompt').value;
-  assert.match(prompt,/Start_Completed\.pdf/);
-  assert.match(prompt,/Use only the question and answer types that actually appear/);
-  assert.match(prompt,/only ordinary multiple-choice questions is completely valid/);
-  assert.match(prompt,/one question per page, several on a page/);
-  assert.match(prompt,/"sourcePage"/);
-  assert.match(prompt,/"correctAnswers":\[\]/);
-  assert.match(prompt,/"imageRefs"/);
-  assert.match(prompt,/"statementAnswers"/);
-  assert.match(prompt,/"answerTiles"/);
+  assert.match(prompt,/Create one actual PDF file/);
+  assert.match(prompt,/only the question types present/);
+  assert.match(prompt,/one complete question on each PDF page/);
+  assert.match(prompt,/Question 1/);
+  assert.match(prompt,/Correct! Choice B/);
+  assert.match(prompt,/Answer: <exact answer>/);
+  assert.match(prompt,/Word bank: SFTP, TFTP/);
+  assert.match(prompt,/embedded PNG or JPEG image/);
+  assert.doesNotMatch(prompt,/UTF-8 JSON file/);
   assert.doesNotMatch(prompt,/obsolete prompt/);
   dom.window.close();
 });
