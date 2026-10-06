@@ -139,6 +139,19 @@ Explanation: SFTP uses SSH; TFTP uses UDP.`);
   assert.deepEqual(imported.warnings,[]);
 });
 
+test('imports a single matching pair with an exact technical term',()=>{
+  const imported=core.parseImport(`Question 1
+Match each item to the correct term.
+Matching type. Match the term with the correct description.
+Word bank: getFile()
+Item 1: Reads an uploaded file object from the request | getFile()`);
+  const q=imported.questions[0];
+  assert.equal(q.type,'matching');
+  assert.deepEqual(q.answerTiles,['getFile()']);
+  assert.deepEqual(q.matches,[{prompt:'Reads an uploaded file object from the request',answer:'getFile()',correct:true}]);
+  assert.deepEqual(imported.warnings,[]);
+});
+
 test('deduplicates and prefers the copy with a key', () => {
   const input = 'Question 1\nSame question?\nChoice A: one\nChoice B: two\n\nQuestion 2\nSame question?\nCorrect! Choice A: one\nChoice B: two';
   const {questions} = core.parseImport(input);

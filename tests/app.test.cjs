@@ -238,8 +238,21 @@ test('default import prompt adapts the supported shapes to the source reviewer',
   assert.match(prompt,/Answer: <exact answer>/);
   assert.match(prompt,/Word bank: SFTP, TFTP/);
   assert.match(prompt,/embedded PNG or JPEG image/);
+  assert.match(prompt,/Put the question wording immediately after that heading/);
+  assert.doesNotMatch(prompt,/add "Original question: <number>"/);
   assert.doesNotMatch(prompt,/UTF-8 JSON file/);
   assert.doesNotMatch(prompt,/obsolete prompt/);
+  dom.window.close();
+});
+
+test('saved import prompt drops provenance labels before copying', () => {
+  const dom=openApp(),{window}=dom,{document,localStorage}=window;
+  localStorage.setItem('rev-import-prompt-v5', 'If the source uses different question numbers, add "Original question: <number>" below the heading. Add "Source page: <number>" when the source identifies one.');
+  window.location.hash='#import-prompt';
+  window.dispatchEvent(new window.Event('hashchange'));
+  const prompt=document.querySelector('#master-prompt').value;
+  assert.match(prompt,/Put the question wording immediately after that heading/);
+  assert.doesNotMatch(prompt,/add "Original question: <number>"/);
   dom.window.close();
 });
 
