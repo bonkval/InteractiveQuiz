@@ -548,3 +548,6 @@ html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transfo
 .brand-credit{color:var(--muted);font-size:9px;font-weight:600}
 .brand-version{color:var(--accent);font-size:9px;font-weight:750;letter-spacing:.025em}
 .sidebar-collapsed .brand-meta{display:none}
+
+.sidebar-settings .plain-mode-button{width:auto;min-width:78px;padding:7px 9px;font-size:11px;white-space:nowrap;flex:none}.sidebar-settings{flex-wrap:wrap}
+.nav-buttons .secondary-button,.nav-buttons .primary-button{min-height:44px}

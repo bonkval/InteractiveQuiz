@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/core.test.js tests/app.test.cjs tests/api.test.cjs"
+    "test": "node --test tests/core.test.js tests/app.test.cjs tests/api.test.cjs tests/client.test.cjs",
+    "test:browser": "npm run build && node tests/browser.cjs",
+    "test:responsive": "npm run build && node tests/browser.cjs --responsive-only"
   },
   "repository": {
     "type": "git",
@@ -28,6 +30,7 @@
   },
   "devDependencies": {
     "jsdom": "^30.1.1",
+    "playwright": "1.65.0",
     "vite": "^8.3.1"
   }
 }

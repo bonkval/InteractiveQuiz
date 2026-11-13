@@ -3,10 +3,12 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false,rewriteEtags=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false,rewriteEtags=false,metadataLibrary=false,initialReviewers=null,plain=false,detailDelay=0}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
+  if(plain){window.localStorage.setItem('rev-plain-mode','true');window.document.documentElement.classList.add('plain-mode');}
+  window.libraryRequests=[];window.libraryWrites=[];
   if(reviewerStorageFull){
     const setItem=window.Storage.prototype.setItem;
     window.Storage.prototype.setItem=function(key,value){
@@ -20,10 +22,11 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
   window.HTMLDialogElement.prototype.close = function() { this.open = false; };
   window.confirm = () => true;
   let owner = ownerAtStart;
-  let sharedReviewers = null, sharedEtag = 'etag-1';
+  let sharedReviewers = initialReviewers, sharedEtag = 'etag-1';
   let libraryPutCount = 0;
   const jsonResponse = (payload, status=200, etag='') => ({ok:status>=200&&status<300,status,headers:{get:name=>name.toLowerCase()==='etag'?etag:''},json:async()=>payload});
   window.fetch = async (path, options={}) => {
+    if(path.startsWith('/api/library'))window.libraryRequests.push(path);
     if(path==='/api/auth'&&(!options.method||options.method==='GET'))return jsonResponse({owner,configured:true});
     if(path==='/api/auth'&&options.method==='POST'){
       const body=JSON.parse(options.body||'{}');
@@ -32,6 +35,7 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
       return jsonResponse({error:'Username or password is incorrect.'},401);
     }
     if(path.startsWith('/api/library?id=')&&(!options.method||options.method==='GET')){
+      if(detailDelay)await new Promise(resolve=>setTimeout(resolve,detailDelay));
       const params=new URL(path,'http://localhost').searchParams;
       const reviewer=(sharedReviewers||[]).find(item=>item.id===params.get('id'));
       if(!reviewer)return jsonResponse({error:'Reviewer not found.'},404);
@@ -44,12 +48,14 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
     if(path==='/api/library'&&(!options.method||options.method==='GET')){
       if(delayLibraryLoad)await new Promise(resolve=>setTimeout(resolve,100));
       const payload=chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]};
+      if(metadataLibrary){delete payload.reviewers;payload.entries=(sharedReviewers||[]).map(item=>({id:item.id,title:item.title,questionCount:item.questions.length,reviewerRevision:item.id+'-'+(item.updatedAt||item.title)}));}
       if(rewriteEtags)payload.revision=Array.isArray(sharedReviewers)?sharedEtag:'';
       return jsonResponse(payload,200,Array.isArray(sharedReviewers)?(rewriteEtags?'W/"http-token"':sharedEtag):'');
     }
     if(path==='/api/library'&&options.method==='PUT'){
       libraryPutCount++;
       const changes=JSON.parse(options.body||'{}').changes||[];
+      window.libraryWrites.push(changes);
       if(rewriteEtags&&(JSON.parse(options.body).baseRevision??options.headers['If-Match']??'')!==(Array.isArray(sharedReviewers)?sharedEtag:''))return jsonResponse({error:'The shared library changed in another session. Refresh and try again.'},412);
       if(delayImportSave&&changes.some(change=>change.reviewer?.title==='Loading test'))await new Promise(resolve=>setTimeout(resolve,80));
       if(conflictOnSecondPut&&libraryPutCount===2){
@@ -69,6 +75,7 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
   };
   window.eval(fs.readFileSync('reviewer-data.js', 'utf8'));
   window.eval(fs.readFileSync('core.js', 'utf8'));
+  window.eval(fs.readFileSync('reviewer-client.js','utf8'));
   window.eval(fs.readFileSync('study-app.js', 'utf8'));
   return dom;
 }
@@ -93,8 +100,8 @@ test('guest can review, flag a question, and start a flagged set', () => {
   assert.equal(document.querySelector('#flag-question').getAttribute('aria-pressed'), 'true');
   document.querySelector('[data-option="1"]').click();
   document.querySelector('#next-question').click();
-  assert.equal(document.querySelector('.answer-result-overlay.correct')?.textContent,'Correct');
-  assert.equal(document.querySelector('.answer-result-badge svg')?.getAttribute('viewBox'),'0 0 16 16');
+  assert.equal(document.querySelector('.answer-result-overlay.correct')?.getAttribute('aria-label'),'Correct');
+  assert.equal(document.querySelector('.answer-result-mark')?.getAttribute('viewBox'),'0 0 24 24');
   const history = JSON.parse(localStorage.getItem('rev-question-history-v1'));
   assert.equal(Object.values(history['reviewer-s2-it0015'])[0], 'correct');
   document.querySelector('#exit-quiz').click();
@@ -272,7 +279,7 @@ test('motion stays visible on desktop and can be reduced or follow the device', 
   const dom=openApp(),{document,localStorage}=dom.window;
   const toggle=document.querySelector('#motion-toggle');
   assert.equal(document.documentElement.classList.contains('motion-reduced'),false);
-  assert.equal(document.querySelector('#motion-state').textContent,'On');
+  assert.equal(document.querySelector('#motion-toggle').getAttribute('aria-checked'),'true');
   toggle.click();
   assert.equal(localStorage.getItem('rev-motion'),'off');
   assert.ok(document.documentElement.classList.contains('motion-reduced'));
@@ -361,22 +368,22 @@ test('audio can pause, resume, stop, and start again after changing cards', () =
   document.querySelector('[data-reviewer]').click();
   document.querySelector('#start-quiz').click();
   document.querySelector('#read-question').click();
-  assert.equal(document.querySelector('#read-question').textContent, 'Pause audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Pause audio');
   document.querySelector('#read-question').click();
   assert.equal(synth.paused, true);
-  assert.equal(document.querySelector('#read-question').textContent, 'Resume audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Resume audio');
   document.querySelector('#toggle-explanations').click();
-  assert.equal(document.querySelector('#read-question').textContent, 'Resume audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Resume audio');
   document.querySelector('#read-question').click();
   assert.equal(synth.paused, false);
-  assert.equal(document.querySelector('#read-question').textContent, 'Pause audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Pause audio');
   document.querySelector('#stop-reading').click();
-  assert.equal(document.querySelector('#read-question').textContent, 'Use audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Use audio');
   document.querySelector('#read-question').click();
   assert.equal(synth.utterances.length, 2);
   document.querySelector('#next-question').click();
   assert.equal(synth.speaking, false);
-  assert.equal(document.querySelector('#read-question').textContent, 'Use audio');
+  assert.equal(document.querySelector('#read-question').getAttribute('aria-label'), 'Use audio');
   dom.window.close();
 });
 
@@ -607,5 +614,134 @@ test('rewritten HTTP ETags do not block imports or bring deleted reviewers back'
     await new Promise(resolve=>setTimeout(resolve,0));
     assert.equal(document.querySelectorAll('[data-reviewer]').length,1,'a fresh server read keeps the deletion');
     assert.doesNotMatch(document.querySelector('#reviewer-list').textContent,/Token regression/);
+  }finally{dom.window.close();}
+});
+
+const smallReviewer=(id,title=id)=>({id,title,questions:[{text:`Question from ${id}?`,options:['one','two'],correctAnswers:[1]},{text:'Second?',options:['one','two'],correctAnswers:[0]}]});
+const settle=()=>new Promise(resolve=>setTimeout(resolve,0));
+
+test('metadata catalogs load only the selected reviewer and preserve unloaded reviewers during saves',async()=>{
+  const dom=openApp({metadataLibrary:true,initialReviewers:[smallReviewer('one'),smallReviewer('two'),smallReviewer('three')]}),{document}=dom.window;
+  try{
+    await signInOwner(dom);
+    assert.equal(dom.window.libraryRequests.filter(url=>url.includes('?id=')).length,0);
+    document.querySelector('[data-reviewer="one"]').click();await settle();
+    assert.ok(document.querySelector('#start-quiz'));
+    assert.equal(dom.window.libraryRequests.filter(url=>url.includes('?id=')).length,1);
+    document.querySelector('[data-delete="two"]').click();await settle();
+    assert.deepEqual(JSON.parse(JSON.stringify(dom.window.libraryWrites.at(-1))),[{id:'two',reviewer:null}]);
+    assert.ok(document.querySelector('[data-reviewer="three"]'),'an unloaded reviewer was not deleted');
+    document.querySelector('#edit-reviewer').click();
+    document.querySelector('#reviewer-name').value='Renamed';
+    document.querySelector('#import-submit').click();await settle();
+    document.querySelector('#import-submit').click();await settle();
+    assert.equal(dom.window.libraryWrites.at(-1).length,1);
+    assert.equal(dom.window.libraryWrites.at(-1)[0].id,'one');
+    assert.ok(document.querySelector('[data-reviewer="three"]'));
+  }finally{dom.window.close();}
+});
+
+test('a metadata conflict rebases actual changes without mistaking an optimistic edit for a saved reviewer',async()=>{
+  const dom=openApp({metadataLibrary:true,conflictOnSecondPut:true,initialReviewers:[smallReviewer('one'),smallReviewer('two')]}),{document}=dom.window;
+  try{
+    await signInOwner(dom);
+    document.querySelector('[data-delete="two"]').click();await settle();
+    document.querySelector('[data-reviewer="one"]').click();await settle();
+    document.querySelector('#edit-reviewer').click();document.querySelector('#reviewer-name').value='Changed after conflict';
+    document.querySelector('#import-submit').click();await settle();document.querySelector('#import-submit').click();
+    for(let i=0;i<40&&document.querySelector('#import-dialog').open;i++)await settle();
+    assert.equal(document.querySelector('#import-dialog').open,false);
+    assert.equal(dom.window.libraryWrites.length,3,'the conflicting mutation was retried, not skipped');
+    assert.equal(dom.window.libraryWrites.at(-1)[0].reviewer.title,'Changed after conflict');
+    assert.ok(document.querySelector('[data-reviewer="remote-reviewer"]'));
+  }finally{dom.window.close();}
+});
+
+test('late reviewer downloads never replace the latest selection',async()=>{
+  const dom=openApp({metadataLibrary:true,detailDelay:25,initialReviewers:[smallReviewer('one'),smallReviewer('two')]}),{document}=dom.window;
+  try{
+    await settle();document.querySelector('[data-reviewer="one"]').click();document.querySelector('[data-reviewer="two"]').click();
+    await new Promise(resolve=>setTimeout(resolve,80));
+    assert.equal(document.querySelector('#reviewer-title').textContent,'two');
+    assert.ok(document.querySelector('#start-quiz'));
+  }finally{dom.window.close();}
+});
+
+test('plain mode shares grading and preserves checked answers, theme and progress across layout changes',async()=>{
+  const dom=openApp({plain:true}),{document,localStorage}=dom.window;
+  try{
+    document.querySelector('[data-reviewer]').click();document.querySelector('#start-quiz').click();
+    assert.equal(document.querySelectorAll('.question-deck,#copy-question,#read-question,#show-answer,#dont-know,#undo-answer').length,0);
+    assert.equal(document.querySelector('#next-question').textContent,'Check answer');
+    document.querySelector('[data-option="1"]').click();document.querySelector('#next-question').click();
+    assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
+    assert.equal(document.querySelector('.progress-copy').textContent,'1 / 170');
+    document.querySelector('#theme-toggle').click();assert.equal(localStorage.getItem('rev-theme'),'dark');
+    document.querySelector('#plain-mode-toggle').click();await settle();
+    assert.ok(document.querySelector('.question-deck'));
+    assert.equal(document.querySelector('[data-option="1"]').getAttribute('aria-pressed'),'true');
+    assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
+    document.querySelector('#plain-mode-toggle').click();await settle();
+    assert.equal(localStorage.getItem('rev-plain-mode'),'true');
+    document.querySelector('#next-question').click();assert.equal(document.querySelector('.progress-copy').textContent,'2 / 170');
+    const saved=JSON.parse(localStorage.getItem('rev-session-v1'));
+    assert.ok(saved===null||typeof saved==='object');
+  }finally{dom.window.close();}
+});
+
+test('plain mode grades grouped, matching, multi-part and multi-select questions with the shared scoring rules',async()=>{
+  const reviewer={id:'activities',title:'Activities',questions:[
+    {text:'Statements.',statements:['A is true.','B is false.'],statementAnswers:['True','False'],options:[]},
+    {text:'Match the protocols.',matches:[{prompt:'Uses SSH',answer:'SFTP'},{prompt:'Uses port 22',answer:'SFTP'}],answerTiles:['SFTP','TFTP'],options:[]},
+    {text:'Name commands.',parts:[{prompt:'First',answer:'ping'},{prompt:'Second',answer:'tracert'}],options:[]},
+    {text:'Select both.',options:['one','two','three'],correctAnswers:[0,1]},
+    {text:'No key.',options:[]}
+  ]};
+  const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[reviewer]}),{document}=dom.window;
+  try{
+    await settle();document.querySelector('[data-reviewer="activities"]').click();await settle();document.querySelector('#start-quiz').click();
+    const checkAndNext=()=>{document.querySelector('#next-question').click();assert.equal(document.querySelector('.feedback-area').textContent,'Correct');document.querySelector('#next-question').click();};
+    document.querySelector('[data-statement="0"][data-value="True"]').click();document.querySelector('[data-statement="1"][data-value="False"]').click();checkAndNext();
+    const originalTarget=document.querySelector('[data-match-target="0"]');
+    for(const index of [0,1]){document.querySelector('[data-match-tile="SFTP"]').click();document.querySelector(`[data-match-target="${index}"]`).click();}
+    assert.equal(document.querySelector('[data-match-target="0"]'),originalTarget,'placing a matching answer preserves the controls');checkAndNext();
+    for(const [index,answer] of ['ping','tracert'].entries()){const field=document.querySelector(`[data-part="${index}"]`);field.value=answer;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}checkAndNext();
+    document.querySelector('[data-option="0"]').click();document.querySelector('[data-option="1"]').click();checkAndNext();
+    assert.equal(document.querySelector('#next-question').textContent,'Finish','a question without a key cannot trap the session in Check answer');
+    document.querySelector('#next-question').click();assert.match(document.querySelector('.result-score').textContent,/8\s*\/\s*8/);
+  }finally{dom.window.close();}
+});
+
+test('plain exam mode keeps its deadline and a typed answer while changing layouts',async()=>{
+  const dom=openApp({plain:true}),{document,localStorage}=dom.window;
+  try{
+    document.querySelector('[data-reviewer]').click();document.querySelector('#plain-session-mode').value='exam';document.querySelector('#start-quiz').click();
+    const before=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
+    assert.ok(document.querySelector('#exam-clock'));
+    document.querySelector('[data-option="1"]').click();document.querySelector('#plain-mode-toggle').click();await settle();
+    document.querySelector('#plain-mode-toggle').click();await settle();
+    const after=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
+    assert.equal(after.questionStarted,before.questionStarted);assert.equal(after.mode,'exam');assert.deepEqual(after.answers['0'],[1]);
+    document.querySelector('#exit-quiz').click();
+    document.querySelector('#plain-session-mode').value='written';document.querySelector('#start-quiz').click();
+    const field=document.querySelector('#short-answer');field.value='designated';field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    document.querySelector('#toggle-explanations').click();assert.equal(document.querySelector('#short-answer'),field,'showing an explanation does not rebuild the input');
+    document.querySelector('#plain-mode-toggle').click();await settle();document.querySelector('#plain-mode-toggle').click();await settle();
+    assert.equal(document.querySelector('#short-answer').value,'designated');document.querySelector('#next-question').click();assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
+  }finally{dom.window.close();}
+});
+
+test('clearing device data cannot turn the next import into shared-library deletions',async()=>{
+  const dom=openApp({metadataLibrary:true,initialReviewers:[smallReviewer('one'),smallReviewer('two')]}),{document}=dom.window;
+  try{
+    await signInOwner(dom);
+    dom.window.location.hash='#data';dom.window.dispatchEvent(new dom.window.HashChangeEvent('hashchange'));
+    document.querySelector('#delete-local-data').click();await settle();
+    assert.equal(document.querySelectorAll('[data-reviewer]').length,2);
+    document.querySelector('#new-reviewer').click();document.querySelector('#paste-text').value=JSON.stringify({title:'New',questions:smallReviewer('new').questions});
+    document.querySelector('#import-submit').click();await settle();document.querySelector('#import-submit').click();await settle();
+    assert.equal(dom.window.libraryWrites.at(-1).length,1);
+    assert.ok(dom.window.libraryWrites.at(-1).every(change=>change.reviewer!==null));
+    assert.ok(document.querySelector('[data-reviewer="one"]'));assert.ok(document.querySelector('[data-reviewer="two"]'));
   }finally{dom.window.close();}
 });

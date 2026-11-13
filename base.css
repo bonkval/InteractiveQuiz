@@ -1,0 +1,80 @@
+/* Functional plain layout. Normal decoration is downloaded separately. */
+[hidden]{display:none!important}
+.plain-header{display:none}
+.plain-mode{color-scheme:light;--surface:#fff;--text:#111;--muted:#555;--line:#ccc;--accent:#111;--panel-soft:#f5f5f5;background:#fff;color:#111}
+.plain-mode.dark{color-scheme:dark;--surface:#000;--text:#eee;--muted:#aaa;--line:#555;--accent:#eee;--panel-soft:#171717;background:#000;color:#eee}
+.plain-mode *,.plain-mode *::before,.plain-mode *::after{box-sizing:border-box;animation:none!important;transition:none!important;scroll-behavior:auto!important;box-shadow:none!important;text-shadow:none!important;backdrop-filter:none!important;filter:none!important}
+.plain-mode body{margin:0;background:var(--surface);color:var(--text);font:17px/1.6 system-ui,sans-serif;min-height:100vh}
+.plain-mode a{color:inherit}
+.plain-mode button,.plain-mode input,.plain-mode select,.plain-mode textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:4px;min-height:44px;padding:8px 12px}
+.plain-mode button{cursor:pointer}
+.plain-mode button:disabled{opacity:.45;cursor:default}
+.plain-mode button:hover:not(:disabled){border-color:var(--text)}
+.plain-mode :focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.plain-mode .primary-button{color:var(--surface);background:var(--text);border-color:var(--text)}
+.plain-mode .plain-header{display:flex;position:sticky;top:0;z-index:10;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border-bottom:1px solid var(--line);padding:10px max(16px,calc((100vw - 800px)/2))}
+.plain-mode #plain-settings{display:flex;align-items:center;gap:8px}
+.plain-mode #theme-toggle{display:grid;place-items:center;width:44px}
+.plain-mode svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7}
+.plain-mode .main-area{max-width:800px;margin:0 auto;padding:28px 20px 64px}
+.plain-mode #main-panel{min-height:50vh;overflow-wrap:anywhere}
+.plain-mode h1{font-size:1.5rem;line-height:1.3;margin:0 0 16px}
+.plain-mode h2{font-size:1.3rem;line-height:1.4}
+.plain-mode p{margin:12px 0}
+.plain-mode .sidebar{display:none}
+.plain-mode .plain-navigation .sidebar{display:block;position:fixed;top:var(--plain-header-height,65px);bottom:0;left:0;z-index:20;width:min(360px,100vw);overflow:auto;background:var(--surface);border-right:1px solid var(--line);padding:20px}
+.plain-mode .reviewer-tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.plain-mode #reviewer-search{width:100%}
+.plain-mode .reviewer-entry{display:flex;gap:6px;margin:8px 0}
+.plain-mode .reviewer-item{display:block;flex:1;text-align:left;width:100%}
+.plain-mode .reviewer-item.active{border:2px solid var(--text)}
+.plain-mode .reviewer-delete{width:44px}
+.plain-mode .sidebar-brand-row,.plain-mode .sidebar-toggle,.plain-mode .side-heading,.plain-mode .prompt-link,.plain-mode .import-card,.plain-mode .data-actions,.plain-mode .creator-credit,.plain-mode .sidebar-settings,.plain-mode .reviewer-icon,.plain-mode .site-links,.plain-mode .mobile-nav-toggle,.plain-mode .nav-scrim,.plain-mode #intro,.plain-mode .lava-field,.plain-mode .boot-screen{display:none!important}
+.plain-mode .plain-home{max-width:600px}
+.plain-mode .plain-home label{display:block;margin:16px 0}
+.plain-mode .plain-home select{display:block;width:100%;margin-top:6px}
+.plain-mode details{margin:20px 0}
+.plain-mode summary{cursor:pointer}
+.plain-mode .study-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:16px}
+.plain-mode .study-label{display:flex;flex-wrap:wrap;gap:12px;font-size:.9rem;color:var(--muted)}
+.plain-mode .study-controls{display:flex;flex-wrap:wrap;gap:8px}
+.plain-mode #exam-clock{font-variant-numeric:tabular-nums;color:var(--text);font-weight:700}
+.plain-mode .progress-row{margin-bottom:24px;font-size:.9rem;color:var(--muted)}
+.plain-mode .progress-track{display:none}
+.plain-mode .question-number{font-size:.85rem;color:var(--muted);margin-bottom:8px}
+.plain-mode .question-text{font-size:1.25rem;line-height:1.6;white-space:pre-wrap}
+.plain-mode .question-card{margin-bottom:24px;outline:none}
+.plain-mode .question-image{display:block;max-width:100%;height:auto;max-height:70vh;object-fit:contain;margin:20px 0}
+.plain-mode .exhibit-error{border:1px solid var(--line);padding:12px;margin:12px 0}
+.plain-mode .answer-list{display:grid;gap:12px}
+.plain-mode .answer-option{display:flex;align-items:center;gap:16px;text-align:left;width:100%;min-height:54px;padding:12px 16px}
+.plain-mode .answer-option.selected,.plain-mode .match-tile.is-picked{outline:2px solid var(--text);outline-offset:-2px;background:var(--panel-soft)}
+.plain-mode .answer-option.correct:after{content:'Correct';margin-left:auto;font-size:.8rem}
+.plain-mode .answer-option.incorrect:after{content:'Incorrect';margin-left:auto;font-size:.8rem}
+.plain-mode .option-letter{min-width:20px;font-weight:600}
+.plain-mode .question-footer{margin-top:24px}
+.plain-mode .nav-buttons,.plain-mode .result-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;margin-top:18px}
+.plain-mode .feedback-area{min-height:28px;font-weight:600}
+.plain-mode .explanation-panel{border-left:2px solid var(--line);padding-left:16px;margin:20px 0;font-size:1rem}
+.plain-mode .short-answer{width:100%;margin:8px 0}
+.plain-mode .statement-item,.plain-mode .matching-row{border-top:1px solid var(--line);padding:16px 0}
+.plain-mode .statement-label{font-size:.85rem;color:var(--muted)}
+.plain-mode .statement-choices,.plain-mode .matching-bank{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.plain-mode .statement-choices .answer-option{width:auto}
+.plain-mode .match-target{width:100%;text-align:left}
+.plain-mode .matching-feedback{font-size:.9rem}
+.plain-mode .review-row,.plain-mode .missed-item{display:flex;justify-content:space-between;gap:16px;width:100%;text-align:left;margin:8px 0}
+.plain-mode .result-score{font-size:2rem}
+.plain-mode .missed-count{display:none}
+.plain-mode .result-status{white-space:nowrap;font-size:.85rem}
+.plain-mode .modal{max-width:620px;width:calc(100% - 32px);max-height:90vh;overflow:auto;color:var(--text);background:var(--surface);border:1px solid var(--line);padding:24px}
+.plain-mode .modal::backdrop{background:#0008}
+.plain-mode .modal label{display:block;margin-top:16px}
+.plain-mode .modal input:not([type=checkbox]),.plain-mode .modal textarea{width:100%}
+.plain-mode .modal-actions,.plain-mode .modal-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.plain-mode .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 32px);z-index:100;background:var(--surface);border:1px solid var(--line);padding:12px 18px}
+.plain-mode .skip-link,.plain-mode .sr-only{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
+.plain-mode .skip-link:focus{clip-path:none;width:auto;height:auto;z-index:100;padding:12px;background:var(--surface)}
+@media(max-width:480px){.plain-mode .plain-header{padding:10px 12px;gap:8px}.plain-mode .plain-header button{font-size:14px;white-space:nowrap}.plain-mode .main-area{padding:24px 16px 48px}.plain-mode .study-head{flex-direction:column}.plain-mode .nav-buttons{justify-content:stretch}.plain-mode .nav-buttons button{flex:1}.plain-mode .question-text{font-size:1.15rem}}
+
+.plain-mode .study-controls svg,.plain-mode .switch-track{display:none}

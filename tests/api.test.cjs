@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 function response() {
-  return {code:0,payload:null,headers:{},setHeader(name,value){this.headers[name]=value;},status(code){this.code=code;return this;},json(payload){this.payload=payload;return this;}};
+  return {code:0,payload:null,headers:{},setHeader(name,value){this.headers[name]=value;},status(code){this.code=code;return this;},json(payload){this.payload=payload;return this;},send(payload){this.payload=payload;return this;}};
 }
 
 test('owner authentication has no registration path and signs in with the configured username', async () => {
@@ -69,13 +69,13 @@ test('shared library writes require owner session and same-origin requests', asy
 });
 
 // Run the real handler with a conditional-write Blob store, without network access.
-async function libraryFixture({weakReads=false,changeDuringHead=false}={}) {
+async function libraryFixture({weakReads=false,changeDuringHead=false,initialReviewers=[{id:'old',title:'Old reviewer',questions:[{text:'Question?',options:[]}]}]}={}) {
   const fs=require('node:fs');
   const {pathToFileURL}=require('node:url');
   const records=new Map();
   let version=0;
   const seed=(path,value)=>records.set(path,{value,etag:'"version-'+(++version)+'"'});
-  seed('revvy/shared-reviewers.json',{reviewers:[{id:'old',title:'Old reviewer',questions:[{text:'Question?',options:[]}]}]});
+  seed('revvy/shared-reviewers.json',{reviewers:initialReviewers});
   seed('revvy/reviewers-index.json',{entries:[]});
   const storage={
     async get(path){const item=records.get(path);return item?{statusCode:200,stream:JSON.stringify(item.value),blob:{etag:(weakReads?'W/':'')+item.etag}}:null;},
@@ -119,10 +119,47 @@ test('weak download ETags do not block reviewer additions and persistent deletio
     const current=await call('GET');
     const removed=await call('PUT',{changes:[{id:'old',reviewer:null}],baseRevision:current.payload.revision},'W/"rewritten-http-token"');
     assert.equal(removed.code,200,'deleting a reviewer succeeds');
-    assert.deepEqual((await call('GET')).payload.entries,[{id:'new'}]);
+    assert.deepEqual((await call('GET')).payload.entries.map(item=>item.id),['new']);
     assert.equal((await call('GET',undefined,'',{id:'old'})).code,404,'legacy reviewer remains deleted');
     const stale=await call('PUT',{changes:[{id:'new',reviewer:null}]},initial.headers.ETag);
     assert.equal(stale.code,412,'genuine stale writes are still rejected');
+  }finally{
+    for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];
+    Object.assign(process.env,previous);
+  }
+});
+
+test('metadata listings omit question bytes; versioned exhibits remain portable through edits and deletion',async()=>{
+  const previous={...process.env};
+  process.env.OWNER_USERNAME='cval';process.env.OWNER_PASSWORD='test-password';process.env.OWNER_SESSION_SECRET='test-session-secret-that-is-at-least-thirty-two-characters';
+  try{
+    const image='data:image/png;base64,aGVsbG8=';
+    const reviewer={id:'images',title:'With diagrams',updatedAt:123,questions:[{text:'Refer to the figure.',options:['one','two'],images:[image],image,correctAnswers:[0]}]};
+    const call=await libraryFixture({initialReviewers:[reviewer]});
+    const list=await call('GET'),entry=list.payload.entries[0];
+    assert.equal(entry.title,reviewer.title);assert.equal(entry.questionCount,1);
+    assert.ok(entry.reviewerRevision);assert.equal(JSON.stringify(list.payload).includes(image),false);
+    const detail=await call('GET',undefined,'',{id:'images',v:entry.reviewerRevision});
+    const projected=detail.payload.reviewer;
+    assert.match(projected.questions[0].images[0],/^\/api\/library\?/);
+    assert.equal(projected.questions[0].image,projected.questions[0].images[0]);
+    const query=Object.fromEntries(new URL(projected.questions[0].image,'https://study.test').searchParams);
+    const media=await call('GET',undefined,'',query);
+    assert.equal(media.code,200);assert.equal(media.payload.toString(),'hello');
+    assert.match(media.headers['Cache-Control'],/immutable/);assert.equal(media.headers['Content-Type'],'image/png');
+    const portable=await call('GET',undefined,'',{id:'images',v:entry.reviewerRevision,raw:'1'});
+    assert.equal(portable.payload.reviewer.questions[0].image,image);
+    const saved=await call('PUT',{baseRevision:list.payload.revision,changes:[{id:'images',reviewer:{...projected,title:'Edited'}}]});
+    assert.equal(saved.code,200);
+    assert.notEqual(saved.payload.reviewers[0].reviewerRevision,entry.reviewerRevision);
+    const exported=await call('GET',undefined,'',{id:'images',raw:'1'});
+    assert.equal(exported.payload.reviewer.questions[0].images[0],image,'saving media references preserves original image bytes');
+    assert.equal((await call('GET',undefined,'',query)).code,409,'old image versions cannot be mixed with new reviewer content');
+    assert.equal((await call('GET',undefined,'',{id:'images',media:'not-a-real-hash'})).code,404);
+    const current=await call('GET');
+    const deleted=await call('PUT',{baseRevision:current.payload.revision,changes:[{id:'images',reviewer:null}]});
+    assert.equal(deleted.code,200);assert.equal((await call('GET',undefined,'',query)).code,404);
+    assert.deepEqual((await call('GET')).payload.entries,[]);
   }finally{
     for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];
     Object.assign(process.env,previous);

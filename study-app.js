@@ -71,7 +71,12 @@ Return only the questions in this format, ready to import into Rev.`;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const get = (key, fallback = null) => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
   const put = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { toast('Could not save on this device. Export a backup.'); return false; } };
-  const motionReduced = () => document.documentElement.classList.contains('motion-reduced');
+  const plainMode = () => document.documentElement.classList.contains('plain-mode');
+  const motionReduced = () => plainMode() || document.documentElement.classList.contains('motion-reduced');
+  const reviewerClient = window.RevReviewerClient?.createClient();
+  let selectionVersion=0;
+  let pendingReviewer=null;
+  let reviewerError='';
   const storageStatus = () => { try { const key=`rev-storage-check-${Date.now()}`; localStorage.setItem(key,'1'); localStorage.removeItem(key); return true; } catch { return false; } };
   const state = {
     reviewers: [], user: null, activeId: null, screen: 'home', order: [], sessionIds: [], position: 0, mode: 'quiz',
@@ -111,6 +116,7 @@ Return only the questions in this format, ready to import into Rev.`;
     updateAudioButton();
   }
   function showAnswerResult(correct) {
+    if(plainMode())return;
     document.querySelectorAll('.answer-result-overlay').forEach(item => item.remove());
     const mark = document.createElement('div');
     mark.className = `answer-result-overlay ${correct ? 'correct' : 'incorrect'}`;
@@ -133,7 +139,7 @@ Return only the questions in this format, ready to import into Rev.`;
     setTimeout(() => mark.remove(), motionReduced() ? 850 : 1650);
   }
   function playAnswerSound(correct) {
-    if (get('rev-sounds','on') === 'off') return;
+    if (plainMode() || get('rev-sounds','on') === 'off') return;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return;
     try {
@@ -155,7 +161,7 @@ Return only the questions in this format, ready to import into Rev.`;
       }
     } catch {}
   }
-  function load() {
+  function load({restore=true}={}) {
     state.reviewers = [];
     try { state.flags = JSON.parse(get(scopedKey(FLAGS_KEY), '{}')) || {}; } catch { state.flags = {}; }
     try { state.history = JSON.parse(get(scopedKey(HISTORY_KEY), '{}')) || {}; } catch { state.history = {}; }
@@ -198,7 +204,7 @@ Return only the questions in this format, ready to import into Rev.`;
         questions: starter.questions.map(RevCore.normalizeQuestion)}];
       saveReviewers(); put(scopedKey(SEED_KEY), '1');
     }
-    restoreSession();
+    if(restore)restoreSession();
   }
   function saveReviewers() {
     if (state.sharedLibraryInitialized) {
@@ -231,32 +237,44 @@ Return only the questions in this format, ready to import into Rev.`;
     for(const item of desired)if(!baseById.has(item.id)&&!merged.some(entry=>entry.id===item.id))merged.push(item);
     return merged;
   }
+  function normalizeReviewer(reviewer) {
+    return {...reviewer,questions:reviewer.questions.map(RevCore.normalizeQuestion)};
+  }
   async function fetchSharedLibrary() {
     const response=await fetch('/api/library',{cache:'no-store',credentials:'same-origin'});
     const result=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(result.error||'Shared reviewer storage is unavailable.');
     if(Array.isArray(result.entries)){
-      const reviewers=[];
-      for(const entry of result.entries){
-        const url=`/api/library?id=${encodeURIComponent(entry.id)}`;
-        const detailResponse=await fetch(url,{cache:'no-store',credentials:'same-origin'});
-        const detail=await detailResponse.json().catch(()=>({}));
-        if(!detailResponse.ok)throw new Error(detail.error||`Could not load reviewer ${entry.id}.`);
-        if(detail.reviewer)reviewers.push(detail.reviewer);
-        else if(Number.isInteger(detail.chunks)&&detail.chunks>0){
-          const parts=[];
-          for(let part=0;part<detail.chunks;part++){
-            const partResponse=await fetch(`${url}&part=${part}`,{cache:'no-store',credentials:'same-origin'});
-            const item=await partResponse.json().catch(()=>({}));
-            if(!partResponse.ok||typeof item.data!=='string')throw new Error(item.error||`Could not load reviewer ${entry.id}.`);
-            parts.push(item.data);
-          }
-          reviewers.push(JSON.parse(parts.join('')));
-        }else throw new Error(`Could not load reviewer ${entry.id}.`);
-      }
-      result.reviewers=reviewers;
-    }
+      result.reviewers=await reviewerClient.map(result.entries,async entry=>{
+        // Compatibility with an older deployed API that only lists IDs.
+        if(!entry.title)return normalizeReviewer(await reviewerClient.load(entry));
+        const previous=state.sharedLibrarySnapshot.find(item=>item.id===entry.id);
+        if(previous&&!previous._unloaded&&previous.reviewerRevision===entry.reviewerRevision)return {...previous,...entry};
+        return {...entry,questions:[],_unloaded:true};
+      });
+    }else result.reviewers=(result.reviewers||[]).filter(item=>item&&Array.isArray(item.questions)).map(normalizeReviewer);
     return {result,etag:result.revision??response.headers.get('ETag')??''};
+  }
+  async function ensureReviewer(id) {
+    const entry=state.reviewers.find(item=>item.id===id);
+    if(!entry)throw new Error('This reviewer is no longer in the library.');
+    if(!entry._unloaded)return entry;
+    const loaded={...normalizeReviewer(await reviewerClient.load(entry)),reviewerRevision:entry.reviewerRevision};
+    const index=state.reviewers.findIndex(item=>item.id===id);
+    if(index<0||state.reviewers[index].reviewerRevision!==entry.reviewerRevision)throw new Error('This reviewer changed. Refresh the reviewer list and try again.');
+    if(!state.reviewers[index]._unloaded)return state.reviewers[index];
+    state.reviewers[index]=loaded;
+    const baseline=state.sharedLibrarySnapshot.findIndex(item=>item.id===id&&item._unloaded&&item.reviewerRevision===entry.reviewerRevision);
+    if(baseline>=0)state.sharedLibrarySnapshot[baseline]=cloneReviewers([loaded])[0];
+    return loaded;
+  }
+  async function restoreSharedSession() {
+    let saved;try{saved=JSON.parse(get(scopedKey(SESSION_KEY),'null'));}catch{return;}
+    if(!saved)return;
+    const ids=saved.mixedIds||[saved.reviewerId];
+    if(ids.some(id=>!state.reviewers.some(item=>item.id===id))){clearSession();return;}
+    await reviewerClient.map(ids,ensureReviewer);
+    restoreSession();
   }
   async function saveSharedLibrary() {
     if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
@@ -268,9 +286,10 @@ Return only the questions in this format, ready to import into Rev.`;
       if(etag)headers['If-Match']=etag;
       const baseById=new Map(baseline.map(item=>[item.id,item]));
       const changes=[];
-      for(const reviewer of desired)if(JSON.stringify(baseById.get(reviewer.id))!==JSON.stringify(reviewer))changes.push({id:reviewer.id,reviewer:compactReviewers([reviewer])[0]});
+      for(const reviewer of desired)if(!reviewer._unloaded&&JSON.stringify(baseById.get(reviewer.id))!==JSON.stringify(reviewer))changes.push({id:reviewer.id,reviewer:compactReviewers([reviewer])[0]});
       for(const reviewer of baseline)if(!desired.some(item=>item.id===reviewer.id))changes.push({id:reviewer.id,reviewer:null});
-      if(!changes.length)return;
+      if(!changes.length){state.reviewers=desired;state.sharedLibrarySnapshot=cloneReviewers(baseline);state.sharedLibraryEtag=etag;return;}
+      for(const change of changes)if(change.reviewer){delete change.reviewer.reviewerRevision;delete change.reviewer.questionCount;delete change.reviewer._unloaded;}
       const body=JSON.stringify({changes,baseRevision:etag});
       if(new Blob([body]).size>4_000_000)throw new Error('The shared library exceeds the upload limit. Export a backup, then reduce or compress large exhibits.');
       const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body});
@@ -286,6 +305,7 @@ Return only the questions in this format, ready to import into Rev.`;
         continue;
       }
       if(!response.ok){if(response.status===412)state.sharedLibraryEtag='';throw new Error(result.error||'Could not save the shared reviewers.');}
+      for(const saved of result.reviewers||[]){const i=desired.findIndex(item=>item.id===saved.id);if(i>=0)desired[i]=normalizeReviewer(saved);}
       state.reviewers=desired;state.sharedLibrarySnapshot=cloneReviewers(desired);
       state.sharedLibraryEtag=result.revision??result.etag??response.headers.get('ETag')??'';
       state.sharedLibraryInitialized=true;state.sharedLibraryStatus='ready';
@@ -303,8 +323,9 @@ Return only the questions in this format, ready to import into Rev.`;
         state.sharedLibrarySnapshot=cloneReviewers(state.reviewers);
         saveReviewers();
         if(!state.reviewers.some(item=>item.id===state.activeId)){state.activeId=null;state.sessionReviewer=null;}
-        restoreSession();
+        await restoreSharedSession();
       }else{
+        if(!state.reviewers.length&&window.RevLoadStarter){await window.RevLoadStarter();load();}
         state.sharedLibrarySnapshot=[];
       }
       if(!state.sharedLibraryInitialized&&state.user){
@@ -342,7 +363,8 @@ Return only the questions in this format, ready to import into Rev.`;
       const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId) || (sources.length ? {id:saved.reviewerId,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question,sourceReviewer:item.title})))} : null);
       if (reviewer && !state.reviewers.some(item=>item.id===reviewer.id)) state.sessionReviewer=reviewer;
       const order = Array.isArray(saved?.order) ? saved.order.filter(i => Number.isInteger(i) && i >= 0 && i < (reviewer?.questions.length || 0)) : [];
-      if (!reviewer || !order.length || !['study', 'retry-prompt', 'results'].includes(saved.screen)) return clearSession();
+      if(!reviewer&&state.sharedLibraryStatus==='loading')return;
+      if (!reviewer || reviewer._unloaded || !order.length || !['study', 'retry-prompt', 'results'].includes(saved.screen)) return clearSession();
       state.activeId = reviewer.id; state.screen = saved.screen; state.order = order;
       state.sessionIds = Array.isArray(saved.sessionIds) ? saved.sessionIds.filter(i => Number.isInteger(i) && i >= 0 && i < reviewer.questions.length) : [...order];
       state.position = Math.min(Math.max(0, Number(saved.position) || 0), order.length - 1);
@@ -428,7 +450,8 @@ Return only the questions in this format, ready to import into Rev.`;
     document.body.classList.toggle('owner-session',Boolean(user));
     state.activeId = null; state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; clearHash(); load();
+    state.retry = false; clearHash(); load({restore:!state.sharedLibraryInitialized});
+    if(state.sharedLibraryInitialized)state.reviewers=localReviewers;
     if(user&&!state.sharedLibraryInitialized&&localReviewers.length){
       const merged=[...state.reviewers];
       for(const reviewer of localReviewers){const index=merged.findIndex(item=>item.id===reviewer.id);if(index>=0)merged[index]=reviewer;else merged.push(reviewer);}
@@ -503,13 +526,17 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#pdf-prompt-link').classList.toggle('active', location.hash === '#pdf-prompt');
     $('#data-link').classList.toggle('active', location.hash === '#data');
   }
-  function selectReviewer(id) {
-    const selectedFromMobileNav = document.body.classList.contains('mobile-nav-open');
-    setMobileNav(false);
-    clearSession();
-    clearHash(); state.sessionReviewer = null; state.activeId = id; state.screen = 'home'; state.order = [];
-    render();
-    if (selectedFromMobileNav) $('#start-quiz')?.focus();
+  async function selectReviewer(id) {
+    stopAudio();clearInterval(examTicker);
+    const request=++selectionVersion;
+    setMobileNav(false);document.body.classList.remove('plain-navigation');$('#plain-reviewers').setAttribute('aria-expanded','false');clearSession();clearHash();
+    state.sessionReviewer=null;state.activeId=id;state.screen='home';state.order=[];
+    reviewerError='';
+    if(!state.reviewers.find(item=>item.id===id)?._unloaded){pendingReviewer=null;render();return;}
+    pendingReviewer=id;render();
+    try{await ensureReviewer(id);}catch(error){if(request===selectionVersion)reviewerError=error.message;}
+    if(request!==selectionVersion)return;
+    pendingReviewer=null;render();
   }
   async function deleteReviewer(id) {
     if(!state.user)return;
@@ -526,6 +553,7 @@ Return only the questions in this format, ready to import into Rev.`;
     render();
   }
   function render() {
+    if(state.screen!=='study'||location.hash){stopAudio();clearInterval(examTicker);}
     if (location.hash === '#help') clearHash();
     syncOwnerControls();
     const prompt = location.hash === '#prompt' || location.hash === '#import-prompt' || location.hash === '#pdf-prompt';
@@ -543,7 +571,17 @@ Return only the questions in this format, ready to import into Rev.`;
     if (prompt) return renderPrompt(location.hash === '#import-prompt', location.hash === '#pdf-prompt');
     if (dataScreen) return renderDataSettings();
     const reviewer = currentReviewer();
+    if((pendingReviewer&&pendingReviewer===state.activeId) || reviewer?._unloaded){
+      $('#main-panel').innerHTML=`<section class="reviewer-loading" role="status"><h1>${esc(reviewer?.title||'Reviewer')}</h1><p>${esc(reviewerError||'Loading questions…')}</p>${reviewerError?'<button class="primary-button" id="retry-reviewer">Try again</button>':''}</section>`;
+      $('#retry-reviewer')?.addEventListener('click',async()=>{await refreshSharedLibrary({quiet:true});selectReviewer(state.activeId);});
+      return;
+    }
     if (!reviewer) {
+      if(plainMode()){
+        const unavailable=state.sharedLibraryStatus==='unavailable';
+        $('#main-panel').innerHTML=`<div class="plain-welcome"><h1>Revvy</h1><p role="status">${state.sharedLibraryStatus==='loading'?'Loading reviewers…':unavailable?'The reviewer library could not load.':'Choose a reviewer to begin.'}</p>${unavailable?'<button id="retry-library" class="primary-button">Try again</button>':''}</div>`;
+        $('#retry-library')?.addEventListener('click',()=>refreshSharedLibrary());return;
+      }
       $('#main-panel').innerHTML = state.user
         ? `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">YOUR LIBRARY STARTS HERE</p><h2>Bring your questions to life.</h2><p>Import a reviewer, then turn it into short, focused study rounds.</p><button class="primary-button" id="welcome-import">Import reviewer</button></div>`
         : `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">READY WHEN YOU ARE</p><h2>Pick a reviewer to begin.</h2><p>Your next study round is one click away.</p></div>`;
@@ -552,6 +590,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (state.screen === 'study') return renderQuestion();
     if (state.screen === 'retry-prompt') return renderRetryPrompt();
     if (state.screen === 'results') return renderResults();
+    if(plainMode())return renderPlainHome(reviewer);
     const due = reviewer.questions.filter(question => dueFor(reviewer, question)).length;
     const filters = [['all','All questions','Study every card in this reviewer.'],['due','Due for review','Cards ready for another review.'],['incorrect','Incorrect','Cards you answered incorrectly.'],['unanswered','Unanswered','Cards you have not tried yet.'],['unknown',"I don't know",'Cards you marked for more practice.'],['flagged','Flagged','Cards you saved to revisit.']];
     const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
@@ -585,19 +624,33 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#edit-reviewer').onclick = () => openImport(reviewer);
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
+  function renderPlainHome(reviewer) {
+    const filters=[['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown','More practice'],['flagged','Flagged']];
+    $('#main-panel').innerHTML=`<section class="plain-home"><h1>${esc(reviewer.title)}</h1><p>${reviewer.questions.length} questions</p>
+      <label>Session <select id="plain-session-mode">${[['quiz','Quiz'],['practice','Practice'],['written','Written'],['exam','Exam']].map(([value,label])=>`<option value="${value}" ${state.mode===value?'selected':''}>${label}</option>`).join('')}</select></label>
+      <label>Questions <select id="study-filter">${filters.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></label>
+      <details><summary>Combine reviewers</summary>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label><input type="checkbox" data-mix-reviewer="${esc(item.id)}"> ${esc(item.title)}</label>`).join('')||'<p>No other reviewers.</p>'}</details>
+      <button class="primary-button" id="start-quiz">Start studying</button></section>`;
+    $('#start-quiz').onclick=()=>startQuiz(false,$('#plain-session-mode').value,$('#study-filter').value,0,[...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item=>item.dataset.mixReviewer));
+  }
   function renderEasterEgg() {
     $('#intro').hidden = true;
     $('#main-panel').innerHTML = `<section class="easter-egg-page"><p>09655236422 - alam nyo na gagawin</p><button class="secondary-button" id="egg-back">Back to reviewer</button></section>`;
     $('#egg-back').onclick = () => { clearHash(); render(); };
   }
-  function removeLocalStudyData() {
-    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, SCHEDULE_KEY, SETTINGS_KEY, MASTER_KEY, IMPORT_KEY, PDF_PROMPT_KEY, 'rev-theme', 'rev-sidebar-open'];
+  async function removeLocalStudyData() {
+    stopAudio();clearInterval(examTicker);++selectionVersion;
+    await reviewerClient?.clear();
+    const catalog=state.sharedLibraryInitialized?state.reviewers.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,
+      reviewerRevision:item.reviewerRevision,questionCount:item.questionCount??item.questions.length,questions:[],_unloaded:true})):[];
+    const prefixes = [KEY, SESSION_KEY, SEED_KEY, FLAGS_KEY, HISTORY_KEY, SCHEDULE_KEY, SETTINGS_KEY, MASTER_KEY, IMPORT_KEY, PDF_PROMPT_KEY, 'rev-theme', 'rev-sidebar-open', 'rev-plain-mode', 'rev-motion', 'rev-sounds'];
     try {
       for (const key of Object.keys(localStorage)) if (prefixes.some(prefix => key === prefix || key.startsWith(`${prefix}:user:`))) localStorage.removeItem(key);
       localStorage.setItem(KEY, '[]'); localStorage.setItem(SEED_KEY, '1');
       if (state.user) { localStorage.setItem(scopedKey(KEY), '[]'); localStorage.setItem(scopedKey(SEED_KEY), '1'); }
     } catch { toast('Some browser data could not be removed. Check browser site storage.'); }
-    state.reviewers = []; state.flags = {}; state.history = {}; state.schedule = {}; state.settings={};state.sessionReviewer=null;state.activeId = null;
+    state.reviewers = catalog;state.sharedLibrarySnapshot=cloneReviewers(catalog);pendingReviewer=null;
+    state.flags = {}; state.history = {}; state.schedule = {}; state.settings={};state.sessionReviewer=null;state.activeId = null;
     state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); render();
@@ -605,7 +658,7 @@ Return only the questions in this format, ready to import into Rev.`;
   function renderDataSettings() {
     saveSession();
     const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=motionReduced();
-    const checks=[['PDF import',Boolean(window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
+    const checks=[['PDF import',Boolean(window.RevLoadPdf||window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
       <p>The reviewer library is shared through Vercel Blob. Answers, flags, study progress, and prompts stay on this device.</p>
       <div class="data-card"><h2>Browser compatibility</h2><ul class="compatibility-list">${checks.map(([name,ok,detail])=>`<li><i class="compat-indicator ${ok?'is-ok':'is-warning'}"></i><strong>${esc(name)}</strong><small>${esc(detail)}</small></li>`).join('')}</ul><p id="storage-estimate">Checking browser storage...</p></div>
@@ -616,9 +669,9 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#data-backup').onclick = exportLibraryBackup;
     if(navigator.storage?.estimate) navigator.storage.estimate().then(({usage,quota})=>{const el=$('#storage-estimate');if(el&&Number.isFinite(quota))el.textContent=`About ${Math.max(0,Math.round((quota-(usage||0))/1048576))} MB browser storage available.`;}).catch(()=>{});
     $('#data-back').onclick = () => { clearHash(); render(); };
-    $('#delete-local-data').onclick = () => {
+    $('#delete-local-data').onclick = async () => {
       if (!confirm('Delete study data stored in this browser? Export a backup first if you want to keep your progress.')) return;
-      removeLocalStudyData(); toast('Local study data deleted.');
+      await removeLocalStudyData(); toast('Local study data deleted.');
     };
   }
   function renderPrompt(importPrompt, pdfPrompt = false) {
@@ -669,6 +722,11 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function startQuiz(shuffle = false, mode = 'quiz', filter = 'all', count = 0, mixIds = [], topic = '') {
     const selectedReviewer = currentReviewer(); if (!selectedReviewer?.questions.length) return;
+    if(mixIds.some(id=>state.reviewers.find(item=>item.id===id)?._unloaded)){
+      const button=$('#start-quiz');if(button)button.disabled=true;
+      reviewerClient.map(mixIds,ensureReviewer).then(()=>{if(currentReviewer()?.id===selectedReviewer.id&&state.screen==='home')startQuiz(shuffle,mode,filter,count,mixIds,topic);}).catch(error=>{toast(error.message);if(button)button.disabled=false;});
+      return;
+    }
     const extras = mixIds.map(id => state.reviewers.find(item => item.id === id)).filter(Boolean);
     const sources = extras.length ? [selectedReviewer,...extras] : [];
     const reviewer = extras.length ? {id:`mixed-${selectedReviewer.id}`,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question, sourceReviewer:item.title})))} : selectedReviewer;
@@ -711,7 +769,9 @@ Return only the questions in this format, ready to import into Rev.`;
     const statementStart = firstStatement ? q.text.indexOf(firstStatement) : -1;
     const questionPrompt = statementStart < 0 ? q.text : q.text.slice(0, statementStart).replace(/\s*\d+[.)]\s*$/, '').trim();
     if (state.timerQuestionId !== id || (state.timerQuestionKey && state.timerQuestionKey !== questionKey(q))) { state.timerQuestionId = id; state.timerQuestionKey = questionKey(q); state.questionStarted = Date.now(); state.timerExpired = false; }
-    const deck = state.order.map((key, position) => {
+    const deckKey=JSON.stringify([reviewer.id,state.order]);
+    const existingDeck=!plainMode()&&$('.question-deck')?.dataset.key===deckKey?$('.question-deck'):null;
+    const deck = plainMode()||existingDeck ? '' : state.order.map((key, position) => {
       const item = reviewer.questions[key];
       const result = state.results[key];
       const status = result === true ? 'correct' : result === false ? 'incorrect' : state.unknown.has(key) ? 'unknown' : '';
@@ -742,7 +802,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const knownAnswer = q.type==='matching' ? q.matches.map(match=>`${match.answer} → ${match.prompt}`).join(' · ') : q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.type==='multi-text' ? q.parts.map((part,index)=>`${index+1}. ${part.answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
     const explanationPanel = `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>`;
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
-    const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : 'Incorrect — marked on the card above'}</span>` : '';
+    const status = graded ? `<span class="feedback ${answerIsCorrect ? 'good' : 'bad'}">${answerIsCorrect ? 'Correct' : plainMode()?'Incorrect':'Incorrect - marked on the card above'}</span>` : '';
     const feedback = revealed ? '<span class="feedback neutral">Answer filled for review</span>' : '';
     const feedbackContent = `${status || feedback}`;
     const selectionHint = q.correctAnswers.length > 1 ? '<p class="selection-hint">Select all that apply</p>' : '';
@@ -753,21 +813,29 @@ Return only the questions in this format, ready to import into Rev.`;
     const exhibits = [...new Set([...(q.images || []), ...(q.image ? [q.image] : [])])];
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
-      ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">30s</span>' : ''}</div><div class="study-controls">
-      <button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle cards" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3l4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M13.3 9.5C14.2 8.1 15.3 7 17 7h3"/></svg></button><button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button><button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button><button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
-      <nav class="question-deck" aria-label="Question cards">${deck}</nav>
+      ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">'+Math.max(0,30-Math.floor((Date.now()-state.questionStarted)/1000))+'s</span>' : ''}</div><div class="study-controls">
+      ${plainMode()?'':`<button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle cards" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3l4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M13.3 9.5C14.2 8.1 15.3 7 17 7h3"/></svg></button>`}<button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations">${plainMode()?'Explanation':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>${plainMode()?'':`<button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button>`}<button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz">${plainMode()?'Exit quiz':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
+${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}</nav>`}
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
-      <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div><div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button icon-only-control" id="read-question" aria-label="Use audio" data-tooltip="Use audio" aria-pressed="false"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="stop-reading" aria-label="Stop audio" data-tooltip="Stop audio"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button></div><button type="button" class="copy-question-button icon-only-control flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-label="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" data-tooltip="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" aria-pressed="${isFlagged(q)}"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1h12l-2.5 4L17 13H5"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="copy-question" aria-label="Copy all" data-tooltip="Copy All"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>${exhibits.length ? '<button type="button" class="copy-question-button icon-only-control" id="download-exhibits" aria-label="Download exhibits" data-tooltip="Download exhibits"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v4h14v-4"/></svg></button>' : ''}</div></div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
+      <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div>${plainMode()?'':`<div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button icon-only-control" id="read-question" aria-label="Use audio" data-tooltip="Use audio" aria-pressed="false"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="stop-reading" aria-label="Stop audio" data-tooltip="Stop audio"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button></div><button type="button" class="copy-question-button icon-only-control flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-label="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" data-tooltip="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" aria-pressed="${isFlagged(q)}"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1h12l-2.5 4L17 13H5"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="copy-question" aria-label="Copy all" data-tooltip="Copy All"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>${exhibits.length ? '<button type="button" class="copy-question-button icon-only-control" id="download-exhibits" aria-label="Download exhibits" data-tooltip="Download exhibits"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v4h14v-4"/></svg></button>' : ''}</div>`}</div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${unmatchedChoices}${input}${q.type === 'grouped-boolean' ? `<div id="explanation-anchor" class="grouped-explanation">${state.explanationsVisible ? explanationPanel : ''}</div>` : ''}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
-      <div class="nav-buttons"><button class="secondary-button" id="show-answer">${revealed ? 'Answer filled' : 'Show answer'}</button>
+      <div class="nav-buttons">${plainMode()?'':`<button class="secondary-button" id="show-answer">${revealed ? 'Answer filled' : 'Show answer'}</button>
       <button class="secondary-button" id="dont-know">I don't know</button>
       ${revealed ? '<span class="confidence-ratings" aria-label="How well did you know it?">How well? <button class="mini-control" data-rate="again">Again</button><button class="mini-control" data-rate="hard">Hard</button><button class="mini-control" data-rate="good">Good</button><button class="mini-control" data-rate="easy">Easy</button></span>' : ''}
       <button class="secondary-button" id="undo-answer" ${state.lastAction ? '' : 'disabled'}>Undo</button>
-      <button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
+      `}<button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question" aria-keyshortcuts="Enter ArrowRight">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
+    document.querySelectorAll('.question-image').forEach(image=>image.onerror=()=>{
+      if(image.nextElementSibling?.classList.contains('exhibit-error'))return;
+      const error=document.createElement('div');error.className='exhibit-error';error.setAttribute('role','status');
+      error.textContent='This question needs an exhibit that could not load. ';
+      const retry=document.createElement('button');retry.type='button';retry.textContent='Retry exhibit';
+      retry.onclick=()=>{error.remove();const src=image.src;image.removeAttribute('src');image.src=src;};
+      error.append(retry);image.after(error);
+    });
     if(q.sourcePage) $('.question-number').append(document.createTextNode(` · Source page ${q.sourcePage}`));
     if (direction && !motionReduced()) {
       const offset = direction === 'next' ? 9 : -9;
@@ -781,7 +849,24 @@ Return only the questions in this format, ready to import into Rev.`;
       });
     }
     if (direction) $('.question-card').focus({preventScroll:true});
-    if (oldScroll !== null) $('.question-deck').scrollLeft = oldScroll;
+    if(!plainMode()){
+      const deckNode=$('.question-deck');
+      if(existingDeck)deckNode.replaceWith(existingDeck);
+      const currentDeck=$('.question-deck');currentDeck.dataset.key=deckKey;
+      const affected=existingDeck?[...new Set([currentDeck.querySelector('.current'),currentDeck.querySelector('[data-jump="'+state.position+'"]')])].filter(Boolean):[...currentDeck.children];
+      for(const card of affected){
+        const position=Number(card.dataset.jump),key=state.order[position],question=reviewer.questions[key];
+        const result=state.results[key];
+        card.classList.toggle('current',position===state.position);card.setAttribute('aria-current',position===state.position?'step':'false');
+        card.classList.toggle('correct',result===true);card.classList.toggle('incorrect',result===false);card.classList.toggle('unknown',state.unknown.has(key));card.classList.toggle('flagged',isFlagged(question));card.classList.toggle('answered',Boolean(state.answers[key]?.length));
+        const label=result===true?'correct':result===false?'incorrect':state.unknown.has(key)?'marked to review':'';
+        card.setAttribute('aria-label',`Question ${question.sourceNumber}${label?', '+label:''}${isFlagged(question)?', flagged':''}`);
+        card.title=card.getAttribute('aria-label');
+        if(typeof result==='boolean'&&!card.querySelector('.card-result'))card.insertAdjacentHTML('beforeend','<small class="card-result" aria-hidden="true"></small>');
+        if(typeof result!=='boolean')card.querySelector('.card-result')?.remove();
+      }
+      if(oldScroll!==null)currentDeck.scrollLeft=oldScroll;
+    }
     updateAudioButton();
     $('.question-index-card.current')?.scrollIntoView({block:'nearest',inline:'nearest',behavior:motionReduced()?'auto':'smooth'});
     $('#main-panel').querySelectorAll('[data-option]').forEach(b => b.onclick = () => {
@@ -797,17 +882,22 @@ Return only the questions in this format, ready to import into Rev.`;
         choice.setAttribute('aria-pressed', String(isSelected));
       });
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = '';
+      if(plainMode()&&isQuestionKeyed(q)&&state.mode!=='practice')$('#next-question').textContent='Check answer';
       syncCurrentCard(answer.length > 0);
       saveSession();
     });
     $('#main-panel').querySelectorAll('[data-statement]').forEach(button=>button.onclick=()=>{
       const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
       $('#main-panel').querySelectorAll('[data-statement]').forEach(choice=>choice.classList.remove('correct','incorrect'));
-      $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});button.closest('.statement-item').classList.add('is-answered');const feedbackArea=$('.feedback-area');if(feedbackArea)feedbackArea.innerHTML='';syncCurrentCard(answers.filter(Boolean).length===q.statements.length);saveSession();
+      $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});button.closest('.statement-item').classList.add('is-answered');if(plainMode()&&state.mode!=='practice')$('#next-question').textContent='Check answer';const feedbackArea=$('.feedback-area');if(feedbackArea)feedbackArea.innerHTML='';syncCurrentCard(answers.filter(Boolean).length===q.statements.length);saveSession();
     });
     if(q.type==='matching'){
       let activeTile='';
-      const placeMatch=(targetIndex,tile)=>{if(!tile)return;const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[targetIndex]=tile;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);renderQuestion();};
+      const placeMatch=(targetIndex,tile)=>{if(!tile)return;const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[targetIndex]=tile;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
+        const target=$('[data-match-target="'+targetIndex+'"]');target.textContent=tile;target.classList.remove('is-correct','is-incorrect');
+        $('.feedback-area').textContent='';$('.matching-feedback').textContent='Answer placed. Choose another answer or submit.';
+        if(plainMode()&&isQuestionKeyed(q)&&state.mode!=='practice')$('#next-question').textContent='Check answer';
+        syncCurrentCard(answers.every(Boolean));saveSession();};
       $('#main-panel').querySelectorAll('[data-match-tile]').forEach(tile=>{
         tile.onclick=()=>{activeTile=tile.dataset.matchTile;$('#main-panel').querySelectorAll('[data-match-tile]').forEach(button=>{button.classList.toggle('is-picked',button===tile);button.setAttribute('aria-pressed',String(button===tile));});$('.matching-feedback').textContent=`${activeTile} selected. Choose its matching example.`;};
         tile.ondragstart=event=>{activeTile=tile.dataset.matchTile;event.dataTransfer?.setData('text/plain',activeTile);if(event.dataTransfer)event.dataTransfer.effectAllowed='move';};
@@ -823,14 +913,15 @@ Return only the questions in this format, ready to import into Rev.`;
       state.revealed.delete(id);
       delete state.results[id];
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = '';
+      if(plainMode()&&isQuestionKeyed(q)&&state.mode!=='practice')$('#next-question').textContent='Check answer';
       syncCurrentCard(state.answers[id].length > 0);
       saveSession();
     });
     $('#main-panel').querySelectorAll('[data-part]').forEach(field=>field.addEventListener('input',()=>{
       const answers=[...(state.answers[id]||[])];answers[Number(field.dataset.part)]=field.value;state.answers[id]=answers;
-      state.revealed.delete(id);delete state.results[id];$('.feedback-area').innerHTML='';syncCurrentCard(answers.some(Boolean));saveSession();
+      state.revealed.delete(id);delete state.results[id];$('.feedback-area').innerHTML='';if(plainMode()&&state.mode!=='practice')$('#next-question').textContent='Check answer';syncCurrentCard(answers.some(Boolean));saveSession();
     }));
-    $('#show-answer').onclick = () => {
+    if($('#show-answer'))$('#show-answer').onclick = () => {
       const answer = answerToFill(q);
       if (!answer) { $('.feedback-area').innerHTML = '<span class="feedback neutral">No answer key in this reviewer.</span>'; return; }
       state.answers[id] = answer;
@@ -848,7 +939,7 @@ Return only the questions in this format, ready to import into Rev.`;
       saveSession();
     };
     $('#main-panel').querySelectorAll('[data-rate]').forEach(button => button.onclick = () => rateKnowledge(button.dataset.rate));
-    $('#read-question').onclick = () => {
+    if($('#read-question'))$('#read-question').onclick = () => {
       const synth = window.speechSynthesis;
       if (!synth || !window.SpeechSynthesisUtterance) return toast('Read aloud is not available in this browser.');
       if (audioStatus === 'playing') { synth.pause(); audioStatus = 'paused'; updateAudioButton(); return; }
@@ -863,11 +954,11 @@ Return only the questions in this format, ready to import into Rev.`;
       audioStatus = 'playing';
       updateAudioButton();
     };
-    $('#stop-reading').onclick = stopAudio;
-    $('#print-review').onclick = () => printReviewer(reviewer);
-    $('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
-    $('#flag-question').onclick = () => toggleFlag(q);
-    $('#copy-question').onclick = async () => {
+    if($('#stop-reading'))$('#stop-reading').onclick = stopAudio;
+    if($('#print-review'))$('#print-review').onclick = () => printReviewer(reviewer);
+    if($('#undo-answer'))$('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
+    if($('#flag-question'))$('#flag-question').onclick = () => toggleFlag(q);
+    if($('#copy-question'))$('#copy-question').onclick = async () => {
       const copyText = [`Question ${q.sourceNumber}`, questionPrompt, ...(q.type === 'grouped-boolean' ? q.statements.map((statement,index)=>`${index+1}. ${statement}`) : q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`)),
         ...exhibits.map((_, index) => `Exhibit ${index + 1}: attached image`), ...(q.imageRefs || []).map(ref => `Exhibit: ${ref} (not attached)`)].join('\n');
       const copyHtml = `<p><strong>Question ${esc(q.sourceNumber)}</strong></p><p>${esc(questionPrompt).replace(/\n/g,'<br>')}</p>${q.type === 'grouped-boolean' ? `<ol>${q.statements.map(statement=>`<li>${esc(statement)}</li>`).join('')}</ol>` : q.options.length ? `<ol type="A">${q.options.map(option => `<li>${esc(option)}</li>`).join('')}</ol>` : ''}${exhibits.map((image,index) => `<p>Exhibit ${index + 1}</p><img src="${esc(image)}" alt="${esc(q.imageAlts?.[index] || `Exhibit ${index + 1}`)}">`).join('')}`;
@@ -895,7 +986,7 @@ Return only the questions in this format, ready to import into Rev.`;
         } catch { window.open(source, '_blank', 'noopener,noreferrer'); }
       }
     });
-    $('#dont-know').onclick = () => advance(true);
+    if($('#dont-know'))$('#dont-know').onclick = () => advance(true);
     clearInterval(examTicker);
     if (state.mode === 'exam') examTicker = setInterval(() => {
       const remaining = Math.max(0, 30 - Math.floor((Date.now() - state.questionStarted) / 1000));
@@ -903,19 +994,29 @@ Return only the questions in this format, ready to import into Rev.`;
       if (!remaining && !state.timerExpired) { state.timerExpired = true; advance(true); }
     }, 250);
     $('#prev-question').onclick = () => { state.position--; renderQuestion('previous'); };
-    $('#next-question').onclick = () => advance(false);
-    $('#main-panel').querySelectorAll('[data-jump]').forEach(b => b.onclick = () => {
-      const target = Number(b.dataset.jump), direction = target > state.position ? 'next' : 'previous';
-      state.position = target; renderQuestion(direction);
-    });
+    const checked=Object.hasOwn(state.results,id)||state.mode==='practice'||!isQuestionKeyed(q);
+    if(plainMode()&&!checked)$('#next-question').textContent='Check answer';
+    $('#next-question').onclick=()=>{
+      if(plainMode()&&isQuestionKeyed(q)&&!Object.hasOwn(state.results,id)&&state.mode!=='practice'){
+        if(!(state.answers[id]||[]).some(value=>String(value).length))return toast('Choose or enter an answer first.');
+        gradeCurrentAnswer(false);renderQuestion();return;
+      }
+      advance(false);
+    };
+    const deckNavigation=$('.question-deck');
+    if(deckNavigation)deckNavigation.onclick=event=>{
+      const button=event.target.closest('[data-jump]');if(!button)return;
+      const target=Number(button.dataset.jump),direction=target>state.position?'next':'previous';
+      state.position=target;renderQuestion(direction);
+    };
     $('#exit-quiz').onclick = () => { stopAudio(); leaveStudy(); render(); };
-    $('#shuffle-questions').onclick = () => {
+    if($('#shuffle-questions'))$('#shuffle-questions').onclick = () => {
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
     };
     saveSession();
   }
-  function advance(dontKnow) {
+  function gradeCurrentAnswer(dontKnow) {
     const id = state.order[state.position];
     const question = currentReviewer().questions[id];
     state.lastAction = {position:state.position, answers:{...state.answers}, results:{...state.results}, unknown:[...state.unknown], revealed:[...state.revealed]};
@@ -945,10 +1046,14 @@ Return only the questions in this format, ready to import into Rev.`;
     }
     if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown');
     else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered');
+  }
+  function advance(dontKnow) {
+    gradeCurrentAnswer(dontKnow);
     if (state.position < state.order.length - 1) { state.position++; renderQuestion('next'); return; }
     stopAudio(); clearInterval(examTicker); state.screen = state.unknown.size ? 'retry-prompt' : 'results'; render();
   }
   function leaveStudy() {
+    clearInterval(examTicker);stopAudio();
     clearSession();
     state.screen = 'home';
     if (state.sessionReviewer?.id === state.activeId) {
@@ -1019,7 +1124,12 @@ Return only the questions in this format, ready to import into Rev.`;
   function reviewerToText(reviewer) {
     return JSON.stringify({title:reviewer.title,questions:reviewer.questions},null,2);
   }
-  function exportReviewer(reviewer) {
+  async function portableReviewer(reviewer) {
+    if(reviewer.reviewerRevision)return reviewerClient.load(reviewer,{raw:true});
+    return reviewer;
+  }
+  async function exportReviewer(reviewer) {
+    try{reviewer=await portableReviewer(reviewer);}catch(error){return toast(error.message);}
     const blob = new Blob([JSON.stringify(reviewer, null, 2)], {type:'application/json'});
     const a = document.createElement('a'), url = URL.createObjectURL(blob);
     a.href = url; a.download = (reviewer.title.replace(/[^a-z0-9-_]+/gi, '-').slice(0, 60) || 'reviewer') + '.json';
@@ -1040,8 +1150,10 @@ Return only the questions in this format, ready to import into Rev.`;
     const loaded=Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})));
     Promise.race([loaded,new Promise(resolve=>setTimeout(resolve,3000))]).then(()=>{if(!printWindow.closed){printWindow.focus();printWindow.print();}});
   }
-  function exportLibraryBackup() {
-    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers:state.reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings};
+  async function exportLibraryBackup() {
+    let reviewers;
+    try{reviewers=await reviewerClient.map([...state.reviewers],portableReviewer);}catch(error){return toast(error.message);}
+    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings};
     const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
     const a = document.createElement('a'), url = URL.createObjectURL(blob);
     a.href = url; a.download = `rev-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -1142,6 +1254,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#import-submit').textContent = saving ? 'Saving...' : 'Importing...';
   }
   async function getPdfJs() {
+    if(location.protocol!=='file:'&&window.RevLoadPdf)return window.RevLoadPdf();
     if(location.protocol!=='file:'&&window.RevPdfJs)return {lib:window.RevPdfJs,worker:window.RevPdfWorkerUrl};
     const base='offline/vendor/';
     if(!window.pdfjsLib){pdfLoad ||= new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=base+'pdf.min.js';script.onload=resolve;script.onerror=()=>reject(Error('PDF reader could not load.'));document.head.append(script);});await pdfLoad;}
@@ -1299,6 +1412,10 @@ Return only the questions in this format, ready to import into Rev.`;
   }
   function installKeyboardShortcuts() {
     document.addEventListener('keydown', event => {
+      if(document.body.classList.contains('plain-navigation')){
+        if(event.key==='Escape'){document.body.classList.remove('plain-navigation');$('#plain-reviewers').setAttribute('aria-expanded','false');$('#plain-reviewers').focus();}
+        return;
+      }
       if (event.key === 'Tab' && document.body.classList.contains('mobile-nav-open')) {
         const items = [...$('#sidebar').querySelectorAll('button:not(:disabled),a[href],input:not([hidden]),select')]
           .filter(item => item.getClientRects().length);
@@ -1341,7 +1458,40 @@ Return only the questions in this format, ready to import into Rev.`;
     });
   }
   function initialize() {
-    const bootStarted = performance.now();
+    const normalSettings=$('.sidebar-settings');
+    const plainHeader=$('#plain-header');
+    const updatePlainHeaderHeight=()=>{
+      if(plainMode())document.documentElement.style.setProperty('--plain-header-height',`${plainHeader.getBoundingClientRect().height}px`);
+    };
+    if(typeof ResizeObserver==='function')new ResizeObserver(updatePlainHeaderHeight).observe(plainHeader);
+    const applyPresentation=()=>{
+      const plain=plainMode();
+      plainHeader.hidden=!plain;
+      const controls=plain?$('#plain-settings'):normalSettings;
+      controls.append($('#theme-toggle'),$('#plain-mode-toggle'));
+      $('#plain-mode-toggle').textContent=plain?'Exit plain mode':'Plain mode';
+      $('#plain-mode-toggle').setAttribute('aria-pressed',String(plain));
+      document.querySelectorAll('[data-decorative-src]').forEach(image=>{if(plain)image.removeAttribute('src');else image.src=location.protocol==='file:'?mascotPath:image.dataset.decorativeSrc;});
+      document.body.classList.remove('plain-navigation');
+      $('#plain-reviewers').setAttribute('aria-expanded','false');
+      updatePlainHeaderHeight();
+      installLavaLamp();
+    };
+    applyPresentation();
+    $('#plain-reviewers').onclick=()=>{const open=document.body.classList.toggle('plain-navigation');$('#plain-reviewers').setAttribute('aria-expanded',String(open));};
+    $('#plain-mode-toggle').onclick=async()=>{
+      const button=$('#plain-mode-toggle');button.disabled=true;
+      try{
+        const plain=!plainMode();
+        if(!plain&&window.RevLoadNormalStyles)await window.RevLoadNormalStyles();
+        stopAudio();clearInterval(examTicker);document.getAnimations?.().forEach(animation=>animation.cancel());
+        document.querySelectorAll('.answer-result-overlay').forEach(item=>item.remove());
+        if(plain&&answerAudioContext?.state==='running')answerAudioContext.suspend().catch(()=>{});
+        document.documentElement.classList.toggle('plain-mode',plain);
+        put('rev-plain-mode',String(plain));
+        applyPresentation();render();saveSession();
+      }catch(error){toast(error.message);}finally{button.disabled=false;}
+    };
     load();
     const mobileLayout = window.matchMedia('(max-width:760px)');
     const applySidebarLayout = () => {
@@ -1406,6 +1556,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#nav-scrim').onclick = () => setMobileNav(false);
     $('#theme-toggle').onclick = () => {
       const dark = document.body.classList.toggle('dark');
+      document.documentElement.classList.toggle('dark',dark);
       put('rev-theme', dark ? 'dark' : 'light'); setThemeAppearance(dark);
     };
     $('#new-reviewer').onclick = () => { setMobileNav(false); openImport(); };
@@ -1448,19 +1599,13 @@ Return only the questions in this format, ready to import into Rev.`;
     installKeyboardShortcuts();
     render();
     installLavaLamp();
-    const finishBoot = () => {
-      const overlay = $('#boot-screen');
-      if (!overlay) return;
-      const reduced=motionReduced();
-      const delay=Math.max(0,(reduced?280:1150)-(performance.now()-bootStarted));
-      setTimeout(() => { overlay.classList.add('boot-done'); setTimeout(() => overlay.remove(), reduced?40:520); }, delay);
-    };
+    $('#boot-screen')?.remove();
     (async()=>{
       if(typeof window.fetch==='function'&&location.protocol!=='file:'){
         try{const response=await fetch('/api/auth',{cache:'no-store',credentials:'same-origin'});const session=await response.json();if(response.ok&&session.owner)switchAccount({id:'owner',username:session.username||'cval'});}catch{}
         await refreshSharedLibrary({quiet:true});
-      }else state.sharedLibraryStatus='unavailable';
-      finishBoot();
+      }else{state.sharedLibraryStatus='local';render();}
+
     })();
   }
   function installLavaLamp() {
