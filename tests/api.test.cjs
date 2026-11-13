@@ -67,3 +67,64 @@ test('shared library writes require owner session and same-origin requests', asy
     for(const [key,value] of Object.entries(previous))process.env[key]=value;
   }
 });
+
+// Run the real handler with a conditional-write Blob store, without network access.
+async function libraryFixture({weakReads=false,changeDuringHead=false}={}) {
+  const fs=require('node:fs');
+  const {pathToFileURL}=require('node:url');
+  const records=new Map();
+  let version=0;
+  const seed=(path,value)=>records.set(path,{value,etag:'"version-'+(++version)+'"'});
+  seed('revvy/shared-reviewers.json',{reviewers:[{id:'old',title:'Old reviewer',questions:[{text:'Question?',options:[]}]}]});
+  seed('revvy/reviewers-index.json',{entries:[]});
+  const storage={
+    async get(path){const item=records.get(path);return item?{statusCode:200,stream:JSON.stringify(item.value),blob:{etag:(weakReads?'W/':'')+item.etag}}:null;},
+    async head(path){
+      if(changeDuringHead&&path==='revvy/shared-reviewers.json'){
+        changeDuringHead=false;
+        seed(path,{reviewers:[{id:'old',title:'Updated remotely',questions:[{text:'Question?',options:[]}]}]});
+      }
+      return {etag:records.get(path).etag};
+    },
+    async put(path,content,options){
+      const item=records.get(path);
+      if(item&&(!options.allowOverwrite||(options.ifMatch&&options.ifMatch!==item.etag))){const error=new Error('Precondition failed: ETag mismatch');error.name='BlobPreconditionFailedError';throw error;}
+      if(options.addRandomSuffix)path+='-'+(++version);
+      seed(path,JSON.parse(content));return {pathname:path,etag:records.get(path).etag};
+    }
+  };
+  const key='__libraryFixture'+Math.random();globalThis[key]=storage;
+  const source=fs.readFileSync('api/library.mjs','utf8')
+    .replace(/import \{[^}]+\} from '@vercel\/blob';/,'const {get,put,head}=globalThis['+JSON.stringify(key)+'];')
+    .replace("'./_owner-auth.mjs'",JSON.stringify(pathToFileURL(require('node:path').resolve('api/_owner-auth.mjs')).href));
+  let handler;
+  try{handler=(await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'))).default;}finally{delete globalThis[key];}
+  const {createSession}=await import('../api/_owner-auth.mjs');
+  return async(method,body,etag='',query={})=>{
+    const result=response();
+    await handler({method,body,query,headers:{host:'study.test',origin:'https://study.test',cookie:'revvy_owner='+createSession('cval'),'if-match':etag}},result);
+    return result;
+  };
+}
+
+test('weak download ETags do not block reviewer additions and persistent deletions',async()=>{
+  const previous={...process.env};
+  process.env.OWNER_USERNAME='cval';process.env.OWNER_PASSWORD='test-password';process.env.OWNER_SESSION_SECRET='test-session-secret-that-is-at-least-thirty-two-characters';
+  try{
+    const call=await libraryFixture({weakReads:true,changeDuringHead:true});
+    const initial=await call('GET');
+    assert.equal((await call('GET',undefined,'',{id:'old'})).payload.reviewer.title,'Updated remotely','a changed version is read again before using its metadata');
+    const saved=await call('PUT',{changes:[{id:'new',reviewer:{id:'new',title:'New reviewer',questions:[{text:'New question?',options:[]}]}}]},initial.headers.ETag);
+    assert.equal(saved.code,200,'adding a reviewer succeeds with the token returned by GET');
+    const current=await call('GET');
+    const removed=await call('PUT',{changes:[{id:'old',reviewer:null}],baseRevision:current.payload.revision},'W/"rewritten-http-token"');
+    assert.equal(removed.code,200,'deleting a reviewer succeeds');
+    assert.deepEqual((await call('GET')).payload.entries,[{id:'new'}]);
+    assert.equal((await call('GET',undefined,'',{id:'old'})).code,404,'legacy reviewer remains deleted');
+    const stale=await call('PUT',{changes:[{id:'new',reviewer:null}]},initial.headers.ETag);
+    assert.equal(stale.code,412,'genuine stale writes are still rejected');
+  }finally{
+    for(const key of Object.keys(process.env))if(!(key in previous))delete process.env[key];
+    Object.assign(process.env,previous);
+  }
+});

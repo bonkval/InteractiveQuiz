@@ -256,7 +256,7 @@ Return only the questions in this format, ready to import into Rev.`;
       }
       result.reviewers=reviewers;
     }
-    return {result,etag:response.headers.get('ETag')||''};
+    return {result,etag:result.revision??response.headers.get('ETag')??''};
   }
   async function saveSharedLibrary() {
     if(!state.user)throw new Error('Owner sign-in required to change the shared reviewers.');
@@ -271,7 +271,7 @@ Return only the questions in this format, ready to import into Rev.`;
       for(const reviewer of desired)if(JSON.stringify(baseById.get(reviewer.id))!==JSON.stringify(reviewer))changes.push({id:reviewer.id,reviewer:compactReviewers([reviewer])[0]});
       for(const reviewer of baseline)if(!desired.some(item=>item.id===reviewer.id))changes.push({id:reviewer.id,reviewer:null});
       if(!changes.length)return;
-      const body=JSON.stringify({changes});
+      const body=JSON.stringify({changes,baseRevision:etag});
       if(new Blob([body]).size>4_000_000)throw new Error('The shared library exceeds the upload limit. Export a backup, then reduce or compress large exhibits.');
       const response=await fetch('/api/library',{method:'PUT',credentials:'same-origin',headers,body});
       const result=await response.json().catch(()=>({}));
@@ -287,7 +287,7 @@ Return only the questions in this format, ready to import into Rev.`;
       }
       if(!response.ok){if(response.status===412)state.sharedLibraryEtag='';throw new Error(result.error||'Could not save the shared reviewers.');}
       state.reviewers=desired;state.sharedLibrarySnapshot=cloneReviewers(desired);
-      state.sharedLibraryEtag=response.headers.get('ETag')||result.etag||'';
+      state.sharedLibraryEtag=result.revision??result.etag??response.headers.get('ETag')??'';
       state.sharedLibraryInitialized=true;state.sharedLibraryStatus='ready';
       saveReviewers();
       return;

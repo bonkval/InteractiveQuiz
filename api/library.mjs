@@ -1,4 +1,4 @@
-import {get, put} from '@vercel/blob';
+import {get, head, put} from '@vercel/blob';
 import {readSession, sameOrigin} from './_owner-auth.mjs';
 
 const LEGACY_PATH = 'revvy/shared-reviewers.json';
@@ -8,10 +8,23 @@ const CHUNK_CHARS = 600_000;
 const JSON_TYPE = 'application/json; charset=utf-8';
 
 async function readJson(pathname) {
-  const blob = await get(pathname,{access:'private',useCache:false});
-  if (!blob) return null;
-  if (blob.statusCode !== 200 || !blob.stream) throw new Error(`Could not read ${pathname}.`);
-  return {value:JSON.parse(await new Response(blob.stream).text()),etag:blob.blob.etag};
+  for (let attempt=0;attempt<3;attempt++) {
+    const blob = await get(pathname,{access:'private',useCache:false});
+    if (!blob) return null;
+    if (blob.statusCode !== 200 || !blob.stream) throw new Error(`Could not read ${pathname}.`);
+    const value=JSON.parse(await new Response(blob.stream).text());
+    let etag=blob.blob.etag;
+    if (etag.startsWith('W/')) {
+      // Download proxies can weaken ETags. Conditional writes need the storage
+      // API's original token, verified against the version we actually read.
+      const metadata=await head(pathname);
+      if (metadata.etag.replace(/^W\//,'')!==etag.slice(2)) continue;
+      etag=metadata.etag;
+      if (etag.startsWith('W/')) throw new Error('Storage did not provide a strong revision.');
+    }
+    return {value,etag};
+  }
+  throw new Error('Shared reviewers changed while reading. Try again.');
 }
 
 async function readLibrary() {
@@ -50,7 +63,7 @@ export default async function handler(request,response) {
       const library=await readLibrary();
       if (library.etag) response.setHeader('ETag',library.etag);
       const id=String(request.query?.id || '');
-      if (!id) return response.status(200).json({initialized:Boolean(library.legacy || library.index),entries:entriesFor(library)});
+      if (!id) return response.status(200).json({initialized:Boolean(library.legacy || library.index),revision:library.etag,entries:entriesFor(library)});
       if (!/^[a-zA-Z0-9_-]{1,100}$/.test(id)) return response.status(400).json({error:'Invalid reviewer ID.'});
       const overlay=library.index?.value.entries.find(entry=>entry.id===id);
       if (overlay?.deleted) return response.status(404).json({error:'Reviewer was removed.'});
@@ -81,7 +94,8 @@ export default async function handler(request,response) {
   if (Buffer.byteLength(JSON.stringify(request.body))>MAX_BYTES) return response.status(413).json({error:'Reviewer changes exceed the upload limit.'});
   try {
     const library=await readLibrary();
-    const match=request.headers?.['if-match'] || '';
+    // Carry the revision in JSON too: an HTTP intermediary may rewrite ETag.
+    const match=request.body?.baseRevision ?? request.headers?.['if-match'] ?? '';
     if (match!==library.etag) return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
     const entries=new Map((library.index?.value.entries || []).map(entry=>[entry.id,entry]));
     for (const change of changes) {
@@ -97,7 +111,7 @@ export default async function handler(request,response) {
       ...(library.index?{ifMatch:library.index.etag}:{})};
     const blob=await put(INDEX_PATH,content,options);
     response.setHeader('ETag',blob.etag);
-    return response.status(200).json({saved:true,etag:blob.etag});
+    return response.status(200).json({saved:true,revision:blob.etag,etag:blob.etag});
   } catch (error) {
     if (isConflict(error)) return response.status(412).json({error:'The shared library changed in another session. Refresh and try again.'});
     console.error('Shared library Blob write failed.',{name:error?.name,message:String(error?.message || error).slice(0,500)});

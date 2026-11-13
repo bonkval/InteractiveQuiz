@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false,rewriteEtags=false}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
@@ -43,11 +43,14 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
     }
     if(path==='/api/library'&&(!options.method||options.method==='GET')){
       if(delayLibraryLoad)await new Promise(resolve=>setTimeout(resolve,100));
-      return jsonResponse(chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]},200,Array.isArray(sharedReviewers)?sharedEtag:'');
+      const payload=chunkedLibrary?{initialized:Array.isArray(sharedReviewers),entries:(sharedReviewers||[]).map(item=>({id:item.id}))}:{initialized:Array.isArray(sharedReviewers),reviewers:sharedReviewers||[]};
+      if(rewriteEtags)payload.revision=Array.isArray(sharedReviewers)?sharedEtag:'';
+      return jsonResponse(payload,200,Array.isArray(sharedReviewers)?(rewriteEtags?'W/"http-token"':sharedEtag):'');
     }
     if(path==='/api/library'&&options.method==='PUT'){
       libraryPutCount++;
       const changes=JSON.parse(options.body||'{}').changes||[];
+      if(rewriteEtags&&(JSON.parse(options.body).baseRevision??options.headers['If-Match']??'')!==(Array.isArray(sharedReviewers)?sharedEtag:''))return jsonResponse({error:'The shared library changed in another session. Refresh and try again.'},412);
       if(delayImportSave&&changes.some(change=>change.reviewer?.title==='Loading test'))await new Promise(resolve=>setTimeout(resolve,80));
       if(conflictOnSecondPut&&libraryPutCount===2){
         sharedReviewers=[...(sharedReviewers||[]),{id:'remote-reviewer',title:'Concurrent reviewer',questions:[{text:'Remote question',options:[],answer:'Remote answer'}]}];
@@ -60,7 +63,7 @@ function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLib
         if(change.reviewer)sharedReviewers.push(change.reviewer);
       }
       sharedEtag=`etag-${Date.now()}`;
-      return jsonResponse({saved:true,etag:sharedEtag},200,sharedEtag);
+      return jsonResponse({saved:true,etag:sharedEtag,...(rewriteEtags?{revision:sharedEtag}:{})},200,rewriteEtags?'W/"http-token"':sharedEtag);
     }
     return jsonResponse({error:'Not found'},404);
   };
@@ -582,4 +585,27 @@ test('print view includes reviewer exhibits before opening the print dialog', as
   assert.match(html, /<img src="data:image\//);
   assert.equal(printed, true);
   dom.window.close();
+});
+
+
+test('rewritten HTTP ETags do not block imports or bring deleted reviewers back',async()=>{
+  const dom=openApp({rewriteEtags:true,chunkedLibrary:true}),{document}=dom.window;
+  try{
+    await signInOwner(dom);
+    document.querySelector('#new-reviewer').click();
+    document.querySelector('#reviewer-name').value='Token regression';
+    document.querySelector('#paste-text').value='Question 1\nWhich choice is right?\nChoice A: one\nCorrect! Choice B: two';
+    document.querySelector('#import-submit').click();
+    document.querySelector('#import-submit').click();
+    for(let i=0;i<50&&document.querySelector('#import-dialog').open;i++)await new Promise(resolve=>setTimeout(resolve,10));
+    assert.equal(document.querySelector('#import-dialog').open,false,'import uses the JSON revision instead of the rewritten header');
+    assert.equal(document.querySelectorAll('[data-reviewer]').length,2);
+    document.querySelector('[data-delete]').click();
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.equal(document.querySelectorAll('[data-reviewer]').length,1,'delete uses the revision returned by the last save');
+    document.querySelector('#account-signout').click();
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.equal(document.querySelectorAll('[data-reviewer]').length,1,'a fresh server read keeps the deletion');
+    assert.doesNotMatch(document.querySelector('#reviewer-list').textContent,/Token regression/);
+  }finally{dom.window.close();}
 });
