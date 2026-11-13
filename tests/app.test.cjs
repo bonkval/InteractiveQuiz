@@ -667,29 +667,37 @@ test('late reviewer downloads never replace the latest selection',async()=>{
   }finally{dom.window.close();}
 });
 
-test('plain mode shares grading and preserves checked answers, theme and progress across layout changes',async()=>{
+test('simple mode is one scrollable quiz with immediate per-choice feedback and no Next controls',async()=>{
   const dom=openApp({plain:true}),{document,localStorage}=dom.window;
   try{
     document.querySelector('[data-reviewer]').click();document.querySelector('#start-quiz').click();
-    assert.equal(document.querySelectorAll('.question-deck,#copy-question,#read-question,#show-answer,#dont-know,#undo-answer').length,0);
-    assert.equal(document.querySelector('#next-question').textContent,'Check answer');
-    document.querySelector('[data-option="1"]').click();document.querySelector('#next-question').click();
-    assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
-    assert.equal(document.querySelector('.progress-copy').textContent,'1 / 170');
+    assert.equal(document.querySelectorAll('[data-plain-question]').length,170);
+    assert.equal(document.querySelector('#main-panel').hasAttribute('aria-live'),false,'the entire long quiz is not a live announcement region');
+    assert.equal(document.querySelectorAll('#next-question,#prev-question,.question-deck,#copy-question,#read-question,#show-answer,#dont-know,#undo-answer').length,0);
+    const first=document.querySelector('[data-plain-question="0"]'),second=document.querySelector('[data-plain-question="1"]');
+    first.querySelector('[data-option="0"]').click();
+    assert.ok(first.querySelector('[data-option="0"]').classList.contains('incorrect'));
+    assert.ok(first.querySelector('[data-option="1"]').classList.contains('correct'));
+    assert.equal(first.querySelector('.feedback-area').textContent,'Incorrect');
+    const untouched=second.querySelector('[data-option="0"]');
+    first.querySelector('[data-option="1"]').click();
+    assert.equal(first.querySelector('.feedback-area').textContent,'Correct');
+    assert.equal(first.querySelector('[data-option="0"]').classList.contains('incorrect'),false);
+    assert.equal(second.querySelector('[data-option="0"]'),untouched,'answering leaves other question DOM intact');
+    second.querySelector('[data-option="2"]').click();
+    assert.equal(first.querySelector('.feedback-area').textContent,'Correct','feedback remains visible on earlier questions');
+    assert.equal(document.querySelector('.progress-copy').textContent,'2 / 170 checked');
     document.querySelector('#theme-toggle').click();assert.equal(localStorage.getItem('rev-theme'),'dark');
+    const saved=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));assert.equal(saved.position,1);assert.equal(saved.results['0'],true);
     document.querySelector('#plain-mode-toggle').click();await settle();
-    assert.ok(document.querySelector('.question-deck'));
-    assert.equal(document.querySelector('[data-option="1"]').getAttribute('aria-pressed'),'true');
-    assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
+    assert.ok(document.querySelector('.question-deck'));assert.equal(document.querySelector('.progress-copy').textContent,'2 / 170');assert.equal(document.querySelector('#main-panel').getAttribute('aria-live'),'polite');
     document.querySelector('#plain-mode-toggle').click();await settle();
-    assert.equal(localStorage.getItem('rev-plain-mode'),'true');
-    document.querySelector('#next-question').click();assert.equal(document.querySelector('.progress-copy').textContent,'2 / 170');
-    const saved=JSON.parse(localStorage.getItem('rev-session-v1'));
-    assert.ok(saved===null||typeof saved==='object');
+    assert.equal(localStorage.getItem('rev-plain-mode'),'true');assert.equal(document.querySelectorAll('[data-plain-question]').length,170);
+    assert.equal(document.querySelector('[data-plain-question="0"] .feedback-area').textContent,'Correct');
   }finally{dom.window.close();}
 });
 
-test('plain mode grades grouped, matching, multi-part and multi-select questions with the shared scoring rules',async()=>{
+test('scrollable simple mode checks all question types independently and finishes with the shared scoring rules',async()=>{
   const reviewer={id:'activities',title:'Activities',questions:[
     {text:'Statements.',statements:['A is true.','B is false.'],statementAnswers:['True','False'],options:[]},
     {text:'Match the protocols.',matches:[{prompt:'Uses SSH',answer:'SFTP'},{prompt:'Uses port 22',answer:'SFTP'}],answerTiles:['SFTP','TFTP'],options:[]},
@@ -700,34 +708,55 @@ test('plain mode grades grouped, matching, multi-part and multi-select questions
   const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[reviewer]}),{document}=dom.window;
   try{
     await settle();document.querySelector('[data-reviewer="activities"]').click();await settle();document.querySelector('#start-quiz').click();
-    const checkAndNext=()=>{document.querySelector('#next-question').click();assert.equal(document.querySelector('.feedback-area').textContent,'Correct');document.querySelector('#next-question').click();};
-    document.querySelector('[data-statement="0"][data-value="True"]').click();document.querySelector('[data-statement="1"][data-value="False"]').click();checkAndNext();
-    const originalTarget=document.querySelector('[data-match-target="0"]');
-    for(const index of [0,1]){document.querySelector('[data-match-tile="SFTP"]').click();document.querySelector(`[data-match-target="${index}"]`).click();}
-    assert.equal(document.querySelector('[data-match-target="0"]'),originalTarget,'placing a matching answer preserves the controls');checkAndNext();
-    for(const [index,answer] of ['ping','tracert'].entries()){const field=document.querySelector(`[data-part="${index}"]`);field.value=answer;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}checkAndNext();
-    document.querySelector('[data-option="0"]').click();document.querySelector('[data-option="1"]').click();checkAndNext();
-    assert.equal(document.querySelector('#next-question').textContent,'Finish','a question without a key cannot trap the session in Check answer');
-    document.querySelector('#next-question').click();assert.match(document.querySelector('.result-score').textContent,/8\s*\/\s*8/);
+    const cards=[...document.querySelectorAll('[data-plain-question]')];assert.equal(cards.length,5);
+    cards[0].querySelector('[data-statement="0"][data-value="True"]').click();cards[0].querySelector('[data-statement="1"][data-value="False"]').click();cards[0].querySelector('[data-check-answer]').click();
+    assert.equal(cards[0].querySelector('.feedback-area').textContent,'Correct');
+    const original=cards[1].querySelector('[data-match-target="0"]');
+    for(const index of [0,1]){cards[1].querySelector('[data-match-tile="SFTP"]').click();cards[1].querySelector('[data-match-target="'+index+'"]').click();}
+    assert.equal(cards[1].querySelector('[data-match-target="0"]'),original);cards[1].querySelector('[data-check-answer]').click();assert.ok(original.classList.contains('is-correct'));
+    for(const [index,answer] of ['ping','tracert'].entries()){const field=cards[2].querySelector('[data-part="'+index+'"]');field.value=answer;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}
+    cards[2].querySelector('[data-check-answer]').click();assert.ok(cards[2].querySelector('[data-part="0"]').classList.contains('is-correct'));
+    cards[3].querySelector('[data-option="0"]').click();assert.equal(cards[3].querySelector('[data-option="0"]').classList.contains('correct'),false,'multi-select waits for an explicit check');
+    cards[3].querySelector('[data-option="1"]').click();cards[3].querySelector('[data-check-answer]').click();
+    assert.equal(cards[3].querySelectorAll('.correct').length,2);assert.equal(cards[4].querySelector('[data-check-answer]'),null);
+    document.querySelector('#finish-plain-quiz').click();assert.match(document.querySelector('.result-score').textContent,/8\s*\/\s*8/);
+    document.querySelector('#retry-quiz').click();document.querySelector('#finish-plain-quiz').click();assert.match(document.querySelector('.result-score').textContent,/0\s*\/\s*8/,'a new attempt does not retain old partial points');
   }finally{dom.window.close();}
 });
 
-test('plain exam mode keeps its deadline and a typed answer while changing layouts',async()=>{
+test('simple written answers retain their inputs and finishing checks pending answers',async()=>{
   const dom=openApp({plain:true}),{document,localStorage}=dom.window;
   try{
-    document.querySelector('[data-reviewer]').click();document.querySelector('#plain-session-mode').value='exam';document.querySelector('#start-quiz').click();
-    const before=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
-    assert.ok(document.querySelector('#exam-clock'));
-    document.querySelector('[data-option="1"]').click();document.querySelector('#plain-mode-toggle').click();await settle();
+    document.querySelector('[data-reviewer]').click();document.querySelector('#plain-session-mode').value='written';document.querySelector('#start-quiz').click();
+    const card=document.querySelector('[data-plain-question="0"]'),field=card.querySelector('[data-short-answer]');
+    field.value='designated';field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    card.querySelector('summary').click();assert.equal(card.querySelector('[data-short-answer]'),field);
+    document.querySelector('#plain-mode-toggle').click();await settle();assert.equal(document.querySelector('#short-answer').value,'designated');
     document.querySelector('#plain-mode-toggle').click();await settle();
-    const after=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
-    assert.equal(after.questionStarted,before.questionStarted);assert.equal(after.mode,'exam');assert.deepEqual(after.answers['0'],[1]);
-    document.querySelector('#exit-quiz').click();
-    document.querySelector('#plain-session-mode').value='written';document.querySelector('#start-quiz').click();
-    const field=document.querySelector('#short-answer');field.value='designated';field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
-    document.querySelector('#toggle-explanations').click();assert.equal(document.querySelector('#short-answer'),field,'showing an explanation does not rebuild the input');
+    assert.equal(document.querySelector('[data-plain-question="0"] [data-short-answer]').value,'designated');
+    const other=document.querySelector('[data-plain-question="1"] [data-short-answer]'),source=dom.window.RECALL_STARTER_REVIEWER.questions[1];
+    other.value=source.options[source.correctAnswers[0]];other.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+    document.querySelector('#finish-plain-quiz').click();assert.match(document.querySelector('.result-score').textContent,/2\s*\/\s*170/);
+    assert.equal(JSON.parse(localStorage.getItem('rev-quiz-session-v1')).results['0'],true);
+    const statuses=Object.values(JSON.parse(localStorage.getItem('rev-question-history-v1'))['reviewer-s2-it0015']);
+    assert.equal(statuses.filter(value=>value==='correct').length,2);assert.ok(statuses.includes('unanswered'));
+  }finally{dom.window.close();}
+});
+
+test('simple exam questions retain deadlines across layout switches and do not page on expiry',async()=>{
+  const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[smallReviewer('timed')]}),{document,localStorage}=dom.window;
+  try{
+    await settle();document.querySelector('[data-reviewer="timed"]').click();await settle();document.querySelector('#plain-session-mode').value='exam';document.querySelector('#start-quiz').click();
+    const before=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
     document.querySelector('#plain-mode-toggle').click();await settle();document.querySelector('#plain-mode-toggle').click();await settle();
-    assert.equal(document.querySelector('#short-answer').value,'designated');document.querySelector('#next-question').click();assert.equal(document.querySelector('.feedback-area').textContent,'Correct');
+    assert.equal(JSON.parse(localStorage.getItem('rev-quiz-session-v1')).questionStarted,before.questionStarted);
+    const realNow=dom.window.Date.now;dom.window.Date.now=()=>before.questionStarted+31_000;
+    await new Promise(resolve=>setTimeout(resolve,300));
+    const card=document.querySelector('[data-plain-question="0"]');assert.match(card.querySelector('.feedback-area').textContent,/Time's up/);
+    assert.equal(document.querySelectorAll('[data-plain-question]').length,2);assert.equal(document.querySelector('#next-question'),null);
+    assert.equal(card.querySelector('[data-option="0"]').disabled,true);
+    dom.window.Date.now=realNow;document.querySelector('#finish-plain-quiz').click();document.querySelector('#retry-unknown').click();
+    assert.equal(document.querySelector('[data-option="0"]').disabled,false,'a retry starts a fresh timed attempt');
   }finally{dom.window.close();}
 });
 

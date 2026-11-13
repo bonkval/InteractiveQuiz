@@ -85,7 +85,7 @@ async function main(){
         await page.locator('[data-reviewer="fixture-0"]').click();
         await page.locator('#start-quiz').click();
         await page.locator('.answer-option').first().waitFor({state:'visible'});
-        if(heavy)await page.waitForFunction(()=>[...document.querySelectorAll('.question-image')].every(img=>img.complete&&img.naturalWidth>0));
+        if(heavy)await page.waitForFunction(()=>document.querySelector('.question-image')?.naturalWidth>0);
         const questionMs=Date.now()-started;
         const answerPaintMs=await page.evaluate(()=>new Promise(resolve=>{
           const start=performance.now();document.querySelector('[data-option="0"]').click();
@@ -102,15 +102,16 @@ async function main(){
         if(plain){
           assert.equal(await page.locator('.question-deck,#read-question,#copy-question,#shuffle-questions,#undo-answer,#print-review,#show-answer,#dont-know').count(),0);
           assert.equal(vitals.animations,0,'plain mode has no running decorative animation');
-          await page.locator('#next-question').click();
-          await page.locator('.feedback-area').filter({hasText:/Correct|Incorrect/}).waitFor();
-          assert.match(await page.locator('.progress-copy').innerText(),/1 \/ 170|1 \/ 12/);
+          assert.equal(await page.locator('#next-question,#prev-question').count(),0,'simple mode is one scrolling quiz');
+          assert.equal(await page.locator('[data-plain-question]').count(),heavy?170:12);
+          await page.locator('.feedback-area').first().filter({hasText:/Correct|Incorrect/}).waitFor();
+          assert.match(await page.locator('.progress-copy').innerText(),/1 \/ (170|12) checked/);
           await page.locator('#theme-toggle').click();
-          await page.screenshot({path:path.join(output,`plain-${heavy?'heavy':'small'}-${warm?'repeat':'cold'}.png`),fullPage:true});
+          await page.screenshot({path:path.join(output,`plain-${heavy?'heavy':'small'}-${warm?'repeat':'cold'}.png`),fullPage:false});
           // Switching layout must retain the checked answer and session position.
           await page.locator('#plain-mode-toggle').click();
-          assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true');
-          assert.match(await page.locator('.feedback-area').innerText(),/Correct|Incorrect/);
+          assert.equal(await page.locator('[data-option="0"]').first().getAttribute('aria-pressed'),'true');
+          assert.match(await page.locator('.feedback-area').first().innerText(),/Correct|Incorrect/);
           await page.locator('#mobile-nav-toggle').click();
           await page.locator('#plain-mode-toggle').click();
         }
@@ -130,11 +131,11 @@ async function main(){
       await page.locator('#plain-reviewers').click();await page.locator('[data-reviewer="fixture-0"]').click();await page.locator('#start-quiz').click();
       await page.locator('.exhibit-error').waitFor();await page.getByRole('button',{name:'Retry exhibit'}).click();
       await page.waitForFunction(()=>document.querySelector('.question-image')?.naturalWidth>0);
-      await page.locator('[data-option="0"]').click();await page.locator('#next-question').click();
+      await page.locator('[data-option="0"]').first().click();
       const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('rev-quiz-session-v1')));
       await page.reload();
       await page.waitForFunction(()=>document.querySelector('[data-option="0"]')?.getAttribute('aria-pressed')==='true');
-      assert.match(await page.locator('.feedback-area').innerText(),/Correct|Incorrect/);
+      assert.match(await page.locator('.feedback-area').first().innerText(),/Correct|Incorrect/);
       const restored=await page.evaluate(()=>JSON.parse(localStorage.getItem('rev-quiz-session-v1')));
       assert.deepEqual(restored.answers,saved.answers);assert.equal(restored.position,saved.position);
       await page.locator('#plain-mode-toggle').click();
@@ -178,9 +179,9 @@ async function main(){
       const offline=await browser.newContext();
       await offline.addInitScript(()=>localStorage.setItem('rev-plain-mode','true'));
       const filePage=await offline.newPage();await filePage.goto(require('node:url').pathToFileURL(path.resolve('index.html')).href);
-      await filePage.locator('#plain-reviewers').click();await filePage.locator('[data-reviewer]').first().click();await filePage.locator('#start-quiz').click();await filePage.locator('[data-option="1"]').click();
+      await filePage.locator('#plain-reviewers').click();await filePage.locator('[data-reviewer]').first().click();await filePage.locator('#start-quiz').click();await filePage.locator('[data-option="1"]').first().click();
       await filePage.locator('#plain-mode-toggle').click();await filePage.waitForFunction(()=>Boolean(document.querySelector('#normal-styles')?.sheet));
-      assert.equal(await filePage.locator('[data-option="1"]').getAttribute('aria-pressed'),'true');
+      assert.equal(await filePage.locator('[data-option="1"]').first().getAttribute('aria-pressed'),'true');
       await offline.close();console.log('Browser functional checks passed: restoration, image retry, portable backup, PDF import, cache deletion, blocked-storage fallback, and file:// layout switching.');
     }
     if(!before&&!responsiveOnly){
@@ -193,7 +194,7 @@ async function main(){
         await page.waitForFunction(()=>document.querySelectorAll('[data-reviewer]').length===4);
         if(width<=760)await page.locator('#mobile-nav-toggle').click();
         await page.locator('[data-reviewer="fixture-0"]').click();await page.locator('#start-quiz').click();
-        await page.locator('[data-option="0"]').click();
+        await page.locator('[data-option="0"]').first().click();
         if(width<=760)await page.locator('#mobile-nav-toggle').click();
         if(dark)await page.locator('#theme-toggle').click();
         await page.locator('#plain-mode-toggle').click();
@@ -215,31 +216,60 @@ async function main(){
           assert.equal(layout.normalDisabled,true,'normal stylesheet must be inactive after switching to Plain mode');
           for(const color of layout.colors){
             assert.ok(['rgb(0, 0, 0)','rgb(255, 255, 255)'].includes(color.color),`${color.name} has a non-monochrome foreground: ${color.color}`);
-            assert.ok(['rgb(0, 0, 0)','rgb(255, 255, 255)','rgba(0, 0, 0, 0)'].includes(color.background),`${color.name} has a tinted background: ${color.background}`);
+            assert.ok((/correct/.test(color.name)?['rgb(0, 0, 0)','rgb(255, 255, 255)','rgba(0, 0, 0, 0)','rgb(21, 128, 61)','rgb(185, 28, 28)']:['rgb(0, 0, 0)','rgb(255, 255, 255)','rgba(0, 0, 0, 0)']).includes(color.background),`${color.name} has a tinted background: ${color.background}`);
           }
           assert.equal(layout.columns,expectedWidth>=1024?2:1,'desktop and mobile must have different answer layouts');
           if(expectedWidth>=1024)assert.ok(layout.main.width>=1000,'desktop must use a wide quiz workspace');
           assert.ok(Math.abs(layout.main.left+layout.main.width/2-expectedWidth/2)<2,'workspace is centered');
           assert.ok(layout.scrollWidth<=expectedWidth+1);
-          assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true','switching layouts retains the answer');
+          assert.equal(await page.locator('[data-option="0"]').first().getAttribute('aria-pressed'),'true','switching layouts retains the answer');
         };
         await verify(width);
+        assert.equal(await page.locator('[data-plain-question]').count(),4);assert.equal(await page.locator('#next-question,#prev-question').count(),0);
         await page.keyboard.press('2');
-        assert.equal(await page.locator('[data-option="1"]').getAttribute('aria-pressed'),'true','mobile menu state must not block Plain-mode keyboard shortcuts');
+        assert.equal(await page.locator('[data-option="1"]').first().getAttribute('aria-pressed'),'true','mobile menu state must not block Plain-mode keyboard shortcuts');
+        assert.equal(await page.locator('[data-option="1"]').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(185, 28, 28)','the entire wrong choice is red');
         await page.keyboard.press('1');
+        assert.equal(await page.locator('[data-option="0"]').first().evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(21, 128, 61)','the entire correct choice is green');
+        await page.locator('.plain-question').evaluateAll(cards=>cards.forEach(card=>card.style.contentVisibility='visible'));
         await page.evaluate(()=>scrollTo(0,0));
         await page.screenshot({path:path.join(output,`plain-switch-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+        await page.locator('.plain-question').evaluateAll(cards=>cards.forEach(card=>card.style.removeProperty('content-visibility')));
         await page.reload();await page.waitForFunction(()=>document.querySelector('[data-option="0"]')?.getAttribute('aria-pressed')==='true');
         await verify(width);
         const rotatedWidth=width<1024?1280:390;
         await page.setViewportSize({width:rotatedWidth,height:900});await verify(rotatedWidth);
         await page.locator('#plain-mode-toggle').click();await page.locator('.question-deck').waitFor();
-        assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true');
+        assert.equal(await page.locator('[data-option="0"]').first().getAttribute('aria-pressed'),'true');
         if(rotatedWidth<=760&&!await page.locator('body').evaluate(el=>el.classList.contains('mobile-nav-open')))await page.locator('#mobile-nav-toggle').click();
         await page.locator('#plain-mode-toggle').click();await verify(rotatedWidth);
         assert.deepEqual(errors,[]);await context.close();
         console.log(`Plain mode regression passed: ${width}px ${dark?'dark':'light'}, normal-to-plain, reload, resize, and repeated switching.`);
       }
+      // A long reviewer remains one document, with independent answers at either end.
+      reviewers=[{id:'large-scroll',title:'609-question scroll check',questions:Array.from({length:609},(_,i)=>({sourceNumber:String(i+1),text:`Question ${i+1}: which answer is correct?`,options:['Wrong answer','Correct answer','Another wrong answer'],correctAnswers:[1]}))}];
+      const longContext=await browser.newContext({viewport:{width:1280,height:900}});
+      await longContext.addInitScript(()=>localStorage.setItem('rev-plain-mode','true'));
+      const longPage=await longContext.newPage(),longErrors=[];longPage.on('pageerror',error=>longErrors.push(error.message));
+      await longPage.goto('http://127.0.0.1:'+server.address().port);await longPage.locator('#plain-reviewers').click();
+      await longPage.locator('[data-reviewer="large-scroll"]').click();await longPage.locator('#start-quiz').click();
+      assert.equal(await longPage.locator('[data-plain-question]').count(),609);assert.equal(await longPage.locator('#next-question,#prev-question').count(),0);
+      await longPage.locator('#plain-question-0 [data-option="1"]').click();
+      await longPage.evaluate(()=>{window.firstQuestionNode=document.querySelector('#plain-question-0');});
+      const last=longPage.locator('#plain-question-608');await last.scrollIntoViewIfNeeded();
+      await last.locator('[data-option="0"]').click();
+      assert.equal(await last.locator('[data-option="0"]').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(185, 28, 28)');
+      assert.equal(await last.locator('[data-option="1"]').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(21, 128, 61)');
+      assert.equal(await longPage.evaluate(()=>window.firstQuestionNode===document.querySelector('#plain-question-0')),true,'answering the last question does not recreate the first');
+      assert.equal(await longPage.locator('#plain-question-0 .feedback-area').textContent(),'Correct');
+      await last.locator('[data-option="1"]').click();
+      assert.match(await longPage.locator('.progress-copy').textContent(),/2 \/ 609 checked/);
+      await longPage.reload();await longPage.waitForFunction(()=>document.querySelector('#plain-question-608 [data-option="1"]')?.getAttribute('aria-pressed')==='true');
+      await last.scrollIntoViewIfNeeded();
+      await longPage.screenshot({path:path.join(output,'scroll-609-desktop.png')});
+      await longPage.locator('#finish-plain-quiz').click();assert.match(await longPage.locator('.result-score').textContent(),/2\s*\/\s*609/);
+      assert.deepEqual(longErrors,[]);await longContext.close();
+      console.log('609-question scroll check passed: independent feedback, reload restoration, no pagination, and shared final scoring.');
     }
     if(!before&&!plainRegression){
       reviewers=Array.from({length:4},(_,i)=>({...starter,id:'fixture-'+i,title:'Responsive reviewer '+(i+1),questions:[starter.questions[5],...starter.questions.slice(0,3)]}));
@@ -273,8 +303,8 @@ async function main(){
             assert.ok(control.left>=-1&&control.right<=layout.width+1,`${viewport.width}px ${plain?'plain':'normal'} ${theme}: ${control.name} extends outside the screen`);
             if(!String(control.name).includes('question-image'))assert.ok(control.height>=43,`${control.name} needs a usable touch target`);
           }
-          await page.locator('[data-option="0"]').click();
-          assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true');
+          await page.locator('[data-option="0"]').first().click();
+          assert.equal(await page.locator('[data-option="0"]').first().getAttribute('aria-pressed'),'true');
           await page.evaluate(()=>scrollTo(0,0));
           await page.screenshot({path:path.join(output,`responsive-${plain?'plain':'normal'}-${viewport.width}-${theme}.png`),fullPage:true});
         }

@@ -85,7 +85,7 @@ Return only the questions in this format, ready to import into Rev.`;
     explanationsVisible: false,
     answers: {}, results: {}, revealed: new Set(), unknown: new Set(), retry: false,
     flags: {}, history: {}, schedule: {}, settings: {}, lastAction: null,
-    timerQuestionId:null, timerQuestionKey:null, questionStarted:0, timerExpired:false,
+    timerQuestionId:null, timerQuestionKey:null, questionStarted:0, timerExpired:false, plainTimers:{},
     sourceText: '', selectedFiles: [], importBusy: false, importPreview: null,
     reviewerSearch: '', reviewerSort: 'recent'
   };
@@ -348,7 +348,7 @@ Return only the questions in this format, ready to import into Rev.`;
         position: state.position, answers: state.answers, results: state.results, statementPoints:state.statementPoints || {},
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
         mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible,
-        timerQuestionId:state.timerQuestionId, timerQuestionKey:state.timerQuestionKey || null, questionStarted:state.questionStarted, savedAt:Date.now()
+        plainTimers:state.plainTimers, timerQuestionId:state.timerQuestionId, timerQuestionKey:state.timerQuestionKey || null, questionStarted:state.questionStarted, savedAt:Date.now()
       }));
       sessionSaveWarningShown = false;
     } catch {
@@ -375,6 +375,7 @@ Return only the questions in this format, ready to import into Rev.`;
       state.unknown = new Set(Array.isArray(saved.unknown) ? saved.unknown : []);
       state.explanationsVisible = Boolean(saved.explanationsVisible);
       state.retry = Boolean(saved.retry); state.mode = ['practice','exam','written'].includes(saved.mode) ? saved.mode : 'quiz';
+      state.plainTimers=saved.plainTimers&&typeof saved.plainTimers==='object'?Object.fromEntries(Object.entries(saved.plainTimers).filter(([id,time])=>/^\d+$/.test(id)&&Number.isFinite(time)&&time>0)):{};
       state.timerQuestionId = Number.isInteger(saved.timerQuestionId) ? saved.timerQuestionId : null;
       const restoredQuestion=reviewer.questions[order[state.position]];
       state.timerQuestionKey=typeof saved.timerQuestionKey==='string'?saved.timerQuestionKey:null;
@@ -425,11 +426,11 @@ Return only the questions in this format, ready to import into Rev.`;
     put(scopedKey(FLAGS_KEY), JSON.stringify(state.flags));
     renderQuestion();
   }
-  function recordHistory(question, status) {
+  function recordHistory(question, status, persist=true) {
     const history = state.history[state.activeId] || {};
     history[questionKey(question)] = status;
     state.history[state.activeId] = history;
-    put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
+    if(persist)put(scopedKey(HISTORY_KEY), JSON.stringify(state.history));
   }
   function filteredQuestionIds(reviewer, filter) {
     const history = state.history[reviewer.id] || {};
@@ -740,8 +741,8 @@ Return only the questions in this format, ready to import into Rev.`;
     if (count > 0) state.order = state.order.slice(0, count);
     state.sessionIds = [...state.order];
     if (shuffle) shuffleInPlace(state.order);
-    state.position = 0; state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
-    state.retry = false; state.mode = mode; state.timerQuestionId = null; state.timerQuestionKey = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
+    state.position = 0; state.answers = {}; state.results = {}; state.statementPoints={}; state.revealed.clear(); state.unknown.clear();
+    state.retry = false; state.mode = mode; state.plainTimers={}; state.timerQuestionId = null; state.timerQuestionKey = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
     for (let i = values.length - 1; i > 0; i--) {
@@ -759,7 +760,212 @@ Return only the questions in this format, ready to import into Rev.`;
     card.setAttribute('aria-label', `Question ${question.sourceNumber}${label ? `, ${label}` : ''}${isFlagged(question) ? ', flagged' : ''}`);
     card.title = `Question ${question.sourceNumber}${label ? `: ${label}` : ''}${isFlagged(question) ? ', flagged' : ''}`;
   }
+  function plainAnswerText(q) {
+    if(q.type==='matching')return q.matches.map(item=>`${item.prompt}: ${item.answer}`).join(' · ');
+    if(q.type==='grouped-boolean')return q.statementAnswers.map((answer,i)=>`${i+1}. ${answer}`).join(' · ');
+    if(q.type==='multi-text')return q.parts.map(item=>`${item.prompt}: ${item.answer}`).join(' · ');
+    return q.correctAnswers.length?q.correctAnswers.map(i=>q.options[i]).join(', '):q.answer;
+  }
+  function plainQuestionMarkup(q,id,position,total) {
+    const first=q.type==='grouped-boolean'?q.statements[0]:'',start=first?q.text.indexOf(first):-1;
+    const prompt=start<0?q.text:q.text.slice(0,start).replace(/\s*\d+[.)]\s*$/,'').trim();
+    const exhibits=[...new Set([...(q.images||[]),...(q.image?[q.image]:[])])];
+    const automatic=q.correctAnswers.length===1&&q.options.length&&state.mode!=='written'&&q.type!=='grouped-boolean';
+    const answer=plainAnswerText(q);
+    return `<section class="plain-question" id="plain-question-${id}" data-plain-question="${id}" data-position="${position}" aria-labelledby="plain-prompt-${id}">
+      <article class="question-card"><div class="question-number">Question ${position+1} / ${total}${q.sourceReviewer?` · ${esc(q.sourceReviewer)}`:''}${q.sourcePage?` · Source page ${esc(q.sourcePage)}`:''}</div>
+        <div class="question-text" id="plain-prompt-${id}">${esc(prompt)}</div>
+        ${exhibits.map((image,i)=>`<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i]||`Exhibit ${i+1} for question ${q.sourceNumber}`)}" loading="lazy" decoding="async">`).join('')}
+        ${(q.imageRefs||[]).map(ref=>`<p class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</p>`).join('')}</article>
+      ${q.correctAnswers.length>1?'<p class="selection-hint">Select all that apply, then check your answer.</p>':''}
+      ${q.options.length&&!q.correctAnswers.length&&q.answer?`<div class="unmatched-choices"><p>The source choices do not contain the corrected answer. Type your answer below.</p><ol type="A">${q.options.map(option=>`<li>${esc(option)}</li>`).join('')}</ol></div>`:''}
+      ${questionInputMarkup(q,id,`plain-prompt-${id}`)}
+      <div class="plain-question-footer"><div class="feedback-area" id="plain-feedback-${id}" role="status" aria-label="Feedback for question ${position+1}"></div>
+        ${isQuestionKeyed(q)&&!automatic?'<button class="primary-button" data-check-answer>Check answer</button>':''}
+        ${state.mode==='exam'?'<span class="plain-question-timer" data-plain-timer></span>':''}</div>
+      <details class="plain-explanation" ${state.explanationsVisible?'open':''}><summary>Explanation</summary><div class="explanation-panel"><p>${esc(q.explanation||'No explanation was provided.')}</p>${answer?`<p><strong>Answer:</strong> ${esc(answer)}</p>`:''}${q.optionExplanations?`<ul>${Object.entries(q.optionExplanations).map(([i,note])=>`<li><strong>${esc(q.options[Number(i)]||`Choice ${Number(i)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>`:''}</div></details>
+    </section>`;
+  }
+  function activatePlainQuestion(card) {
+    const id=Number(card.dataset.plainQuestion),q=currentReviewer().questions[id];
+    state.position=Number(card.dataset.position);
+    if(state.mode==='exam'){
+      if(!state.plainTimers[id])state.plainTimers[id]=Date.now();
+      state.timerQuestionId=id;state.timerQuestionKey=questionKey(q);state.questionStarted=state.plainTimers[id];
+      state.timerExpired=Object.hasOwn(state.results,id)||Date.now()-state.questionStarted>=30_000;
+    }
+  }
+  function plainExpired(id) { return state.mode==='exam'&&state.plainTimers[id]&&Date.now()-state.plainTimers[id]>=30_000&&!Object.hasOwn(state.results,id); }
+  function checkPlainQuestion(card) {
+    const id=Number(card.dataset.plainQuestion),q=currentReviewer().questions[id];
+    if(plainExpired(id))return;
+    activatePlainQuestion(card);
+    if(!(state.answers[id]||[]).some(value=>String(value??'').trim())){
+      $('.feedback-area',card).textContent='Choose or enter an answer first.';return;
+    }
+    gradeQuestion(id);
+    // Practice remains unscored in the summary, but still gives immediate feedback.
+    if(state.mode==='practice'&&isQuestionKeyed(q))state.results[id]=isAnswerCorrect(q,state.answers[id]);
+    if(state.mode==='exam'&&state.timerQuestionId===id)state.timerExpired=true;
+    paintPlainQuestion(card);updatePlainProgress();saveSession();
+  }
+  function updatePlainProgress() {
+    const progress=$('.plain-scroll .progress-copy');
+    if(progress)progress.textContent=`${state.order.filter(id=>Object.hasOwn(state.results,id)).length} / ${state.order.length} checked`;
+  }
+  function paintPlainQuestion(card) {
+    const id=Number(card.dataset.plainQuestion),q=currentReviewer().questions[id],answer=state.answers[id]||[];
+    const graded=Object.hasOwn(state.results,id),expired=plainExpired(id);
+    card.querySelectorAll('[data-option]').forEach(button=>{
+      const option=Number(button.dataset.option),selected=answer.includes(option);
+      button.classList.toggle('selected',selected&&!graded);button.setAttribute('aria-pressed',String(selected));
+      button.classList.toggle('correct',graded&&q.correctAnswers.includes(option));
+      button.classList.toggle('incorrect',graded&&selected&&!q.correctAnswers.includes(option));
+    });
+    card.querySelectorAll('[data-statement]').forEach(button=>{
+      const index=Number(button.dataset.statement),selected=answer[index]===button.dataset.value;
+      button.classList.toggle('selected',selected&&!graded);button.setAttribute('aria-pressed',String(selected));
+      button.classList.toggle('correct',graded&&q.statementAnswers[index]===button.dataset.value);
+      button.classList.toggle('incorrect',graded&&selected&&q.statementAnswers[index]!==button.dataset.value);
+    });
+    card.querySelectorAll('[data-match-target]').forEach(button=>{
+      const index=Number(button.dataset.matchTarget),assigned=answer[index]||'';
+      button.textContent=assigned||'Choose an answer here';
+      button.classList.toggle('is-correct',graded&&RevCore.normalize(assigned)===RevCore.normalize(q.matches[index].answer));
+      button.classList.toggle('is-incorrect',graded&&Boolean(assigned)&&RevCore.normalize(assigned)!==RevCore.normalize(q.matches[index].answer));
+    });
+    card.querySelectorAll('[data-part],[data-short-answer]').forEach(field=>{
+      let correct=state.results[id]===true;
+      if(field.hasAttribute('data-part')){const part=q.parts[Number(field.dataset.part)];correct=[part.answer,...part.acceptedAnswers].some(expected=>expected&&RevCore.normalize(expected)===RevCore.normalize(field.value));}
+      field.classList.toggle('is-correct',graded&&correct);field.classList.toggle('is-incorrect',graded&&!correct);
+    });
+    const feedback=$('.feedback-area',card);
+    feedback.textContent=graded?(state.results[id]?'Correct':'Incorrect'):expired?"Time's up. Review this question after finishing.":!isQuestionKeyed(q)&&answer.length?'Answer saved. No answer key was provided.':'';
+    const check=$('[data-check-answer]',card);if(check)check.hidden=graded||Boolean(expired);
+    card.querySelectorAll('input,button').forEach(control=>{control.disabled=Boolean(expired);});
+  }
+  function renderPlainQuiz() {
+    clearInterval(examTicker);
+    const reviewer=currentReviewer();
+    if(!reviewer||!state.order.length){state.screen='home';return render();}
+    const signature=JSON.stringify([reviewer.id,reviewer.reviewerRevision,reviewer.updatedAt,state.order,state.mode]);
+    let root=$('.plain-scroll');
+    if(!root||root.dataset.session!==signature){
+      $('#main-panel').innerHTML=`<div class="plain-scroll"><div class="study-head plain-scroll-head"><div class="study-label"><span>${esc(reviewer.title)}</span><span class="progress-copy" role="status"></span>${state.mode==='exam'?'<span id="exam-clock"></span>':''}</div><div class="study-controls"><button id="exit-quiz" type="button">Exit quiz</button></div></div>
+        <div class="plain-question-list">${state.order.map((id,position)=>plainQuestionMarkup(reviewer.questions[id],id,position,state.order.length)).join('')}</div>
+        <div class="plain-finish"><button class="primary-button" id="finish-plain-quiz">Finish quiz</button></div></div>`;
+      root=$('.plain-scroll');root.dataset.session=signature;
+      const activeMatches=new Map();
+      const changed=card=>{
+        const id=Number(card.dataset.plainQuestion);delete state.results[id];if(state.statementPoints)delete state.statementPoints[id];state.revealed.delete(id);state.unknown.delete(id);
+        paintPlainQuestion(card);updatePlainProgress();saveSession();
+      };
+      const placeMatch=(card,tile,index)=>{
+        const id=Number(card.dataset.plainQuestion),q=reviewer.questions[id];
+        if(!q.answerTiles.includes(tile)||plainExpired(id))return;
+        activatePlainQuestion(card);
+        const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[index]=tile;state.answers[id]=answers;
+        activeMatches.delete(id);card.querySelectorAll('[data-match-tile]').forEach(button=>{button.classList.remove('is-picked');button.setAttribute('aria-pressed','false');});changed(card);
+      };
+      root.addEventListener('focusin',event=>{const card=event.target.closest('[data-plain-question]');if(card){activatePlainQuestion(card);saveSession();}});
+      root.addEventListener('click',event=>{
+        const card=event.target.closest('[data-plain-question]');if(!card)return;
+        const id=Number(card.dataset.plainQuestion),q=reviewer.questions[id],button=event.target.closest('button');
+        if(!button||button.disabled||plainExpired(id))return;activatePlainQuestion(card);
+        if(button.hasAttribute('data-option')){
+          const option=Number(button.dataset.option),previous=state.answers[id]||[];
+          state.answers[id]=q.correctAnswers.length>1?(previous.includes(option)?previous.filter(i=>i!==option):[...previous,option]):[option];
+          changed(card);if(q.correctAnswers.length===1)checkPlainQuestion(card);
+        }else if(button.hasAttribute('data-statement')){
+          const answer=[...(state.answers[id]||[])];answer[Number(button.dataset.statement)]=button.dataset.value;state.answers[id]=answer;changed(card);
+        }else if(button.hasAttribute('data-check-answer'))checkPlainQuestion(card);
+        else if(button.hasAttribute('data-match-tile')){
+          activeMatches.set(id,button.dataset.matchTile);card.querySelectorAll('[data-match-tile]').forEach(tile=>{tile.classList.toggle('is-picked',tile===button);tile.setAttribute('aria-pressed',String(tile===button));});
+        }else if(button.hasAttribute('data-match-target'))placeMatch(card,activeMatches.get(id),Number(button.dataset.matchTarget));
+      });
+      root.addEventListener('input',event=>{
+        const card=event.target.closest('[data-plain-question]');if(!card||plainExpired(Number(card.dataset.plainQuestion)))return;
+        const id=Number(card.dataset.plainQuestion);activatePlainQuestion(card);
+        if(event.target.hasAttribute('data-part')){const answer=[...(state.answers[id]||[])];answer[Number(event.target.dataset.part)]=event.target.value;state.answers[id]=answer;}
+        else if(event.target.hasAttribute('data-short-answer'))state.answers[id]=event.target.value?[event.target.value]:[];
+        else return;changed(card);
+      });
+      root.addEventListener('dragstart',event=>{
+        const tile=event.target.closest('[data-match-tile]'),card=tile?.closest('[data-plain-question]');if(!card)return;
+        activeMatches.set(Number(card.dataset.plainQuestion),tile.dataset.matchTile);
+        event.dataTransfer?.setData('text/plain',tile.dataset.matchTile);event.dataTransfer?.setData('application/x-revvy-question',card.dataset.plainQuestion);
+      });
+      root.addEventListener('dragover',event=>{if(event.target.closest('[data-match-target]'))event.preventDefault();});
+      root.addEventListener('drop',event=>{
+        const target=event.target.closest('[data-match-target]'),card=target?.closest('[data-plain-question]');if(!card)return;event.preventDefault();
+        if(event.dataTransfer?.getData('application/x-revvy-question')!==card.dataset.plainQuestion)return;
+        placeMatch(card,event.dataTransfer.getData('text/plain'),Number(target.dataset.matchTarget));
+      });
+      root.addEventListener('error',event=>{
+        const image=event.target;if(!image.matches?.('.question-image')||image.nextElementSibling?.classList.contains('exhibit-error'))return;
+        const error=document.createElement('div');error.className='exhibit-error';error.setAttribute('role','status');error.textContent='This question needs an exhibit that could not load. ';
+        const retry=document.createElement('button');retry.type='button';retry.textContent='Retry exhibit';retry.onclick=()=>{error.remove();const source=image.src;image.removeAttribute('src');image.src=source;};error.append(retry);image.after(error);
+      },true);
+      $('#exit-quiz').onclick=()=>{leaveStudy();render();};
+      $('#finish-plain-quiz').onclick=()=>{
+        for(const id of state.order){
+          if(Object.hasOwn(state.results,id))continue;
+          if(plainExpired(id)){gradeQuestion(id,true,false);continue;}
+          if((state.answers[id]||[]).some(value=>String(value??'').trim())){
+            gradeQuestion(id,false,false);if(state.mode==='practice'&&isQuestionKeyed(reviewer.questions[id]))state.results[id]=isAnswerCorrect(reviewer.questions[id],state.answers[id]);
+          }else if(state.mode!=='practice')recordHistory(reviewer.questions[id],'unanswered',false);
+        }
+        put(scopedKey(HISTORY_KEY),JSON.stringify(state.history));
+        clearInterval(examTicker);state.screen=state.unknown.size?'retry-prompt':'results';render();document.documentElement.scrollTop=0;
+      };
+      if(state.position>0)requestAnimationFrame(()=>document.getElementById(`plain-question-${state.order[state.position]}`)?.scrollIntoView({block:'start',behavior:'instant'}));
+    }
+    root.querySelectorAll('[data-plain-question]').forEach(paintPlainQuestion);updatePlainProgress();
+    if(state.mode==='exam'){
+      const active=state.order[state.position];
+      if(!state.plainTimers[active])state.plainTimers[active]=state.timerQuestionId===active&&state.questionStarted?state.questionStarted:Date.now();
+      activatePlainQuestion(document.getElementById(`plain-question-${active}`));
+      const tick=()=>{
+        let changed=false;
+        for(const [key,started] of Object.entries(state.plainTimers)){
+          const id=Number(key),card=document.getElementById(`plain-question-${id}`);if(!card)continue;
+          const checked=Object.hasOwn(state.results,id),remaining=Math.max(0,30-Math.floor((Date.now()-started)/1000));
+          if(!remaining&&!checked&&!state.unknown.has(id)){gradeQuestion(id,true);paintPlainQuestion(card);changed=true;}
+          const timer=$('[data-plain-timer]',card);if(timer)timer.textContent=checked?'Checked':`${remaining}s`;
+        }
+        const id=state.order[state.position],remaining=Math.max(0,30-Math.floor((Date.now()-(state.plainTimers[id]||Date.now()))/1000));
+        $('#exam-clock').textContent=Object.hasOwn(state.results,id)?'Checked':`${remaining}s`;
+        if(changed)saveSession();
+      };
+      tick();examTicker=setInterval(tick,250);
+    }
+    saveSession();
+  }
+  function questionInputMarkup(q,id,promptId='question-prompt') {
+    const selected=state.answers[id]||[],revealed=state.revealed.has(id);
+    let input;
+    if (q.type === 'matching') {
+      input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${revealed?'Answer filled for review.':selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
+    } else if (q.type === 'multi-text') {
+      input = `<div class="statement-list written-parts" role="group" aria-label="Written answer parts">${q.parts.map((part,index)=>`<label class="statement-item"><span class="statement-label">Part ${index+1} of ${q.parts.length}</span><span class="part-prompt">${esc(part.prompt)}</span><input class="short-answer" data-part="${index}" type="text" autocomplete="off" value="${esc(selected[index]||'')}" placeholder="Type your answer"></label>`).join('')}</div>`;
+    } else if (q.type === 'grouped-boolean') {
+      input = `<div class="statement-list" role="group" aria-label="True or false statements">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<section class="statement-item ${answer?'is-answered':''}" role="group" aria-labelledby="${esc(promptId)}-statement-${index}"><span class="statement-label">Statement ${index+1} of ${q.statements.length}</span><h3 id="${esc(promptId)}-statement-${index}">${esc(statement)}</h3><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></section>`}).join('')}</div>`;
+    } else if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
+      const multi = q.correctAnswers.length > 1;
+      input = `<div class="answer-list" role="group" aria-labelledby="${esc(promptId)}">${q.options.map((o, i) => {
+        const checked = selected.includes(i);
+        const graded = Object.hasOwn(state.results, id);
+        const cls = revealed || graded ? (q.correctAnswers.includes(i) ? 'correct' : checked ? 'incorrect' : '') : checked ? 'selected' : '';
+        return `<button class="answer-option ${cls}" data-option="${i}" aria-keyshortcuts="${i < 9 ? `${i + 1} ArrowUp ArrowDown` : 'ArrowUp ArrowDown'}" aria-pressed="${checked}">
+          <span class="option-letter">${multi ? '□' : String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`;
+      }).join('')}</div>`;
+    } else {
+      input = `<input class="short-answer" id="${promptId==='question-prompt'?'short-answer':esc(promptId)+'-answer'}" data-short-answer type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
+    }
+    return input;
+  }
   function renderQuestion(direction = '') {
+    if(plainMode())return renderPlainQuiz();
     const reviewer = currentReviewer(), id = state.order[state.position], q = reviewer?.questions[id];
     if (!q) { state.screen = 'home'; return render(); }
     const audioKey = `${reviewer.id}:${id}`;
@@ -780,25 +986,7 @@ Return only the questions in this format, ready to import into Rev.`;
       return `<button class="question-index-card ${position === state.position ? 'current' : ''} ${status} ${flagged ? 'flagged' : ''} ${state.answers[key]?.length ? 'answered' : ''}"
         data-jump="${position}" aria-current="${position === state.position ? 'step' : 'false'}" aria-label="Question ${esc(item.sourceNumber)}${label ? `, ${label}` : ''}${flagged ? ', flagged' : ''}" title="Question ${esc(item.sourceNumber)}${label ? `: ${label}` : ''}${flagged ? ', flagged' : ''}"><span>${esc(item.sourceNumber)}</span>${result === true || result === false ? '<small class="card-result" aria-hidden="true"></small>' : ''}</button>`;
     }).join('');
-    let input;
-    if (q.type === 'matching') {
-      input=`<section class="matching-activity"><p class="matching-instruction">Drag an answer to its matching example, or tap an answer then tap a target.</p><div class="matching-bank" aria-label="Answer tiles">${q.answerTiles.map((tile,index)=>`<button type="button" class="match-tile" draggable="true" data-match-tile="${esc(tile)}" aria-pressed="false">${esc(tile)}</button>`).join('')}</div><div class="matching-targets">${q.matches.map((match,index)=>{const assigned=selected[index]||'';const correct=match.answer;const graded=Object.hasOwn(state.results,id);return `<div class="matching-row"><p>${esc(match.prompt)}</p><button type="button" class="match-target ${graded?(assigned===correct?'is-correct':assigned?'is-incorrect':''):''}" data-match-target="${index}" aria-label="Drop answer for example ${index+1}">${assigned?esc(assigned):'Drop answer here'}</button></div>`}).join('')}</div><p class="matching-feedback" aria-live="polite">${revealed?'Answer filled for review.':selected.length===q.matches.length?'All examples matched. Submit to check your score.':'Choose an answer for every example.'}</p></section>`;
-    } else if (q.type === 'multi-text') {
-      input = `<div class="statement-list written-parts" role="group" aria-label="Written answer parts">${q.parts.map((part,index)=>`<label class="statement-item"><span class="statement-label">Part ${index+1} of ${q.parts.length}</span><span class="part-prompt">${esc(part.prompt)}</span><input class="short-answer" data-part="${index}" type="text" autocomplete="off" value="${esc(selected[index]||'')}" placeholder="Type your answer"></label>`).join('')}</div>`;
-    } else if (q.type === 'grouped-boolean') {
-      input = `<div class="statement-list" role="group" aria-label="True or false statements">${q.statements.map((statement,index)=>{const answer=selected[index]||'',correct=q.statementAnswers[index],graded=Object.hasOwn(state.results,id);return `<section class="statement-item ${answer?'is-answered':''}" role="group" aria-labelledby="statement-title-${index}"><span class="statement-label">Statement ${index+1} of ${q.statements.length}</span><h3 id="statement-title-${index}">${esc(statement)}</h3><div class="statement-choices" role="group" aria-label="True or false for statement ${index+1}">${['True','False'].map(value=>`<button type="button" class="answer-option ${answer===value?'selected':''} ${revealed||graded?(correct===value?'correct':answer===value?'incorrect':''):''}" data-statement="${index}" data-value="${value}" aria-pressed="${answer===value}">${value}</button>`).join('')}</div></section>`}).join('')}</div>`;
-    } else if (q.options.length && (q.correctAnswers.length || !q.answer) && state.mode !== 'written') {
-      const multi = q.correctAnswers.length > 1;
-      input = `<div class="answer-list" role="group" aria-labelledby="question-prompt">${q.options.map((o, i) => {
-        const checked = selected.includes(i);
-        const graded = Object.hasOwn(state.results, id);
-        const cls = revealed || graded ? (q.correctAnswers.includes(i) ? 'correct' : checked ? 'incorrect' : '') : checked ? 'selected' : '';
-        return `<button class="answer-option ${cls}" data-option="${i}" aria-keyshortcuts="${i < 9 ? `${i + 1} ArrowUp ArrowDown` : 'ArrowUp ArrowDown'}" aria-pressed="${checked}">
-          <span class="option-letter">${multi ? '□' : String.fromCharCode(65 + i)}</span><span>${esc(o)}</span></button>`;
-      }).join('')}</div>`;
-    } else {
-      input = `<input class="short-answer" id="short-answer" type="text" autocomplete="off" aria-label="Your answer for question ${esc(q.sourceNumber)}" placeholder="Type your answer" value="${esc(selected[0] ?? '')}">`;
-    }
+    const input=questionInputMarkup(q,id);
     const knownAnswer = q.type==='matching' ? q.matches.map(match=>`${match.answer} → ${match.prompt}`).join(' · ') : q.type==='grouped-boolean' ? q.statementAnswers.map((answer,index)=>`${index+1}. ${answer}`).join(' · ') : q.type==='multi-text' ? q.parts.map((part,index)=>`${index+1}. ${part.answer}`).join(' · ') : q.options.length ? (q.correctAnswers.length ? q.correctAnswers.map(i => q.options[i]).join(', ') : q.answer) : q.answer;
     const explanationPanel = `<section class="explanation-panel" aria-label="Answer explanation"><strong>Explanation</strong><p>${esc(q.explanation || 'No explanation was found for this question in the imported reviewer.')}</p>${knownAnswer ? `<p class="explanation-answer"><b>Answer:</b> ${esc(knownAnswer)}</p>` : ''}${q.optionExplanations ? `<ul class="answer-explanations">${Object.entries(q.optionExplanations).map(([index,note])=>`<li><strong>${esc(q.options[Number(index)] || `Choice ${Number(index)+1}`)}:</strong> ${esc(note)}</li>`).join('')}</ul>` : ''}</section>`;
     const graded = Object.hasOwn(state.results, id), answerIsCorrect = state.results[id] === true;
@@ -1016,8 +1204,8 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
     };
     saveSession();
   }
-  function gradeCurrentAnswer(dontKnow) {
-    const id = state.order[state.position];
+  function gradeCurrentAnswer(dontKnow) { return gradeQuestion(state.order[state.position],dontKnow); }
+  function gradeQuestion(id,dontKnow=false,persistHistory=true) {
     const question = currentReviewer().questions[id];
     state.lastAction = {position:state.position, answers:{...state.answers}, results:{...state.results}, unknown:[...state.unknown], revealed:[...state.revealed]};
     const answer = state.answers[id] || [];
@@ -1044,8 +1232,8 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       delete state.results[id];
       state.unknown.delete(id);
     }
-    if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown');
-    else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered');
+    if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown',persistHistory);
+    else if (state.mode !== 'practice') recordHistory(question, state.results[id] === true ? 'correct' : state.results[id] === false ? 'incorrect' : 'unanswered',persistHistory);
   }
   function advance(dontKnow) {
     gradeCurrentAnswer(dontKnow);
@@ -1069,7 +1257,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       <button class="secondary-button" id="finish-now">Finish for now</button></div></div></div>`;
     $('#retry-unknown').onclick = () => {
       state.order = [...state.unknown].sort((a, b) => a - b);
-      state.position = 0; state.retry = true; state.screen = 'study'; renderQuestion('next');
+      state.position = 0; state.plainTimers={};state.timerQuestionId=null;state.questionStarted=0; state.retry = true; state.screen = 'study'; renderQuestion('next');
     };
     $('#finish-now').onclick = () => { state.screen = 'results'; render(); };
   }
@@ -1114,7 +1302,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
     $('#retry-quiz').onclick = () => startQuiz(false, state.mode);
     $('#review-missed')?.addEventListener('click', () => {
       state.order = missed.map(result => result.i); state.position = 0;
-      state.unknown = new Set(state.order); state.retry = true; state.screen = 'study'; renderQuestion('next');
+      state.unknown = new Set(state.order); state.plainTimers={};state.timerQuestionId=null;state.questionStarted=0; state.retry = true; state.screen = 'study'; renderQuestion('next');
     });
     $('#main-panel').querySelectorAll('[data-result-jump]').forEach(b => b.onclick = () => {
       state.order = reviewer.questions.map((_, i) => i); state.position = Number(b.dataset.resultJump);
@@ -1430,6 +1618,19 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       if (document.body.classList.contains('mobile-nav-open')) return;
       if (state.screen !== 'study' || $('#import-dialog').open || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
+      if(plainMode()){
+        const card=target.closest('[data-plain-question]')||document.getElementById(`plain-question-${state.order[state.position]}`);
+        if(!card)return;
+        if(target.matches('input,textarea,select,[contenteditable="true"]')){
+          if(event.key==='Enter'&&target.hasAttribute('data-short-answer')){event.preventDefault();$('[data-check-answer]',card)?.click();}return;
+        }
+        const options=[...card.querySelectorAll('[data-option]')];
+        if(/^[1-9]$/.test(event.key)&&Number(event.key)<=options.length){event.preventDefault();options[Number(event.key)-1].click();}
+        else if((event.key==='ArrowUp'||event.key==='ArrowDown')&&target.matches('[data-option]')){
+          event.preventDefault();options[(options.indexOf(target)+(event.key==='ArrowDown'?1:-1)+options.length)%options.length]?.focus();
+        }
+        return;
+      }
       if (target.matches('input,textarea,select,[contenteditable="true"]')) {
         if (event.key === 'Enter' && target.id === 'short-answer') { event.preventDefault(); $('#next-question')?.click(); }
         return;
@@ -1469,6 +1670,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       const normalStyles=$('#normal-styles');
       if(normalStyles)normalStyles.disabled=plain;
       if(plain)setMobileNav(false);
+      if(plain)$('#main-panel').removeAttribute('aria-live');else $('#main-panel').setAttribute('aria-live','polite');
       const dark=document.documentElement.classList.contains('dark');
       $('meta[name="theme-color"]').content=plain?(dark?'#000':'#fff'):(dark?'#17181c':'#f4f5f7');
       plainHeader.hidden=!plain;

@@ -102,3 +102,27 @@
   .plain-mode .nav-buttons{margin-top:0;flex:none}
   .plain-mode .nav-buttons button{min-width:120px}
 }
+
+/* Simple mode is a single document: feedback stays with its question. */
+.plain-mode .plain-scroll-head{position:sticky;top:var(--plain-header-height,65px);z-index:8;background:var(--surface);padding-top:12px}
+.plain-mode .plain-scroll .progress-copy{font-size:14px;white-space:nowrap}
+.plain-mode .plain-question{padding:28px 0 36px;border-bottom:1px solid var(--line);scroll-margin-top:160px;content-visibility:auto;contain-intrinsic-size:auto 580px}
+.plain-mode .plain-question:first-child{padding-top:8px}
+.plain-mode .plain-question .question-number{font-weight:600}
+.plain-mode .plain-question-footer{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:16px}
+.plain-mode .plain-question-footer .feedback-area{flex:1}
+.plain-mode .plain-explanation{margin:12px 0 0}
+.plain-mode .plain-explanation .explanation-panel{margin-bottom:0}
+.plain-mode .plain-finish{display:flex;justify-content:flex-end;padding-top:32px}
+.plain-mode #finish-plain-quiz{min-width:160px}
+.plain-mode .answer-option.correct,.plain-mode .match-target.is-correct,.plain-mode .short-answer.is-correct{background:#15803d;color:#fff;border-color:#15803d;outline-color:#15803d}
+.plain-mode .answer-option.incorrect,.plain-mode .match-target.is-incorrect,.plain-mode .short-answer.is-incorrect{background:#b91c1c;color:#fff;border-color:#b91c1c;outline-color:#b91c1c}
+.plain-mode .answer-option.correct::after,.plain-mode .answer-option.incorrect::after{flex-shrink:0;white-space:nowrap;word-break:normal;overflow-wrap:normal}
+.plain-mode .plain-question .statement-choices .answer-option{flex:1}
+@media(max-width:760px){
+  .plain-mode .plain-scroll-head{gap:8px;padding-bottom:12px}
+  .plain-mode .plain-scroll-head .study-label{width:100%;justify-content:space-between}
+  .plain-mode .plain-question{scroll-margin-top:220px;padding-bottom:28px}
+  .plain-mode .plain-question-footer{flex-wrap:wrap}
+  .plain-mode .plain-finish button{width:100%}
+}
