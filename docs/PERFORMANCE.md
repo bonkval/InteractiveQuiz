@@ -2,6 +2,8 @@
 
 Plain mode is a device preference next to the theme controls. It shares the existing quiz state and grading rules. Light theme uses white; dark theme uses black. The plain layout keeps the question, required exhibits, answer inputs, feedback, explanation, navigation and an exam countdown where applicable. Selecting Plain mode or returning to the normal layout preserves answers, progress and the timer deadline.
 
+Plain mode disables the normal stylesheet while active, including when entering from an already-loaded normal session. This prevents the normal flex layout and tinted surfaces from leaking into the plain layout. Its interface uses only `#000` and `#fff`; selected answers invert those colors. Original source exhibits keep their image colors. Desktop screens at 1024 px and above use a centered workspace up to 1280 px wide with two answer columns and inline navigation. Phones and tablets use a single-column flow with compact controls.
+
 The normal design remains available. Plain mode omits decorative UI, the full question navigator and secondary study tools. PDF and OCR imports, backup, print and reviewer management remain available through the normal layout.
 
 ## Loading and storage
@@ -39,6 +41,7 @@ npm ci
 npm test
 npx playwright install chromium
 npm run test:browser
+npm run test:plain
 ```
 
 `npm run test:browser` builds production assets and serves a local fixture API. It never writes to production storage. `REV_BROWSER_EXECUTABLE` can select an already installed Chromium executable. Reports and mobile screenshots are written under the ignored `output/performance/` directory. To compare an archived build, run `node tests/browser.cjs --before=path/to/old/dist`.
@@ -46,5 +49,7 @@ npm run test:browser
 The browser checks verify deferred downloads, selected-reviewer loading, repeat-visit cache reuse, absent plain-mode decoration, layout switching, session restoration, image retries, complete portable backups, actual PDF-worker import, IndexedDB deletion, blocked-storage fallback and the `file://` distribution. Unit and integration checks cover question types, written answers, exam deadlines, late selections, mutation rebasing and persistent deletions. Three old test assertions were updated to inspect accessible labels on the existing icon controls, matching the pre-existing UI.
 
 The responsive checks cover 320 x 640, 390 x 844, 768 x 1024, 1280 x 900 and 1920 x 1080 in both layouts and themes. They check horizontal overflow, answer/exhibit bounds, touch-target heights, reviewer-drawer alignment and answer interactions, and capture screenshots. Run only this matrix with `npm run test:responsive`. The Plain-mode drawer follows the measured header height as the viewport changes; Back/Next controls retain a minimum 44 px height on desktop and mobile.
+
+`npm run test:plain` specifically checks normal-to-plain switching at 390, 1280 and 1920 px in both themes, then reloads, resizes across the desktop breakpoint and switches layouts again. It verifies actual computed monochrome colors, stylesheet isolation, desktop/mobile column counts, a centered desktop workspace, keyboard shortcuts and retained answers. This regression is also included in the full browser suite.
 
 The remaining large build warning concerns the deliberately deferred starter-reviewer chunk. Deploy client assets and the API together for the new loading path. No destructive data migration is required; older clients still receive the original inline reviewer format.

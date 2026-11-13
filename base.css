@@ -1,16 +1,18 @@
 /* Functional plain layout. Normal decoration is downloaded separately. */
 [hidden]{display:none!important}
 .plain-header{display:none}
-.plain-mode{color-scheme:light;--surface:#fff;--text:#111;--muted:#555;--line:#ccc;--accent:#111;--panel-soft:#f5f5f5;background:#fff;color:#111}
-.plain-mode.dark{color-scheme:dark;--surface:#000;--text:#eee;--muted:#aaa;--line:#555;--accent:#eee;--panel-soft:#171717;background:#000;color:#eee}
+.plain-mode{color-scheme:light;--surface:#fff;--text:#000;--muted:#000;--line:#000;--accent:#000;--panel-soft:#fff;background:#fff;color:#000;accent-color:var(--text);scrollbar-color:var(--text) var(--surface)}
+.plain-mode.dark{color-scheme:dark;--surface:#000;--text:#fff;--muted:#fff;--line:#fff;--accent:#fff;--panel-soft:#000;background:#000;color:#fff}
 .plain-mode *,.plain-mode *::before,.plain-mode *::after{box-sizing:border-box;animation:none!important;transition:none!important;scroll-behavior:auto!important;box-shadow:none!important;text-shadow:none!important;backdrop-filter:none!important;filter:none!important}
-.plain-mode body{margin:0;background:var(--surface);color:var(--text);font:17px/1.6 system-ui,sans-serif;min-height:100vh}
+.plain-mode body{display:block;width:100%;margin:0;padding:0;background:var(--surface);color:var(--text);font:17px/1.6 system-ui,sans-serif;min-height:100vh}
 .plain-mode a{color:inherit}
 .plain-mode button,.plain-mode input,.plain-mode select,.plain-mode textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:4px;min-height:44px;padding:8px 12px}
 .plain-mode button{cursor:pointer}
-.plain-mode button:disabled{opacity:.45;cursor:default}
+.plain-mode button:disabled{opacity:1;border-style:dashed;cursor:not-allowed}
 .plain-mode button:hover:not(:disabled){border-color:var(--text)}
 .plain-mode :focus-visible{outline:2px solid var(--text);outline-offset:3px}
+.plain-mode ::placeholder{color:var(--text);opacity:1}
+.plain-mode ::selection{color:var(--surface);background:var(--text)}
 .plain-mode .primary-button{color:var(--surface);background:var(--text);border-color:var(--text)}
 .plain-mode .plain-header{display:flex;position:sticky;top:0;z-index:10;justify-content:space-between;align-items:center;gap:12px;background:var(--surface);border-bottom:1px solid var(--line);padding:10px max(16px,calc((100vw - 800px)/2))}
 .plain-mode #plain-settings{display:flex;align-items:center;gap:8px}
@@ -37,7 +39,8 @@
 .plain-mode summary{cursor:pointer}
 .plain-mode .study-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:16px}
 .plain-mode .study-label{display:flex;flex-wrap:wrap;gap:12px;font-size:.9rem;color:var(--muted)}
-.plain-mode .study-controls{display:flex;flex-wrap:wrap;gap:8px}
+.plain-mode .study-controls{display:flex;flex-wrap:wrap;flex:none;gap:8px}
+.plain-mode .study-controls button{white-space:nowrap;word-break:normal;overflow-wrap:normal}
 .plain-mode #exam-clock{font-variant-numeric:tabular-nums;color:var(--text);font-weight:700}
 .plain-mode .progress-row{margin-bottom:24px;font-size:.9rem;color:var(--muted)}
 .plain-mode .progress-track{display:none}
@@ -48,7 +51,7 @@
 .plain-mode .exhibit-error{border:1px solid var(--line);padding:12px;margin:12px 0}
 .plain-mode .answer-list{display:grid;gap:12px}
 .plain-mode .answer-option{display:flex;align-items:center;gap:16px;text-align:left;width:100%;min-height:54px;padding:12px 16px}
-.plain-mode .answer-option.selected,.plain-mode .match-tile.is-picked{outline:2px solid var(--text);outline-offset:-2px;background:var(--panel-soft)}
+.plain-mode .answer-option.selected,.plain-mode .match-tile.is-picked{outline:2px solid var(--text);outline-offset:-2px;background:var(--text);color:var(--surface)}
 .plain-mode .answer-option.correct:after{content:'Correct';margin-left:auto;font-size:.8rem}
 .plain-mode .answer-option.incorrect:after{content:'Incorrect';margin-left:auto;font-size:.8rem}
 .plain-mode .option-letter{min-width:20px;font-weight:600}
@@ -68,7 +71,7 @@
 .plain-mode .missed-count{display:none}
 .plain-mode .result-status{white-space:nowrap;font-size:.85rem}
 .plain-mode .modal{max-width:620px;width:calc(100% - 32px);max-height:90vh;overflow:auto;color:var(--text);background:var(--surface);border:1px solid var(--line);padding:24px}
-.plain-mode .modal::backdrop{background:#0008}
+.plain-mode .modal::backdrop{background:#000}
 .plain-mode .modal label{display:block;margin-top:16px}
 .plain-mode .modal input:not([type=checkbox]),.plain-mode .modal textarea{width:100%}
 .plain-mode .modal-actions,.plain-mode .modal-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
@@ -78,3 +81,24 @@
 @media(max-width:480px){.plain-mode .plain-header{padding:10px 12px;gap:8px}.plain-mode .plain-header button{font-size:14px;white-space:nowrap}.plain-mode .main-area{padding:24px 16px 48px}.plain-mode .study-head{flex-direction:column}.plain-mode .nav-buttons{justify-content:stretch}.plain-mode .nav-buttons button{flex:1}.plain-mode .question-text{font-size:1.15rem}}
 
 .plain-mode .study-controls svg,.plain-mode .switch-track{display:none}
+
+/* Tablets keep the single-column reading flow; desktops get a wider workspace. */
+@media(min-width:761px) and (max-width:1023px){
+  .plain-mode .main-area{max-width:960px;padding:32px 36px 56px}
+  .plain-mode .plain-header{padding:12px 36px}
+}
+@media(min-width:1024px){
+  .plain-mode .main-area{width:100%;max-width:1280px;padding:40px 48px 64px}
+  .plain-mode .plain-header{padding:12px max(48px,calc((100vw - 1184px)/2))}
+  .plain-mode .study-head{align-items:center;margin-bottom:20px;padding-bottom:20px}
+  .plain-mode .study-label{min-width:0;flex:1;font-size:16px}
+  .plain-mode .question-text{max-width:1040px;font-size:28px;line-height:1.5}
+  .plain-mode .question-card{margin-bottom:28px}
+  .plain-mode .question-image{margin:24px auto;max-height:55vh}
+  .plain-mode .answer-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+  .plain-mode .answer-option{min-width:0;min-height:76px;padding:18px 20px;font-size:18px;line-height:1.5}
+  .plain-mode .question-footer{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-top:24px;border-top:1px solid var(--line)}
+  .plain-mode .feedback-area{flex:1}
+  .plain-mode .nav-buttons{margin-top:0;flex:none}
+  .plain-mode .nav-buttons button{min-width:120px}
+}

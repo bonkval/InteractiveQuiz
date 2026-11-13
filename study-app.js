@@ -1466,6 +1466,11 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
     if(typeof ResizeObserver==='function')new ResizeObserver(updatePlainHeaderHeight).observe(plainHeader);
     const applyPresentation=()=>{
       const plain=plainMode();
+      const normalStyles=$('#normal-styles');
+      if(normalStyles)normalStyles.disabled=plain;
+      if(plain)setMobileNav(false);
+      const dark=document.documentElement.classList.contains('dark');
+      $('meta[name="theme-color"]').content=plain?(dark?'#000':'#fff'):(dark?'#17181c':'#f4f5f7');
       plainHeader.hidden=!plain;
       const controls=plain?$('#plain-settings'):normalSettings;
       controls.append($('#theme-toggle'),$('#plain-mode-toggle'));
@@ -1503,7 +1508,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
     mobileLayout.addEventListener?.('change', applySidebarLayout);
     document.body.classList.toggle('dark', get('rev-theme') === 'dark');
     const setThemeAppearance = dark => {
-      $('meta[name="theme-color"]').content = dark ? '#17181c' : '#f4f5f7';
+      $('meta[name="theme-color"]').content = plainMode() ? (dark?'#000':'#fff') : (dark?'#17181c':'#f4f5f7');
       $('#theme-icon').innerHTML = dark
         ? '<path d="M20.2 15.1A8.4 8.4 0 0 1 8.9 3.8 8.5 8.5 0 1 0 20.2 15.1Z"/>'
         : '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>';

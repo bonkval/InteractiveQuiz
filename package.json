@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node --test tests/core.test.js tests/app.test.cjs tests/api.test.cjs tests/client.test.cjs",
     "test:browser": "npm run build && node tests/browser.cjs",
-    "test:responsive": "npm run build && node tests/browser.cjs --responsive-only"
+    "test:responsive": "npm run build && node tests/browser.cjs --responsive-only",
+    "test:plain": "npm run build && node tests/browser.cjs --plain-regression"
   },
   "repository": {
     "type": "git",

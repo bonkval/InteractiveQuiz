@@ -6,6 +6,7 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const before=process.argv.find(arg=>arg.startsWith('--before='))?.slice(9);
 const responsiveOnly=process.argv.includes('--responsive-only');
+const plainRegression=process.argv.includes('--plain-regression');
 const root=path.resolve(before||'dist');
 const sandbox={window:{}};vm.runInNewContext(fs.readFileSync('reviewer-data.js','utf8'),sandbox);
 const starter=JSON.parse(JSON.stringify(sandbox.window.RECALL_STARTER_REVIEWER));
@@ -58,7 +59,7 @@ async function main(){
   try{
     browser=await chromium.launch({headless:true,...(process.env.REV_BROWSER_EXECUTABLE?{executablePath:process.env.REV_BROWSER_EXECUTABLE}:{})});
     const results=[];
-    for(const heavy of responsiveOnly?[]:[false,true])for(const plain of before?[false]:[false,true]){
+    for(const heavy of responsiveOnly||plainRegression?[]:[false,true])for(const plain of before?[false]:[false,true]){
       reviewers=Array.from({length:4},(_,i)=>({...starter,id:'fixture-'+i,title:(heavy?'Image-heavy':'Small')+' reviewer '+(i+1),
         questions:heavy?[starter.questions[5],...starter.questions.filter((_,i)=>i!==5)]:starter.questions.slice(0,12).map(q=>{const {image,images,...rest}=q;return rest;})}));
       const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1,reducedMotion:'reduce'});
@@ -118,7 +119,7 @@ async function main(){
       }
       await context.close();
     }
-    if(!before&&!responsiveOnly){
+    if(!before&&!responsiveOnly&&!plainRegression){
       // Functional checks use the built app and fixture server without throttling.
       const context=await browser.newContext({viewport:{width:1280,height:900}});
       await context.addInitScript(()=>localStorage.setItem('rev-plain-mode','true'));
@@ -182,7 +183,65 @@ async function main(){
       assert.equal(await filePage.locator('[data-option="1"]').getAttribute('aria-pressed'),'true');
       await offline.close();console.log('Browser functional checks passed: restoration, image retry, portable backup, PDF import, cache deletion, blocked-storage fallback, and file:// layout switching.');
     }
-    if(!before){
+    if(!before&&!responsiveOnly){
+      reviewers=Array.from({length:4},(_,i)=>({...starter,id:'fixture-'+i,title:'Plain layout reviewer '+(i+1),questions:[starter.questions[5],...starter.questions.slice(0,3)]}));
+      for(const width of [390,1280,1920])for(const dark of [false,true]){
+        const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce'});
+        await context.addInitScript(()=>localStorage.setItem('rev-motion','off'));
+        const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
+        await page.goto('http://127.0.0.1:'+server.address().port);
+        await page.waitForFunction(()=>document.querySelectorAll('[data-reviewer]').length===4);
+        if(width<=760)await page.locator('#mobile-nav-toggle').click();
+        await page.locator('[data-reviewer="fixture-0"]').click();await page.locator('#start-quiz').click();
+        await page.locator('[data-option="0"]').click();
+        if(width<=760)await page.locator('#mobile-nav-toggle').click();
+        if(dark)await page.locator('#theme-toggle').click();
+        await page.locator('#plain-mode-toggle').click();
+        const verify=async expectedWidth=>{
+          const layout=await page.evaluate(()=>{
+            const body=getComputedStyle(document.body),main=document.querySelector('.main-area').getBoundingClientRect();
+            const colors=[...document.querySelectorAll('body,#main-panel,.study-head,.study-chip,.question-card,.question-text,.answer-option,#next-question,#plain-header')].map(el=>{
+              const style=getComputedStyle(el);return {name:el.id||el.className,color:style.color,background:style.backgroundColor};
+            });
+            return {display:body.display,background:body.backgroundColor,color:body.color,main:{left:main.left,width:main.width},colors,
+              columns:getComputedStyle(document.querySelector('.answer-list')).gridTemplateColumns.split(' ').length,
+              normalDisabled:!document.querySelector('#normal-styles')||document.querySelector('#normal-styles').disabled,
+              scrollWidth:document.documentElement.scrollWidth};
+          });
+          assert.equal(layout.display,'block','Plain mode must not inherit the normal flex body');
+          assert.equal(layout.background,dark?'rgb(0, 0, 0)':'rgb(255, 255, 255)','plain background is pure black or white');
+          assert.equal(layout.color,dark?'rgb(255, 255, 255)':'rgb(0, 0, 0)');
+          assert.equal(await page.locator('meta[name="theme-color"]').getAttribute('content'),dark?'#000':'#fff');
+          assert.equal(layout.normalDisabled,true,'normal stylesheet must be inactive after switching to Plain mode');
+          for(const color of layout.colors){
+            assert.ok(['rgb(0, 0, 0)','rgb(255, 255, 255)'].includes(color.color),`${color.name} has a non-monochrome foreground: ${color.color}`);
+            assert.ok(['rgb(0, 0, 0)','rgb(255, 255, 255)','rgba(0, 0, 0, 0)'].includes(color.background),`${color.name} has a tinted background: ${color.background}`);
+          }
+          assert.equal(layout.columns,expectedWidth>=1024?2:1,'desktop and mobile must have different answer layouts');
+          if(expectedWidth>=1024)assert.ok(layout.main.width>=1000,'desktop must use a wide quiz workspace');
+          assert.ok(Math.abs(layout.main.left+layout.main.width/2-expectedWidth/2)<2,'workspace is centered');
+          assert.ok(layout.scrollWidth<=expectedWidth+1);
+          assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true','switching layouts retains the answer');
+        };
+        await verify(width);
+        await page.keyboard.press('2');
+        assert.equal(await page.locator('[data-option="1"]').getAttribute('aria-pressed'),'true','mobile menu state must not block Plain-mode keyboard shortcuts');
+        await page.keyboard.press('1');
+        await page.evaluate(()=>scrollTo(0,0));
+        await page.screenshot({path:path.join(output,`plain-switch-${width}-${dark?'dark':'light'}.png`),fullPage:true});
+        await page.reload();await page.waitForFunction(()=>document.querySelector('[data-option="0"]')?.getAttribute('aria-pressed')==='true');
+        await verify(width);
+        const rotatedWidth=width<1024?1280:390;
+        await page.setViewportSize({width:rotatedWidth,height:900});await verify(rotatedWidth);
+        await page.locator('#plain-mode-toggle').click();await page.locator('.question-deck').waitFor();
+        assert.equal(await page.locator('[data-option="0"]').getAttribute('aria-pressed'),'true');
+        if(rotatedWidth<=760&&!await page.locator('body').evaluate(el=>el.classList.contains('mobile-nav-open')))await page.locator('#mobile-nav-toggle').click();
+        await page.locator('#plain-mode-toggle').click();await verify(rotatedWidth);
+        assert.deepEqual(errors,[]);await context.close();
+        console.log(`Plain mode regression passed: ${width}px ${dark?'dark':'light'}, normal-to-plain, reload, resize, and repeated switching.`);
+      }
+    }
+    if(!before&&!plainRegression){
       reviewers=Array.from({length:4},(_,i)=>({...starter,id:'fixture-'+i,title:'Responsive reviewer '+(i+1),questions:[starter.questions[5],...starter.questions.slice(0,3)]}));
       for(const viewport of [{width:320,height:640},{width:390,height:844},{width:768,height:1024},{width:1280,height:900},{width:1920,height:1080}])for(const plain of [false,true]){
         const context=await browser.newContext({viewport,reducedMotion:'reduce'});
@@ -223,7 +282,7 @@ async function main(){
         console.log(`Responsive checks passed: ${viewport.width}x${viewport.height}, ${plain?'plain':'normal'}, light and dark.`);
       }
     }
-    if(!responsiveOnly)fs.writeFileSync(path.join(output,before?'before.json':'after.json'),JSON.stringify({profile:{latencyMs:80,downloadBytesPerSecond:200000,cpuSlowdown:4,viewport:'390x844'},results},null,2));
+    if(!responsiveOnly&&!plainRegression)fs.writeFileSync(path.join(output,before?'before.json':'after.json'),JSON.stringify({profile:{latencyMs:80,downloadBytesPerSecond:200000,cpuSlowdown:4,viewport:'390x844'},results},null,2));
   }finally{await browser?.close();server.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;server.close();});
