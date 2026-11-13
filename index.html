@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f5f7">
-  <meta name="description" content="Rev helps you study one question at a time.">
+  <meta name="description" content="Your reviewers, quizzes, and saved answers.">
   <link rel="icon" type="image/svg+xml" href="/revvy-pixel.svg?v=1">
   <title>Revvy</title>
   <script>try{const choice=localStorage.getItem('rev-motion')||'on';if(choice==='off'||(choice==='auto'&&matchMedia('(prefers-reduced-motion: reduce)').matches))document.documentElement.classList.add('motion-reduced')}catch{}</script>
@@ -14,7 +14,7 @@
 <body>
   <header class="plain-header" id="plain-header" hidden><button id="plain-reviewers" type="button" aria-expanded="false" aria-controls="sidebar">Reviewers</button><div id="plain-settings"></div></header>
   <div class="lava-field" id="lava-field" aria-hidden="true"><span class="lava-blob blob-one"></span><span class="lava-blob blob-two"></span><span class="lava-blob blob-three"></span><span class="lava-blob blob-four"></span><span class="lava-blob blob-five"></span><span class="lava-pixels"></span></div>
-  <div class="boot-screen" id="boot-screen" role="status" aria-live="polite"><div class="boot-orbit" aria-hidden="true"><span class="boot-orbit-ring"></span><span class="boot-orbit-ring boot-orbit-ring-two"></span><img data-decorative-src="/revvy-pixel.svg" alt=""><span class="boot-spark boot-spark-one"></span><span class="boot-spark boot-spark-two"></span></div><strong>Revvy</strong><p>Getting your study space ready</p><div class="boot-progress" aria-hidden="true"><i></i></div></div>
+  <div class="boot-screen" id="boot-screen" role="status" aria-live="polite"><div class="boot-orbit" aria-hidden="true"><span class="boot-orbit-ring"></span><span class="boot-orbit-ring boot-orbit-ring-two"></span><img data-decorative-src="/revvy-pixel.svg" alt=""><span class="boot-spark boot-spark-one"></span><span class="boot-spark boot-spark-two"></span></div><strong>Revvy</strong><p>Loading reviewers...</p><div class="boot-progress" aria-hidden="true"><i></i></div></div>
   <a class="skip-link" href="#main-panel">Skip to main content</a>
   <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   <button class="nav-scrim" id="nav-scrim" aria-label="Close navigation" hidden></button>
@@ -33,24 +33,23 @@
     <nav class="site-links" aria-label="Policies"><a href="#data" id="data-link">Data &amp; deletion</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="cookies.html">Cookies</a></nav>
     <div class="sidebar-spacer"></div>
     <div class="account-actions"><button class="account-button" id="account-button" aria-label="Owner sign in"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c.7-3.5 3.3-5.4 7.5-5.4s6.8 1.9 7.5 5.4"/></svg><span class="account-label" id="account-label">Owner sign in</span></button><button class="account-signout" id="account-signout" type="button" hidden>Sign out</button></div>
-    <a class="creator-credit" href="https://github.com/bonkval" target="_blank" rel="noopener noreferrer" aria-label="Made by bonkval — view the GitHub profile">Made by bonkval <span aria-hidden="true">↗</span></a>
     <div class="sidebar-settings" role="group" aria-label="Settings">
-      <button class="theme-button plain-mode-button" id="plain-mode-toggle" type="button" aria-pressed="false">Plain mode</button>
+      <button class="theme-button plain-mode-button" id="plain-mode-toggle" type="button" aria-pressed="false">Simple mode</button>
       <button class="theme-button icon-only-control" id="theme-toggle" type="button" aria-label="Theme: Light. Switch to dark mode." data-tooltip="Switch to dark theme"><svg class="ui-icon theme-icon" id="theme-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l-1.42-1.42m11.3-11.3 1.42 1.42"/></svg></button>
       <button class="theme-button icon-only-control motion-button" id="motion-toggle" type="button" role="switch" aria-checked="true" aria-label="Motion setting" data-tooltip="Motion: On. Click to turn off."><svg class="ui-icon theme-icon" id="motion-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></button>
       <button class="theme-button icon-only-control sound-button" id="sound-toggle" type="button" role="switch" aria-checked="true" aria-label="Sound setting" data-tooltip="Sound: On. Click to mute."><svg class="ui-icon theme-icon" id="sound-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/></svg></button>
     </div>
   </aside>
   <main class="main-area" id="main-area">
-    <section class="intro" id="intro"><div><p class="eyebrow">YOUR STUDY SPACE</p><h1>Make it <span>stick.</span></h1><p class="intro-copy">Pick a reviewer. Find your rhythm. Learn one card at a time.</p></div><div class="intro-figure" aria-hidden="true"><span class="intro-orbit"></span><span class="intro-orbit intro-orbit-two"></span><img data-decorative-src="/revvy-pixel.svg" alt=""><span class="intro-star">✦</span></div></section>
+    <section id="intro" hidden></section>
     <section class="main-panel" id="main-panel" aria-live="polite"></section>
   </main>
   <dialog id="import-dialog" class="modal">
-    <form method="dialog" class="modal-head"><div><p class="eyebrow">ADD A REVIEWER</p><h2>Import questions</h2></div><button class="icon-button close-button" aria-label="Close">×</button></form>
+    <form method="dialog" class="modal-head"><h2>Import reviewer</h2><button class="icon-button close-button" aria-label="Close">×</button></form>
     <div class="import-tabs"><button class="import-tab active" data-tab="paste" type="button">Paste text</button><button class="import-tab" data-tab="file" type="button">Choose a file</button></div>
     <label class="field-label" for="reviewer-name">Reviewer name</label><input class="import-name" id="reviewer-name" type="text" maxlength="70" placeholder="New reviewer">
-    <section id="paste-pane"><label class="field-label" for="paste-text">Paste your reviewer</label><textarea id="paste-text" placeholder="Question 1&#10;What is the purpose of STP?&#10;Choice A: prevents routing loops&#10;Correct! Choice B: prevents Layer 2 loops"></textarea><p class="hint">Use the Import prompt for the most reliable format.</p></section>
-    <section id="file-pane" hidden><label class="drop-zone" for="file-input"><span class="upload-glyph">↑</span><strong>Choose a reviewer file</strong><small>PDF, TXT, Markdown, JSON, plus optional images</small><input id="file-input" type="file" multiple accept=".pdf,.txt,.md,.json,image/*,text/plain,application/pdf,application/json"></label><p class="hint" id="file-status">Choose the Import prompt's *_Revvy_Import.pdf file, or select another reviewer PDF. Put each figure on the page of its question.</p><button id="ocr-import" class="secondary-button" type="button">Scan a scanned PDF with OCR</button></section>
+    <section id="paste-pane"><label class="field-label" for="paste-text">Paste your reviewer</label><textarea id="paste-text" placeholder="Question 1&#10;What is the purpose of STP?&#10;Choice A: prevents routing loops&#10;Correct! Choice B: prevents Layer 2 loops"></textarea><p class="hint">Use Import prompt for formatting.</p></section>
+    <section id="file-pane" hidden><label class="drop-zone" for="file-input"><span class="upload-glyph">↑</span><strong>Choose a reviewer file</strong><small>PDF, TXT, Markdown, JSON, plus optional images</small><input id="file-input" type="file" multiple accept=".pdf,.txt,.md,.json,image/*,text/plain,application/pdf,application/json"></label><p class="hint" id="file-status">PDF: *_Revvy_Import.pdf. Keep figures on their question's page.</p><button id="ocr-import" class="secondary-button" type="button">Read scanned PDF</button></section>
     <section class="import-preview" id="import-preview" aria-label="Import preview" hidden></section>
     <p class="import-feedback" id="import-feedback" role="status" aria-live="polite"></p>
     <div class="modal-actions"><button class="secondary-button" id="cancel-import" type="button">Cancel</button><button class="primary-button" id="import-submit" type="button">Preview questions</button></div>
@@ -61,7 +60,7 @@
       <label class="field-label" for="account-password">Password</label><input id="account-password" name="password" type="password" autocomplete="current-password" minlength="6" required>
       <p class="import-feedback" id="account-feedback" role="status" aria-live="polite"></p>
       <button class="primary-button account-submit" id="account-submit" type="submit">Sign in</button></form>
-    <p class="account-note">Only the owner account can add, edit, restore, or remove reviewers. Study progress stays on this device.</p>
+    <p class="account-note">Sign in to manage reviewers. Quizzes do not require an account.</p>
   </dialog>
   <script>
     if (location.protocol === 'file:') {

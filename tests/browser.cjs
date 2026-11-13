@@ -284,7 +284,10 @@ async function main(){
           const header=await page.locator('#plain-header').boundingBox(),drawer=await page.locator('#sidebar').boundingBox();
           assert.ok(drawer.y>=header.y+header.height-1,'reviewer drawer starts below the responsive plain header');
         }else if(viewport.width<=760)await page.locator('#mobile-nav-toggle').click();
-        await page.locator('[data-reviewer="fixture-0"]').click();await page.locator('#start-quiz').click();
+        await page.locator('[data-reviewer="fixture-0"]').click();
+        await page.locator('#start-quiz').waitFor();
+        await page.screenshot({path:path.join(output,`reviewer-home-${plain?'simple':'normal'}-${viewport.width}.png`),fullPage:true});
+        await page.locator('#start-quiz').click();
         await page.waitForFunction(()=>document.querySelector('.question-image')?.naturalWidth>0);
         for(const theme of ['light','dark']){
           if(theme==='dark'){

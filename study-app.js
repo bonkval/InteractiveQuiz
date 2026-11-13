@@ -458,7 +458,7 @@ Return only the questions in this format, ready to import into Rev.`;
       for(const reviewer of localReviewers){const index=merged.findIndex(item=>item.id===reviewer.id);if(index>=0)merged[index]=reviewer;else merged.push(reviewer);}
       state.reviewers=merged;saveReviewers();
     }
-    $('#account-label').textContent = user ? 'Owner account' : 'Owner sign in';
+    $('#account-label').textContent = user ? user.username : 'Owner sign in';
     $('#account-button').setAttribute('aria-label', user ? `Signed in as owner ${user.username}` : 'Owner sign in');
     $('#account-signout').hidden = !user;
     syncOwnerControls();
@@ -491,7 +491,7 @@ Return only the questions in this format, ready to import into Rev.`;
       switchAccount({id:'owner',username:result.username||username});
       const synced=await refreshSharedLibrary({quiet:true});
       $('#account-dialog').close();
-      toast(synced?'Signed in. Shared reviewers are up to date.':'Signed in, but shared storage needs configuration.');
+      toast(synced?'Signed in.':'Signed in. Reviewers could not sync.');
     } catch (error) {
       feedback.textContent = error.message || 'Could not access your account.';
       feedback.classList.add('error');
@@ -565,7 +565,7 @@ Return only the questions in this format, ready to import into Rev.`;
     document.body.classList.toggle('home-view',!studying&&!prompt&&!easterEgg&&!dataScreen&&Boolean(currentReviewer()));
     document.body.classList.toggle('prompt-open', prompt);
     document.body.classList.toggle('easter-egg-open', easterEgg);
-    $('#intro').hidden = prompt || studying || dataScreen || !!currentReviewer();
+    $('#intro').hidden = true;
     renderLibrary();
     syncOwnerControls();
     if (easterEgg) return renderEasterEgg();
@@ -578,39 +578,35 @@ Return only the questions in this format, ready to import into Rev.`;
       return;
     }
     if (!reviewer) {
-      if(plainMode()){
-        const unavailable=state.sharedLibraryStatus==='unavailable';
-        $('#main-panel').innerHTML=`<div class="plain-welcome"><h1>Revvy</h1><p role="status">${state.sharedLibraryStatus==='loading'?'Loading reviewers…':unavailable?'The reviewer library could not load.':'Choose a reviewer to begin.'}</p>${unavailable?'<button id="retry-library" class="primary-button">Try again</button>':''}</div>`;
-        $('#retry-library')?.addEventListener('click',()=>refreshSharedLibrary());return;
-      }
-      $('#main-panel').innerHTML = state.user
-        ? `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">YOUR LIBRARY STARTS HERE</p><h2>Bring your questions to life.</h2><p>Import a reviewer, then turn it into short, focused study rounds.</p><button class="primary-button" id="welcome-import">Import reviewer</button></div>`
-        : `<div class="empty-state"><div class="empty-figure"><img src="${mascotPath}" alt=""></div><p class="eyebrow">READY WHEN YOU ARE</p><h2>Pick a reviewer to begin.</h2><p>Your next study round is one click away.</p></div>`;
-      if(state.user)$('#welcome-import').onclick = () => openImport(); return;
+      const count=state.reviewers.length,loading=state.sharedLibraryStatus==='loading'&&!count;
+      const unavailable=state.sharedLibraryStatus==='unavailable'&&!count;
+      const title=loading?'Loading reviewers...':unavailable?'Reviewers unavailable':count?'Your reviewers':'No reviewers';
+      $('#main-panel').innerHTML=`<section class="library-overview"><h1>${title}</h1>${count?`<p>${count} reviewer${count===1?'':'s'}</p>`:''}
+        ${unavailable?'<button id="retry-library" class="primary-button">Retry</button>':count&&!plainMode()?'<button id="choose-reviewer" class="primary-button">Choose reviewer</button>':!loading&&!count&&state.user?'<button id="welcome-import" class="primary-button">Import reviewer</button>':''}</section>`;
+      $('#retry-library')?.addEventListener('click',()=>refreshSharedLibrary());
+      $('#welcome-import')?.addEventListener('click',()=>openImport());
+      $('#choose-reviewer')?.addEventListener('click',()=>{if(document.body.classList.contains('mobile-nav')){setMobileNav(true);$('#sidebar [data-reviewer]')?.focus();}else $('#reviewer-search').focus();});
+      return;
     }
     if (state.screen === 'study') return renderQuestion();
     if (state.screen === 'retry-prompt') return renderRetryPrompt();
     if (state.screen === 'results') return renderResults();
     if(plainMode())return renderPlainHome(reviewer);
     const due = reviewer.questions.filter(question => dueFor(reviewer, question)).length;
-    const filters = [['all','All questions','Study every card in this reviewer.'],['due','Due for review','Cards ready for another review.'],['incorrect','Incorrect','Cards you answered incorrectly.'],['unanswered','Unanswered','Cards you have not tried yet.'],['unknown',"I don't know",'Cards you marked for more practice.'],['flagged','Flagged','Cards you saved to revisit.']];
+    const filters = [['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown','Review later'],['flagged','Flagged']];
     const topics = [...new Set(reviewer.questions.map(question=>question.topic).filter(Boolean))].sort();
     $('#main-panel').innerHTML = `<div class="reviewer-home">
-      <section class="reviewer-hero" aria-labelledby="reviewer-title">
-        <div class="reviewer-hero-copy"><p class="hero-kicker">READY FOR YOUR NEXT ROUND</p><h1 id="reviewer-title">${esc(reviewer.title)}</h1>
-          <p class="hero-subtitle">A little practice, a lot of progress.</p>
-          <div class="hero-metrics"><div><strong>${reviewer.questions.length}</strong><span>study cards</span></div><div><strong>${due}</strong><span>due today</span></div></div>
-          <div class="hero-actions"><button class="primary-button" id="start-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Start studying <span aria-hidden="true">&rarr;</span></button><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length ? '' : 'disabled'}>Practice freely</button></div>
-          <p class="sync-status" role="status"><span class="sync-dot"></span>Reviewers ${state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'shared online':'not synced'} <span aria-hidden="true">&middot;</span> Your progress stays on this device</p>
-        </div>
-        <div class="reviewer-hero-visual" aria-hidden="true"><span class="hero-halo"></span><span class="hero-spark hero-spark-one">&#10022;</span><span class="hero-spark hero-spark-two">&#10023;</span><div class="hero-card hero-card-back"><span>02</span><i></i><i></i></div><div class="hero-card hero-card-front"><span class="hero-card-top">REV / STUDY</span><img src="${mascotPath}" alt=""><span class="hero-card-bottom">ONE CARD AT A TIME</span></div></div>
+      <section class="reviewer-summary" aria-labelledby="reviewer-title">
+        <h1 id="reviewer-title">${esc(reviewer.title)}</h1>
+        <div class="reviewer-facts"><span>${reviewer.questions.length} questions</span><span>${due} due</span><span class="sync-status" role="status">${state.sharedLibraryStatus==='local'?'Local':state.sharedLibraryStatus==='loading'?'Syncing...':state.sharedLibraryStatus==='ready'&&state.sharedLibraryInitialized?'Synced':'Not synced'}</span></div>
+        <div class="reviewer-actions"><button class="primary-button" id="start-quiz" ${reviewer.questions.length?'':'disabled'}>Start quiz</button><button class="secondary-button" id="practice-quiz" ${reviewer.questions.length?'':'disabled'}>Practice</button></div>
       </section>
       <section class="reviewer-lower" aria-label="Study options">
-        <div class="study-prep"><div class="section-heading"><p class="eyebrow">MAKE IT YOURS</p><h2>Choose your session</h2><p class="study-set-hint">Pick a set to see what you’ll practice.</p></div>
-          <div class="study-set-picker"><span class="study-set-label">Study set</span><div class="study-set-grid" role="group" aria-label="Choose a study set">${filters.map(([value,label,description]) => {const count=filteredQuestionIds(reviewer,value).length;return `<button class="study-set-option ${value==='all'?'is-selected':''}" type="button" data-study-set="${value}" aria-pressed="${value==='all'}" ${count?'':'disabled'}><span class="study-set-copy"><strong>${label}</strong><small>${description}</small></span><span class="study-set-count">${count}</span></button>`;}).join('')}</div><select id="study-filter" class="study-filter study-filter-state" aria-hidden="true" tabindex="-1">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></div>
-          ${topics.length ? `<label class="prep-field topic-filter-field" for="topic-filter"><span>Focus topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
-          <details class="more-study-options"><summary>More ways to study</summary><div class="more-study-inner"><label class="prep-field" for="question-search"><span>Find questions</span><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search question text"></label>
-            <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers yet.</p>'}</div></details></div></details>
+        <div class="study-prep"><div class="section-heading"><h2>Quiz options</h2></div>
+          <div class="study-set-picker"><span class="study-set-label">Questions</span><div class="study-set-grid" role="group" aria-label="Choose a study set">${filters.map(([value,label]) => {const count=filteredQuestionIds(reviewer,value).length;return `<button class="study-set-option ${value==='all'?'is-selected':''}" type="button" data-study-set="${value}" aria-pressed="${value==='all'}" ${count?'':'disabled'}><span class="study-set-copy"><strong>${label}</strong></span><span class="study-set-count">${count}</span></button>`;}).join('')}</div><select id="study-filter" class="study-filter study-filter-state" aria-hidden="true" tabindex="-1">${filters.map(([value,label]) => `<option value="${value}">${label} (${filteredQuestionIds(reviewer,value).length})</option>`).join('')}</select></div>
+          ${topics.length ? `<label class="prep-field topic-filter-field" for="topic-filter"><span>Topic</span><select id="topic-filter" class="study-filter"><option value="">All topics</option>${topics.map(topic=>`<option value="${esc(topic)}">${esc(topic)}</option>`).join('')}</select></label>` : ''}
+          <details class="more-study-options"><summary>More options</summary><div class="more-study-inner"><label class="prep-field" for="question-search"><span>Search questions</span><input id="question-search" class="study-filter" type="search" value="${esc(state.settings.questionSearch || '')}" placeholder="Search questions"></label>
+            <details class="session-reviewers"><summary>Combine reviewers</summary><div>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label class="account-consent"><input type="checkbox" data-mix-reviewer="${esc(item.id)}"><span>${esc(item.title)}</span></label>`).join('') || '<p>No other reviewers.</p>'}</div></details></div></details>
         </div>
       </section>
       <div class="reviewer-footer"><button class="mini-control owner-only" id="edit-reviewer" ${state.user?'':'hidden'}>Edit reviewer</button><button class="mini-control" id="export-reviewer">Export reviewer</button></div>
@@ -626,12 +622,12 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#export-reviewer').onclick = () => exportReviewer(reviewer);
   }
   function renderPlainHome(reviewer) {
-    const filters=[['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown','More practice'],['flagged','Flagged']];
+    const filters=[['all','All questions'],['due','Due for review'],['incorrect','Incorrect'],['unanswered','Unanswered'],['unknown','Review later'],['flagged','Flagged']];
     $('#main-panel').innerHTML=`<section class="plain-home"><h1>${esc(reviewer.title)}</h1><p>${reviewer.questions.length} questions</p>
-      <label>Session <select id="plain-session-mode">${[['quiz','Quiz'],['practice','Practice'],['written','Written'],['exam','Exam']].map(([value,label])=>`<option value="${value}" ${state.mode===value?'selected':''}>${label}</option>`).join('')}</select></label>
+      <label>Mode <select id="plain-session-mode">${[['quiz','Quiz'],['practice','Practice'],['written','Written'],['exam','Exam']].map(([value,label])=>`<option value="${value}" ${state.mode===value?'selected':''}>${label}</option>`).join('')}</select></label>
       <label>Questions <select id="study-filter">${filters.map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></label>
       <details><summary>Combine reviewers</summary>${state.reviewers.filter(item=>item.id!==reviewer.id).map(item=>`<label><input type="checkbox" data-mix-reviewer="${esc(item.id)}"> ${esc(item.title)}</label>`).join('')||'<p>No other reviewers.</p>'}</details>
-      <button class="primary-button" id="start-quiz">Start studying</button></section>`;
+      <button class="primary-button" id="start-quiz">Start quiz</button></section>`;
     $('#start-quiz').onclick=()=>startQuiz(false,$('#plain-session-mode').value,$('#study-filter').value,0,[...document.querySelectorAll('[data-mix-reviewer]:checked')].map(item=>item.dataset.mixReviewer));
   }
   function renderEasterEgg() {
@@ -661,10 +657,10 @@ Return only the questions in this format, ready to import into Rev.`;
     const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=motionReduced();
     const checks=[['PDF import',Boolean(window.RevLoadPdf||window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
-      <p>The reviewer library is shared through Vercel Blob. Answers, flags, study progress, and prompts stay on this device.</p>
+      <p>Reviewers are shared. Answers, flags, progress, and prompts stay in this browser.</p>
       <div class="data-card"><h2>Browser compatibility</h2><ul class="compatibility-list">${checks.map(([name,ok,detail])=>`<li><i class="compat-indicator ${ok?'is-ok':'is-warning'}"></i><strong>${esc(name)}</strong><small>${esc(detail)}</small></li>`).join('')}</ul><p id="storage-estimate">Checking browser storage...</p></div>
-      <div class="data-card"><h2>Back up your reviewers</h2><p>Download a copy before changing devices.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
-      <div class="data-card"><h2>Delete study data on this device</h2><p>Removes this browser's cached reviewers, answers, progress, flags, prompts, and preferences. It does not remove the shared reviewer library.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
+      <div class="data-card"><h2>Backup</h2><p>Download reviewers and local progress.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
+      <div class="data-card"><h2>Delete local data</h2><p>Removes this browser's cached reviewers, answers, progress, flags, prompts, and preferences. It does not remove the shared reviewer library.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
       <p><a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms</a> &middot; <a href="cookies.html">Cookie Policy</a></p>
       <button class="secondary-button" id="data-back">Back to reviewer</button></section>`;
     $('#data-backup').onclick = exportLibraryBackup;
@@ -777,7 +773,7 @@ Return only the questions in this format, ready to import into Rev.`;
         <div class="question-text" id="plain-prompt-${id}">${esc(prompt)}</div>
         ${exhibits.map((image,i)=>`<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i]||`Exhibit ${i+1} for question ${q.sourceNumber}`)}" loading="lazy" decoding="async">`).join('')}
         ${(q.imageRefs||[]).map(ref=>`<p class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</p>`).join('')}</article>
-      ${q.correctAnswers.length>1?'<p class="selection-hint">Select all that apply, then check your answer.</p>':''}
+      ${q.correctAnswers.length>1?'<p class="selection-hint">Select all that apply.</p>':''}
       ${q.options.length&&!q.correctAnswers.length&&q.answer?`<div class="unmatched-choices"><p>The source choices do not contain the corrected answer. Type your answer below.</p><ol type="A">${q.options.map(option=>`<li>${esc(option)}</li>`).join('')}</ol></div>`:''}
       ${questionInputMarkup(q,id,`plain-prompt-${id}`)}
       <div class="plain-question-footer"><div class="feedback-area" id="plain-feedback-${id}" role="status" aria-label="Feedback for question ${position+1}"></div>
@@ -840,7 +836,7 @@ Return only the questions in this format, ready to import into Rev.`;
       field.classList.toggle('is-correct',graded&&correct);field.classList.toggle('is-incorrect',graded&&!correct);
     });
     const feedback=$('.feedback-area',card);
-    feedback.textContent=graded?(state.results[id]?'Correct':'Incorrect'):expired?"Time's up. Review this question after finishing.":!isQuestionKeyed(q)&&answer.length?'Answer saved. No answer key was provided.':'';
+    feedback.textContent=graded?(state.results[id]?'Correct':'Incorrect'):expired?"Time's up. Retry after finishing.":!isQuestionKeyed(q)&&answer.length?'Answer saved. No answer key was provided.':'';
     const check=$('[data-check-answer]',card);if(check)check.hidden=graded||Boolean(expired);
     card.querySelectorAll('input,button').forEach(control=>{control.disabled=Boolean(expired);});
   }
@@ -1002,11 +998,11 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#main-panel').innerHTML = `<div class="study-head"><div class="study-label"><span class="study-chip">${esc(reviewer.title)}</span>
       ${state.mode === 'practice' ? '<span class="study-chip practice-chip">Practice</span>' : state.mode === 'written' ? '<span class="study-chip practice-chip">Written answers</span>' : ''}
       ${state.retry ? '<span class="study-chip retry-chip">Review later</span>' : ''}${state.mode === 'exam' ? '<span class="study-chip practice-chip" id="exam-clock">'+Math.max(0,30-Math.floor((Date.now()-state.questionStarted)/1000))+'s</span>' : ''}</div><div class="study-controls">
-      ${plainMode()?'':`<button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle cards" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3l4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M13.3 9.5C14.2 8.1 15.3 7 17 7h3"/></svg></button>`}<button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations">${plainMode()?'Explanation':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>${plainMode()?'':`<button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button>`}<button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz">${plainMode()?'Exit quiz':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
-${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}</nav>`}
+      ${plainMode()?'':`<button class="mini-control icon-only-control" id="shuffle-questions" type="button" aria-label="Shuffle questions" data-tooltip="Shuffle cards"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3l4 4-4 4M4 7h3c5 0 5 10 10 10h3M16 13l4 4-4 4M4 17h3c1.7 0 2.8-1.1 3.7-2.5M13.3 9.5C14.2 8.1 15.3 7 17 7h3"/></svg></button>`}<button class="mini-control icon-only-control explanation-toggle" id="toggle-explanations" type="button" role="switch" aria-checked="${state.explanationsVisible}" aria-label="${state.explanationsVisible?'Hide':'Show'} explanations" data-tooltip="${state.explanationsVisible?'Hide':'Show'} explanations">${plainMode()?'Explanation':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></button>${plainMode()?'':`<button class="mini-control icon-only-control" id="print-review" type="button" aria-label="Print" data-tooltip="Print"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7zM18 11h.01"/></svg></button>`}<button class="mini-control icon-only-control" id="exit-quiz" type="button" aria-label="Exit quiz" data-tooltip="Exit quiz">${plainMode()?'Exit quiz':''}<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/></svg></button></div></div>
+${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${deck}</nav>`}
       <div class="progress-row"><div class="progress-track"><div class="progress-fill" style="width:${Math.round(state.position / state.order.length * 100)}%"></div></div>
       <span class="progress-copy">${state.position + 1} / ${state.order.length}</span></div>
-      <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div>${plainMode()?'':`<div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button icon-only-control" id="read-question" aria-label="Use audio" data-tooltip="Use audio" aria-pressed="false"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="stop-reading" aria-label="Stop audio" data-tooltip="Stop audio"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button></div><button type="button" class="copy-question-button icon-only-control flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-label="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" data-tooltip="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" aria-pressed="${isFlagged(q)}"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1h12l-2.5 4L17 13H5"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="copy-question" aria-label="Copy all" data-tooltip="Copy All"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>${exhibits.length ? '<button type="button" class="copy-question-button icon-only-control" id="download-exhibits" aria-label="Download exhibits" data-tooltip="Download exhibits"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v4h14v-4"/></svg></button>' : ''}</div>`}</div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
+      <article class="question-card ${q.type === 'grouped-boolean' ? 'grouped-question-intro' : ''}" tabindex="-1"><div class="question-card-top"><div class="question-number">${esc(q.sourceNumber)}${q.sourceReviewer ? ` · ${esc(q.sourceReviewer)}` : ''}</div>${plainMode()?'':`<div class="question-card-actions"><div class="audio-actions"><button type="button" class="copy-question-button icon-only-control" id="read-question" aria-label="Use audio" data-tooltip="Use audio" aria-pressed="false"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="stop-reading" aria-label="Stop audio" data-tooltip="Stop audio"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg></button></div><button type="button" class="copy-question-button icon-only-control flag-question-button ${isFlagged(q) ? 'is-flagged' : ''}" id="flag-question" aria-label="${isFlagged(q) ? 'Remove flag' : 'Flag question'}" data-tooltip="${isFlagged(q) ? 'Remove flag' : 'Flag for later'}" aria-pressed="${isFlagged(q)}"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 1h12l-2.5 4L17 13H5"/></svg></button><button type="button" class="copy-question-button icon-only-control" id="copy-question" aria-label="Copy all" data-tooltip="Copy All"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg></button>${exhibits.length ? '<button type="button" class="copy-question-button icon-only-control" id="download-exhibits" aria-label="Download exhibits" data-tooltip="Download exhibits"><svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v4h14v-4"/></svg></button>' : ''}</div>`}</div><div class="question-text" id="question-prompt">${esc(questionPrompt)}</div>${q.type === 'grouped-boolean' ? '' : `<div id="explanation-anchor">${state.explanationsVisible ? explanationPanel : ''}</div>`}
       ${exhibits.map((image, i) => `<img class="question-image" src="${esc(image)}" alt="${esc(q.imageAlts?.[i] || `Exhibit ${i + 1} for question ${q.sourceNumber}. Description not provided.`)}" decoding="async">`).join('')}
       ${(q.imageRefs || []).map(ref => `<div class="missing-exhibit">Exhibit image not attached: ${esc(ref)}</div>`).join('')}</article>
       ${selectionHint}${unmatchedChoices}${input}${q.type === 'grouped-boolean' ? `<div id="explanation-anchor" class="grouped-explanation">${state.explanationsVisible ? explanationPanel : ''}</div>` : ''}<div class="question-footer"><div class="feedback-area" role="status">${feedbackContent}</div>
@@ -1252,9 +1248,9 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
   function renderRetryPrompt() {
     saveSession();
     const count = state.unknown.size;
-    $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${count} card${count === 1 ? '' : 's'} to review later</h2>
-      <div class="welcome-actions"><button class="primary-button" id="retry-unknown">Review these cards</button>
-      <button class="secondary-button" id="finish-now">Finish for now</button></div></div></div>`;
+    $('#main-panel').innerHTML = `<div class="welcome"><div class="welcome-inner"><h2>${count} marked question${count === 1 ? '' : 's'}</h2>
+      <div class="welcome-actions"><button class="primary-button" id="retry-unknown">Retry marked</button>
+      <button class="secondary-button" id="finish-now">View results</button></div></div></div>`;
     $('#retry-unknown').onclick = () => {
       state.order = [...state.unknown].sort((a, b) => a - b);
       state.position = 0; state.plainTimers={};state.timerQuestionId=null;state.questionStarted=0; state.retry = true; state.screen = 'study'; renderQuestion('next');
@@ -1283,19 +1279,19 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       return {q, i, status, tone, missed};
     });
     const missed = outcomes.filter(result => result.missed);
-    const summary = `<section class="missed-summary"><div class="missed-summary-head"><div><h3>${state.mode === 'practice' ? 'Cards to revisit' : 'Missed questions'}</h3>
-      <p>${missed.length ? `${missed.length} card${missed.length === 1 ? '' : 's'} ready to review` : 'You are all caught up.'}</p></div><span class="missed-count">${missed.length}</span></div>
+    const summary = `<section class="missed-summary"><div class="missed-summary-head"><div><h3>${state.mode === 'practice' ? 'Marked questions' : 'Missed questions'}</h3>
+      <p>${missed.length ? `${missed.length} question${missed.length === 1 ? '' : 's'}` : 'No missed questions.'}</p></div><span class="missed-count">${missed.length}</span></div>
       ${missed.length ? `<div class="missed-items">${missed.map(({q, i, status, tone}) => `<button class="missed-item status-${tone}" data-result-jump="${i}">
         <span class="missed-item-number">${esc(q.sourceNumber)}</span><span class="missed-item-text">${esc(q.text)}</span><span class="result-status">${status}</span></button>`).join('')}</div>` : ''}
-      ${missed.length ? `<button class="primary-button" id="review-missed">Review missed cards</button>` : ''}</section>`;
+      ${missed.length ? `<button class="primary-button" id="review-missed">Retry missed</button>` : ''}</section>`;
     const completion = state.mode === 'practice'
-      ? `<p class="result-sub">Practice complete · ${sessionIds.length} cards</p>`
+      ? `<p class="result-sub">${sessionIds.length} questions practiced</p>`
       : `<div class="result-score">${score}<span class="score-total"> / ${maxScore}</span></div>
         <p class="result-sub">${keyed.length < sessionIds.length ? `${keyed.length} scored · ${sessionIds.length - keyed.length} without an answer key` : `${sessionIds.length} questions`}</p>`;
-    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice complete' : state.mode === 'exam' ? 'Exam complete' : 'Review complete'}</h2>
+    $('#main-panel').innerHTML = `<div class="result-view"><div><h2 class="result-title">${state.mode === 'practice' ? 'Practice results' : state.mode === 'exam' ? 'Exam results' : 'Quiz results'}</h2>
       ${completion}${summary}
       <div class="result-actions"><button class="secondary-button" id="back-to-reviewer">Done</button>
-      <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Practice again' : 'Review again'}</button></div>
+      <button class="primary-button" id="retry-quiz">${state.mode === 'practice' ? 'Restart practice' : 'Retry quiz'}</button></div>
       <div class="review-list">${outcomes.map(({q, i, status, tone}) => `<button class="review-row result-jump status-${tone}" data-result-jump="${i}">
       <span>${esc(q.sourceNumber)}. ${esc(q.text.slice(0, 100))}</span><span class="result-status">${status}</span></button>`).join('')}</div></div></div>`;
     $('#back-to-reviewer').onclick = () => { leaveStudy(); render(); };
@@ -1392,10 +1388,11 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
     if(!state.user){toast('Sign in with the owner account to add or edit reviewers.');showAccountDialog();return;}
     const dialog = $('#import-dialog');
     dialog.dataset.editId = reviewer?.id || '';
+    $('#import-dialog h2').textContent=reviewer?'Edit reviewer':'Import reviewer';
     state.sourceText = ''; state.selectedFiles = []; state.importBusy = false; state.importPreview = null;
     $('#reviewer-name').value = reviewer?.title || '';
     $('#paste-text').value = reviewer ? reviewerToText(reviewer) : '';
-    $('#file-input').value = ''; $('#file-status').textContent = 'PDF text and OCR run locally. Scanned PDFs download the English model once.';
+    $('#file-input').value = ''; $('#file-status').textContent = 'PDF processing stays on this device. OCR downloads the English model once.';
     $('#import-feedback').textContent = '';
     $('#import-preview').hidden = true; $('#import-submit').textContent = 'Preview questions';
     showImportTab('paste'); dialog.showModal(); $('#reviewer-name').focus();
@@ -1413,7 +1410,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
   function renderImportPreview(preview) {
     const questions=preview.parsed.questions, keyed=questions.filter(isQuestionKeyed).length;
     const rows=questions.map((q,index)=>{const notes=[];if(q.options.length&&q.options.length<4&&q.type!=='boolean')notes.push(`${q.options.length} choices`);if(!isQuestionKeyed(q))notes.push('no answer key');if(q.imageRefs?.length)notes.push('missing exhibit');notes.push(...preview.parsed.warnings.filter(note=>note.startsWith(`Question ${q.sourceNumber}:`)));return {q,index,notes};});
-    $('#import-preview').innerHTML=`<h3>Import preview</h3><p>${questions.length} questions ? ${keyed} answer keys</p><div class="preview-list">${rows.map(({q,index,notes})=>`<details class="preview-question ${notes.length?'has-issue':''}"><summary><strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.type==='matching'?`${q.matches.length} matching pairs`:q.options.length?`${q.options.length} choices`:q.type==='grouped-boolean'?`${q.statements.length} true/false statements`:'Text answer'} ${esc(notes.join(' ? '))}</small></summary><div class="preview-editor"><label>Question<textarea data-edit="text">${esc(q.text)}</textarea></label>${q.type==='matching'?`<label>Answer tiles, one per line<textarea data-edit="tiles">${q.answerTiles.map(esc).join('\n')}</textarea></label><label>Matching pairs: one example | answer per line<textarea data-edit="matches">${q.matches.map(match=>`${esc(match.prompt)} | ${esc(match.answer)}`).join('\n')}</textarea></label>`:q.type==='grouped-boolean'?`<label>Statements, one per line; prefix with T or F<textarea data-edit="statements">${q.statements.map((statement,i)=>`${q.statementAnswers[i]==='True'?'T':'F'} ${esc(statement)}`).join('\n')}</textarea></label>`:`<label>Choices, one per line; prefix correct choices with *<textarea data-edit="options">${q.options.map((o,i)=>`${q.correctAnswers.includes(i)?'* ':''}${o}`).join('\n')}</textarea></label><label>Answer/input key<input data-edit="answer" value="${esc(q.answer||q.correctAnswers.map(i=>String.fromCharCode(65+i)).join(', '))}"></label>`}<label>Explanation<textarea data-edit="explanation">${esc(q.explanation||'')}</textarea></label><div class="preview-actions"><button class="secondary-button" type="button" data-apply="${index}">Apply edits</button><button class="secondary-button" type="button" data-open-split="${index}">Split into cards</button></div><section class="preview-split" hidden><label>Paste complete Rev question blocks<textarea data-split-source placeholder="Question 1&#10;First question&#10;Answer: ...&#10;&#10;Question 2&#10;Second question&#10;Answer: ..."></textarea></label><p>Each split card needs its own answer and explanation.</p><button class="secondary-button" type="button" data-split="${index}">Create split cards</button></section></div></details>`).join('')}</div><p class="preview-help">Edit each parsed card directly. Split multi-part questions into separate complete question blocks.</p>`;
+    $('#import-preview').innerHTML=`<h3>Import preview</h3><p>${questions.length} question${questions.length===1?'':'s'}, ${keyed} answer key${keyed===1?'':'s'}</p><div class="preview-list">${rows.map(({q,index,notes})=>`<details class="preview-question ${notes.length?'has-issue':''}"><summary><strong>${esc(q.sourceNumber)}</strong><span>${esc(q.text.slice(0,110))}</span><small>${q.type==='matching'?`${q.matches.length} matching pairs`:q.options.length?`${q.options.length} choices`:q.type==='grouped-boolean'?`${q.statements.length} true/false statements`:'Text answer'} ${esc(notes.join('; '))}</small></summary><div class="preview-editor"><label>Question<textarea data-edit="text">${esc(q.text)}</textarea></label>${q.type==='matching'?`<label>Answer tiles, one per line<textarea data-edit="tiles">${q.answerTiles.map(esc).join('\n')}</textarea></label><label>Matching pairs: one example | answer per line<textarea data-edit="matches">${q.matches.map(match=>`${esc(match.prompt)} | ${esc(match.answer)}`).join('\n')}</textarea></label>`:q.type==='grouped-boolean'?`<label>Statements, one per line; prefix with T or F<textarea data-edit="statements">${q.statements.map((statement,i)=>`${q.statementAnswers[i]==='True'?'T':'F'} ${esc(statement)}`).join('\n')}</textarea></label>`:`<label>Choices, one per line; prefix correct choices with *<textarea data-edit="options">${q.options.map((o,i)=>`${q.correctAnswers.includes(i)?'* ':''}${o}`).join('\n')}</textarea></label><label>Answer/input key<input data-edit="answer" value="${esc(q.answer||q.correctAnswers.map(i=>String.fromCharCode(65+i)).join(', '))}"></label>`}<label>Explanation<textarea data-edit="explanation">${esc(q.explanation||'')}</textarea></label><div class="preview-actions"><button class="secondary-button" type="button" data-apply="${index}">Apply edits</button><button class="secondary-button" type="button" data-open-split="${index}">Split question</button></div><section class="preview-split" hidden><label>Paste complete Rev question blocks<textarea data-split-source placeholder="Question 1&#10;First question&#10;Answer: ...&#10;&#10;Question 2&#10;Second question&#10;Answer: ..."></textarea></label><p>Include an answer for each question.</p><button class="secondary-button" type="button" data-split="${index}">Split questions</button></section></div></details>`).join('')}</div>`;
     $('#import-preview').hidden=false;
     $('#import-preview').querySelectorAll('.preview-question').forEach((card,index)=>{
       const q=questions[index];if(q.type!=='multi-text')return;
@@ -1562,7 +1559,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
         state.importPreview = {source, parsed, resolved, imageFiles};
         renderImportPreview(state.importPreview);
         $('#import-submit').textContent = 'Save reviewer';
-        return feedback(`Found ${parsed.questions.length} question${parsed.questions.length===1?'':'s'}. Review the choices, then save.`);
+        return feedback(`Found ${parsed.questions.length} question${parsed.questions.length===1?'':'s'}.`);
       }
       if (resolved.unresolved.length) return feedback(`Attach image file(s) matching: ${resolved.unresolved.join(', ')}`, true);
       const title = ($('#reviewer-name').value.trim() || parsed.title || sourceFile?.name?.replace(/(?:_Revvy_Import)?\.[^.]+$/i, '') || 'New reviewer').slice(0, 70);
@@ -1676,7 +1673,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question cards">${deck}
       plainHeader.hidden=!plain;
       const controls=plain?$('#plain-settings'):normalSettings;
       controls.append($('#theme-toggle'),$('#plain-mode-toggle'));
-      $('#plain-mode-toggle').textContent=plain?'Exit plain mode':'Plain mode';
+      $('#plain-mode-toggle').textContent=plain?'Exit simple mode':'Simple mode';
       $('#plain-mode-toggle').setAttribute('aria-pressed',String(plain));
       document.querySelectorAll('[data-decorative-src]').forEach(image=>{if(plain)image.removeAttribute('src');else image.src=location.protocol==='file:'?mascotPath:image.dataset.decorativeSrc;});
       document.body.classList.remove('plain-navigation');
