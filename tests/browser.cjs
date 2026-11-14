@@ -283,12 +283,33 @@ async function main(){
           await page.locator('#plain-reviewers').click();
           const header=await page.locator('#plain-header').boundingBox(),drawer=await page.locator('#sidebar').boundingBox();
           assert.ok(drawer.y>=header.y+header.height-1,'reviewer drawer starts below the responsive plain header');
-        }else if(viewport.width<=760)await page.locator('#mobile-nav-toggle').click();
+        }else if(viewport.width<=760){
+          await page.locator('#mobile-nav-toggle').click();
+          assert.equal(await page.evaluate(()=>document.activeElement.id),'reviewer-search','guest navigation focuses a visible input');
+        }
         await page.locator('[data-reviewer="fixture-0"]').click();
         await page.locator('#start-quiz').waitFor();
         await page.screenshot({path:path.join(output,`reviewer-home-${plain?'simple':'normal'}-${viewport.width}.png`),fullPage:true});
         await page.locator('#start-quiz').click();
         await page.waitForFunction(()=>document.querySelector('.question-image')?.naturalWidth>0);
+        await page.locator('.exhibit-open').first().click();
+        await page.locator('#exhibit-dialog').waitFor({state:'visible'});
+        const imageWidth=await page.locator('#exhibit-full-image').evaluate(image=>image.getBoundingClientRect().width);
+        await page.keyboard.press('1');
+        assert.equal(await page.locator('[data-option="0"]').first().getAttribute('aria-pressed'),'false','dialog keystrokes cannot answer the quiz behind it');
+        await page.locator('#exhibit-zoom-in').click();
+        assert.ok(await page.locator('#exhibit-full-image').evaluate(image=>image.getBoundingClientRect().width)>imageWidth,'exhibit can be enlarged');
+        if(viewport.width===390&&!plain)await page.screenshot({path:path.join(output,'exhibit-zoom-mobile.png')});
+        await page.keyboard.press('Escape');await page.locator('#exhibit-dialog').waitFor({state:'hidden'});
+        assert.equal(await page.locator('.exhibit-open').first().evaluate(button=>button===document.activeElement),true,'closing the exhibit returns keyboard focus');
+        if(!plain&&viewport.width<=760){
+          await page.locator('.study-tools-menu summary').click();
+          await page.locator('#copy-question').waitFor({state:'visible'});
+          const menuBounds=await page.locator('.study-tools-items').boundingBox();
+          assert.ok(menuBounds.x>=0&&menuBounds.x+menuBounds.width<=viewport.width,`the Tools menu fits inside ${viewport.width}px: ${JSON.stringify(menuBounds)}`);
+          if(viewport.width===390)await page.screenshot({path:path.join(output,'study-tools-mobile.png')});
+          await page.locator('.study-tools-menu summary').click();
+        }
         for(const theme of ['light','dark']){
           if(theme==='dark'){
             if(!plain&&viewport.width<=760)await page.locator('#mobile-nav-toggle').click();

@@ -7,7 +7,7 @@
   <meta name="description" content="Your reviewers, quizzes, and saved answers.">
   <link rel="icon" type="image/svg+xml" href="/revvy-pixel.svg?v=1">
   <title>Revvy</title>
-  <script>try{const choice=localStorage.getItem('rev-motion')||'on';if(choice==='off'||(choice==='auto'&&matchMedia('(prefers-reduced-motion: reduce)').matches))document.documentElement.classList.add('motion-reduced')}catch{}</script>
+  <script>try{const choice=localStorage.getItem('rev-motion')||'auto';if(choice==='off'||(choice==='auto'&&matchMedia('(prefers-reduced-motion: reduce)').matches))document.documentElement.classList.add('motion-reduced')}catch{}</script>
   <link rel="stylesheet" href="base.css">
   <script>try{document.documentElement.classList.toggle("plain-mode",localStorage.getItem("rev-plain-mode")==="true");document.documentElement.classList.toggle("dark",localStorage.getItem("rev-theme")==="dark");}catch{}</script>
 </head>
@@ -61,6 +61,11 @@
       <p class="import-feedback" id="account-feedback" role="status" aria-live="polite"></p>
       <button class="primary-button account-submit" id="account-submit" type="submit">Sign in</button></form>
     <p class="account-note">Sign in to manage reviewers. Quizzes do not require an account.</p>
+  </dialog>
+  <dialog id="exhibit-dialog" class="exhibit-dialog" aria-labelledby="exhibit-heading">
+    <div class="exhibit-dialog-head"><h2 id="exhibit-heading">Exhibit</h2><form method="dialog"><button type="submit" aria-label="Close exhibit">Close</button></form></div>
+    <div class="exhibit-zoom-controls" role="group" aria-label="Exhibit zoom"><button type="button" id="exhibit-zoom-out" aria-label="Zoom out">−</button><output id="exhibit-zoom-level" aria-live="polite">100%</output><button type="button" id="exhibit-zoom-in" aria-label="Zoom in">+</button><button type="button" id="exhibit-zoom-reset">Fit to screen</button></div>
+    <div class="exhibit-viewport" tabindex="0" aria-label="Exhibit image. Scroll to explore when zoomed."><img id="exhibit-full-image" alt=""></div>
   </dialog>
   <script>
     if (location.protocol === 'file:') {

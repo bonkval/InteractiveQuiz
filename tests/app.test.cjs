@@ -3,10 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {JSDOM} = require('jsdom');
 
-function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false,rewriteEtags=false,metadataLibrary=false,initialReviewers=null,plain=false,detailDelay=0}={}) {
+function openApp({conflictOnSecondPut=false,reviewerStorageFull=false,chunkedLibrary=false,ownerAtStart=false,delayLibraryLoad=false,delayImportSave=false,rewriteEtags=false,metadataLibrary=false,initialReviewers=null,plain=false,detailDelay=0,savedSession=null}={}) {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html, {url:'http://localhost/', runScripts:'outside-only', pretendToBeVisual:true});
   const {window} = dom;
+  if(savedSession)window.localStorage.setItem('rev-quiz-session-v1',JSON.stringify(savedSession));
   if(plain){window.localStorage.setItem('rev-plain-mode','true');window.document.documentElement.classList.add('plain-mode');}
   window.libraryRequests=[];window.libraryWrites=[];
   if(reviewerStorageFull){
@@ -275,20 +276,17 @@ test('pixel lava backdrop exists behind the app without pointer tracking', () =>
   dom.window.close();
 });
 
-test('motion stays visible on desktop and can be reduced or follow the device', () => {
+test('motion follows the device by default and permits explicit overrides', () => {
   const dom=openApp(),{document,localStorage}=dom.window;
   const toggle=document.querySelector('#motion-toggle');
+  assert.equal(document.documentElement.classList.contains('motion-reduced'),true);
+  assert.match(toggle.getAttribute('aria-label'),/Auto/);
+  toggle.click();assert.equal(localStorage.getItem('rev-motion'),'on');
   assert.equal(document.documentElement.classList.contains('motion-reduced'),false);
-  assert.equal(document.querySelector('#motion-toggle').getAttribute('aria-checked'),'true');
-  toggle.click();
-  assert.equal(localStorage.getItem('rev-motion'),'off');
-  assert.ok(document.documentElement.classList.contains('motion-reduced'));
-  toggle.click();
-  assert.equal(localStorage.getItem('rev-motion'),'auto');
-  assert.ok(document.documentElement.classList.contains('motion-reduced'));
-  toggle.click();
-  assert.equal(localStorage.getItem('rev-motion'),'on');
-  assert.equal(document.documentElement.classList.contains('motion-reduced'),false);
+  toggle.click();assert.equal(localStorage.getItem('rev-motion'),'off');
+  assert.equal(document.documentElement.classList.contains('motion-reduced'),true);
+  toggle.click();assert.equal(localStorage.getItem('rev-motion'),'auto');
+  assert.equal(document.documentElement.classList.contains('motion-reduced'),true);
   dom.window.close();
 });
 
@@ -772,5 +770,74 @@ test('clearing device data cannot turn the next import into shared-library delet
     assert.equal(dom.window.libraryWrites.at(-1).length,1);
     assert.ok(dom.window.libraryWrites.at(-1).every(change=>change.reviewer!==null));
     assert.ok(document.querySelector('[data-reviewer="one"]'));assert.ok(document.querySelector('[data-reviewer="two"]'));
+  }finally{dom.window.close();}
+});
+
+test('sessions reconcile reordered questions and discard answers to changed questions',async()=>{
+  const original=smallReviewer('identity');
+  const first=openApp({metadataLibrary:true,initialReviewers:[original]});
+  let saved;
+  try{
+    await settle();first.window.document.querySelector('[data-reviewer]').click();await settle();first.window.document.querySelector('#start-quiz').click();
+    first.window.document.querySelector('[data-option="0"]').click();first.window.document.querySelector('#next-question').click();
+    saved=JSON.parse(first.window.localStorage.getItem('rev-quiz-session-v1'));
+  }finally{first.window.close();}
+  const reordered={...original,updatedAt:2,questions:[original.questions[1],original.questions[0]]};
+  const second=openApp({metadataLibrary:true,initialReviewers:[reordered],savedSession:saved});
+  try{
+    await settle();const restored=JSON.parse(second.window.localStorage.getItem('rev-quiz-session-v1'));
+    assert.deepEqual(restored.answers['1'],[0]);assert.equal(restored.answers['0'],undefined);
+  }finally{second.window.close();}
+  const changed={...original,updatedAt:3,questions:original.questions.map(q=>({...q,text:'Replacement '+q.text}))};
+  const third=openApp({metadataLibrary:true,initialReviewers:[changed],savedSession:saved});
+  try{await settle();assert.equal(third.window.document.querySelector('.feedback-area .feedback.good'),null);assert.equal(third.window.localStorage.getItem('rev-quiz-session-v1'),null);}finally{third.window.close();}
+});
+
+test('undo restores partial credit and cannot carry answers into a new attempt',async()=>{
+  const reviewer={id:'undo',title:'Undo',questions:[{text:'Pick two',options:['A','B','C'],correctAnswers:[0,1]},{text:'Pick B',options:['A','B'],correctAnswers:[1]}]};
+  const dom=openApp({metadataLibrary:true,initialReviewers:[reviewer]}),{document:d}=dom.window;
+  try{
+    await settle();d.querySelector('[data-reviewer]').click();await settle();d.querySelector('#start-quiz').click();d.querySelector('[data-option="0"]').click();d.querySelector('#next-question').click();d.querySelector('#undo-answer').click();d.querySelector('#show-answer').click();d.querySelector('#next-question').click();d.querySelector('#next-question').click();d.querySelector('#finish-now').click();
+    assert.match(d.querySelector('.result-score').textContent,/0\s*\/\s*3/);
+    d.querySelector('#retry-quiz').click();assert.equal(d.querySelector('#undo-answer').disabled,true);
+  }finally{dom.window.close();}
+});
+
+test('simple exam submissions lock answers and remain scored after their deadline',async()=>{
+  const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[smallReviewer('locked')]}),{document:d,localStorage}=dom.window;
+  try{
+    await settle();d.querySelector('[data-reviewer]').click();await settle();d.querySelector('#plain-session-mode').value='exam';d.querySelector('#start-quiz').click();
+    const card=d.querySelector('[data-plain-question="0"]');card.querySelector('[data-option="0"]').click();
+    const before=JSON.parse(localStorage.getItem('rev-quiz-session-v1'));
+    assert.equal(card.querySelector('[data-option="1"]').disabled,true);
+    dom.window.Date.now=()=>before.questionStarted+60_000;
+    card.querySelector('[data-option="1"]').click();
+    assert.deepEqual(JSON.parse(localStorage.getItem('rev-quiz-session-v1')).results,before.results);
+    assert.deepEqual(JSON.parse(localStorage.getItem('rev-quiz-session-v1')).answers,before.answers);
+    d.querySelector('#plain-mode-toggle').click();await settle();
+    assert.equal(d.querySelector('[data-option="1"]').disabled,true,'normal layout also respects the submitted exam answer');
+  }finally{dom.window.close();}
+});
+
+test('simple typing batches storage writes and flushes pending answers on pagehide',async()=>{
+  const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[{id:'typing',title:'Typing',questions:[{text:'Name it',options:[],answer:'hello'}]}]}),{document:d,localStorage}=dom.window;
+  try{
+    await settle();d.querySelector('[data-reviewer]').click();await settle();d.querySelector('#start-quiz').click();
+    const setItem=dom.window.Storage.prototype.setItem;let writes=0;
+    dom.window.Storage.prototype.setItem=function(key,value){if(key==='rev-quiz-session-v1')writes++;return setItem.call(this,key,value);};
+    const field=d.querySelector('[data-short-answer]');
+    for(const value of ['h','he','hel','hell','hello']){field.value=value;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));}
+    assert.equal(writes,0,'typing does not serialize the session per keystroke');
+    dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+    assert.equal(writes,1);assert.deepEqual(JSON.parse(localStorage.getItem('rev-quiz-session-v1')).answers['0'],['hello']);
+  }finally{dom.window.close();}
+});
+
+test('normal exam cannot undo a submitted answer from the next question',async()=>{
+  const dom=openApp({plain:true,metadataLibrary:true,initialReviewers:[smallReviewer('exam-undo')]}),{document:d}=dom.window;
+  try{
+    await settle();d.querySelector('[data-reviewer]').click();await settle();d.querySelector('#plain-session-mode').value='exam';d.querySelector('#start-quiz').click();
+    d.querySelector('#plain-mode-toggle').click();await settle();d.querySelector('[data-option="0"]').click();d.querySelector('#next-question').click();
+    assert.equal(d.querySelector('#undo-answer').disabled,true,'exam submissions cannot be rolled back from another question');
   }finally{dom.window.close();}
 });

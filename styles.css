@@ -555,3 +555,32 @@ html.motion-reduced .lava-blob{animation:none!important;will-change:auto;transfo
 .reviewer-summary{padding:clamp(20px,3vw,32px);border:1px solid var(--line);border-radius:16px;background:var(--surface)}.reviewer-summary h1{margin:0;font-size:clamp(24px,3vw,36px);line-height:1.3;overflow-wrap:anywhere}.reviewer-facts{display:flex;flex-wrap:wrap;align-items:center;gap:8px 24px;margin:14px 0 0;font-size:14px;color:var(--muted)}.reviewer-facts .sync-status{margin:0;font:inherit;color:inherit}.reviewer-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}.reviewer-actions button{min-height:44px}.section-heading h2{margin-top:0}.study-set-option{min-height:56px}
 @media(max-width:480px){.reviewer-actions button{flex:1}.reviewer-summary{padding:20px}.library-overview{padding:12px 4px}}
 @media(max-width:760px){body.mobile-nav:not(.is-studying) .main-area{padding-top:64px}}
+
+/* Keep mobile study space focused on the prompt, exhibit and answers. */
+@media(max-width:760px){
+  .is-studying .main-panel{padding:14px 12px}
+  .is-studying .study-head{position:relative;z-index:15;padding:10px 12px;margin-bottom:12px;gap:8px;align-items:center}
+  .is-studying .study-head .study-label{min-width:0;flex:1}
+  .is-studying .study-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .is-studying .study-controls{position:relative;gap:6px;flex-shrink:0}
+  .is-studying .study-controls>button{min-width:44px;min-height:44px}
+  .is-studying .question-deck{margin-top:12px;margin-bottom:12px;padding-top:6px;padding-bottom:7px}
+  .is-studying .progress-row{margin:10px 0 14px}
+  .is-studying .question-card{padding:16px;border-radius:14px;margin-bottom:16px}
+  .is-studying .question-card-top{margin-bottom:10px;min-height:0}
+  .is-studying .question-text{font-size:19px;line-height:1.45;letter-spacing:-.01em}
+  .is-studying .question-footer{position:sticky;bottom:0;z-index:5;margin-top:14px;padding:10px 0 max(10px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--line);gap:6px}
+  .is-studying .question-footer .nav-buttons{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:8px}
+  .is-studying .question-footer .nav-buttons button{width:100%}
+  .is-studying .feedback-area:empty{min-height:0;display:none}
+  .study-tools-menu{position:static}
+  .study-tools-menu>summary{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;list-style:none}
+  .study-tools-menu>summary::-webkit-details-marker{display:none}
+  .study-tools-menu>summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .study-tools-menu[open]>summary{border-color:var(--accent)}
+  .study-tools-items{position:absolute;top:calc(100% + 8px);right:0;z-index:30;display:grid;grid-template-columns:1fr 1fr;gap:6px;width:min(280px,calc(100vw - 72px));padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:0 12px 30px #0003}
+  .study-tools-items button,.study-tools-items .icon-only-control{display:flex;align-items:center;justify-content:flex-start;gap:7px;min-width:0;width:100%;height:auto;min-height:44px;padding:8px;border:1px solid var(--line);border-radius:6px;font-size:12px;white-space:normal;text-align:left}
+  .study-tools-items .mobile-tool-label{display:inline;line-height:1.3}
+  .study-tools-items .icon-only-control::before,.study-tools-items .icon-only-control::after{display:none}
+  .study-tools-items svg{flex-shrink:0;width:18px;height:18px}
+}

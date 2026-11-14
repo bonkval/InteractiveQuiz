@@ -104,6 +104,7 @@ Return only the questions in this format, ready to import into Rev.`;
         ? '<path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none"/>'
         : '<path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12"/>';
     button.innerHTML = `<svg class="control-icon" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`;
+    if(button.closest('.study-tools-menu')){const text=document.createElement('span');text.className='mobile-tool-label';text.textContent=label;button.append(text);}
     button.setAttribute('aria-label', label);
     button.dataset.tooltip = label;
     button.setAttribute('aria-pressed', String(audioStatus !== 'idle'));
@@ -339,12 +340,38 @@ Return only the questions in this format, ready to import into Rev.`;
       render();return false;
     }
   }
-  function clearSession() { try { localStorage.removeItem(scopedKey(SESSION_KEY)); } catch {} }
+  let sessionSaveTimer=null;
+  const sessionIdentities=new WeakMap();
+  let plainChecked=new Set();
+  function questionIdentities(reviewer) {
+    if(sessionIdentities.has(reviewer))return sessionIdentities.get(reviewer);
+    const occurrences=new Map();
+    const keys=reviewer.questions.map(q=>{
+      // Content identity survives reordering and renumbering, but changes when
+      // wording, choices, exhibits or grading evidence change.
+      const imageKey=source=>{
+        try{const url=new URL(source,location.href);return url.searchParams.get('asset')?.split('/').at(-1)||url.searchParams.get('media')||source;}catch{return source;}
+      };
+      const value=JSON.stringify([q.sourceReviewer,q.text,q.type,q.options,q.correctAnswers,q.answer,q.acceptedAnswers,q.statements,q.statementAnswers,q.matches,q.answerTiles,q.parts,
+        [...new Set([...(q.images||[]),q.image].filter(Boolean))].map(imageKey),q.imageRefs]);
+      let a=2166136261,b=5381;
+      for(let i=0;i<value.length;i++){a=Math.imul(a^value.charCodeAt(i),16777619);b=Math.imul(b,33)^value.charCodeAt(i);}
+      const hash=`${(a>>>0).toString(16)}-${(b>>>0).toString(16)}`,count=occurrences.get(hash)||0;
+      occurrences.set(hash,count+1);return `${hash}-${count}`;
+    });
+    sessionIdentities.set(reviewer,keys);return keys;
+  }
+  function scheduleSessionSave() {
+    clearTimeout(sessionSaveTimer);sessionSaveTimer=setTimeout(saveSession,200);
+  }
+  function clearSession() { clearTimeout(sessionSaveTimer);sessionSaveTimer=null;try { localStorage.removeItem(scopedKey(SESSION_KEY)); } catch {} }
   function saveSession() {
+    clearTimeout(sessionSaveTimer);sessionSaveTimer=null;
     if (!currentReviewer() || !['study', 'retry-prompt', 'results'].includes(state.screen)) return;
     try {
       localStorage.setItem(scopedKey(SESSION_KEY), JSON.stringify({
-        reviewerId: state.activeId, screen: state.screen, order: state.order, sessionIds: state.sessionIds,
+        reviewerId: state.activeId, reviewerRevision:currentReviewer().reviewerRevision||null, questionKeys:questionIdentities(currentReviewer()),
+        screen: state.screen, order: state.order, sessionIds: state.sessionIds,
         position: state.position, answers: state.answers, results: state.results, statementPoints:state.statementPoints || {},
         revealed: [...state.revealed], unknown: [...state.unknown], retry: state.retry, mode: state.mode,
         mixedIds: state.sessionReviewer?.sourceIds || null, explanationsVisible:state.explanationsVisible,
@@ -361,6 +388,28 @@ Return only the questions in this format, ready to import into Rev.`;
       const saved = JSON.parse(get(scopedKey(SESSION_KEY), 'null'));
       const sources = Array.isArray(saved?.mixedIds) ? saved.mixedIds.map(id=>state.reviewers.find(item=>item.id===id)).filter(Boolean) : [];
       const reviewer = state.reviewers.find(item => item.id === saved?.reviewerId) || (sources.length ? {id:saved.reviewerId,title:'Mixed review',sourceIds:sources.map(item=>item.id),questions:sources.flatMap(item=>item.questions.map(question=>({...question,sourceReviewer:item.title})))} : null);
+      if(!reviewer&&state.sharedLibraryStatus==='loading')return;
+      if(reviewer?._unloaded)return;
+      if(saved&&reviewer){
+        // Older sessions have no trustworthy mapping from positions to content.
+        if(!Array.isArray(saved.questionKeys)){state.screen='home';state.activeId=reviewer.sourceIds?.[0]||reviewer.id;clearSession();toast('Start a new quiz to use the updated progress format.');return;}
+        const keys=questionIdentities(reviewer),byKey=new Map(keys.map((key,index)=>[key,index]));
+        const remap=id=>Number.isInteger(id)?byKey.get(saved.questionKeys[id]):undefined;
+        const remapList=list=>Array.isArray(list)?list.map(remap).filter(Number.isInteger):[];
+        const oldCurrent=saved.order?.[saved.position||0],current=remap(oldCurrent);
+        for(const name of ['answers','results','statementPoints','plainTimers']){
+          saved[name]=Object.fromEntries(Object.entries(saved[name]||{}).flatMap(([id,value])=>{
+            const next=remap(Number(id));return Number.isInteger(next)?[[next,value]]:[];
+          }));
+        }
+        const oldOrder=saved.order||[];
+        for(const name of ['order','sessionIds','revealed','unknown'])saved[name]=remapList(saved[name]);
+        saved.position=Math.max(0,saved.order.indexOf(current));
+        saved.timerQuestionId=remap(saved.timerQuestionId);
+        saved.questionKeys=keys;
+        if(!saved.order.length){state.screen='home';state.activeId=reviewer.sourceIds?.[0]||reviewer.id;clearSession();toast('This reviewer changed. Start a new quiz to use the updated questions.');return;}
+        if(oldOrder.length!==saved.order.length)toast('Reviewer updated. Progress was restored for unchanged questions.');
+      }
       if (reviewer && !state.reviewers.some(item=>item.id===reviewer.id)) state.sessionReviewer=reviewer;
       const order = Array.isArray(saved?.order) ? saved.order.filter(i => Number.isInteger(i) && i >= 0 && i < (reviewer?.questions.length || 0)) : [];
       if(!reviewer&&state.sharedLibraryStatus==='loading')return;
@@ -449,6 +498,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const localReviewers=state.reviewers;
     state.user = user || null; state.sessionReviewer = null;
     document.body.classList.toggle('owner-session',Boolean(user));
+    state.lastAction=null;
     state.activeId = null; state.screen = 'home'; state.order = []; state.sessionIds = []; state.position = 0;
     state.answers = {}; state.results = {}; state.revealed.clear(); state.unknown.clear();
     state.retry = false; clearHash(); load({restore:!state.sharedLibraryInitialized});
@@ -504,7 +554,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#mobile-nav-toggle').setAttribute('aria-expanded', String(open));
     $('#mobile-nav-toggle').setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
     $('#nav-scrim').hidden = !open;
-    if (open) $('#new-reviewer').focus();
+    if (open) $('#reviewer-search').focus();
     else if (wasOpen && document.body.classList.contains('mobile-nav')) $('#mobile-nav-toggle').focus();
   }
   function renderLibrary() {
@@ -737,7 +787,7 @@ Return only the questions in this format, ready to import into Rev.`;
     if (count > 0) state.order = state.order.slice(0, count);
     state.sessionIds = [...state.order];
     if (shuffle) shuffleInPlace(state.order);
-    state.position = 0; state.answers = {}; state.results = {}; state.statementPoints={}; state.revealed.clear(); state.unknown.clear();
+    state.position = 0; state.answers = {}; state.results = {}; state.statementPoints={}; state.lastAction=null; state.revealed.clear(); state.unknown.clear();
     state.retry = false; state.mode = mode; state.plainTimers={}; state.timerQuestionId = null; state.timerQuestionKey = null; state.questionStarted = 0; state.screen = 'study'; clearSession(); render();
   }
   function shuffleInPlace(values) {
@@ -761,6 +811,44 @@ Return only the questions in this format, ready to import into Rev.`;
     if(q.type==='grouped-boolean')return q.statementAnswers.map((answer,i)=>`${i+1}. ${answer}`).join(' · ');
     if(q.type==='multi-text')return q.parts.map(item=>`${item.prompt}: ${item.answer}`).join(' · ');
     return q.correctAnswers.length?q.correctAnswers.map(i=>q.options[i]).join(', '):q.answer;
+  }
+  function installExhibitZoom(root) {
+    root.querySelectorAll('.question-image').forEach((image,index)=>{
+      if(image.parentElement.classList.contains('exhibit-open'))return;
+      const button=document.createElement('button');button.type='button';button.className='exhibit-open';
+      button.setAttribute('aria-label',`Enlarge exhibit ${index+1}`);
+      const frame=document.createElement('div');frame.className='exhibit-frame';image.before(frame);frame.append(button);button.append(image);
+      button.onclick=()=>{
+        const dialog=$('#exhibit-dialog'),full=$('#exhibit-full-image'),viewport=$('.exhibit-viewport');
+        let scale=1;
+        const draw=()=>{
+          const fit=Math.min(1,(viewport.clientWidth||window.innerWidth-64)/(image.naturalWidth||800),Math.max(100,window.innerHeight-200)/(image.naturalHeight||600));
+          full.style.width=`${Math.round((image.naturalWidth||800)*fit*scale)}px`;
+          $('#exhibit-zoom-level').textContent=`${Math.round(scale*100)}%`;
+          $('#exhibit-zoom-out').disabled=scale<=1;$('#exhibit-zoom-in').disabled=scale>=4;
+        };
+        full.src=image.currentSrc||image.src;full.alt=image.alt;
+        $('#exhibit-zoom-in').onclick=()=>{scale=Math.min(4,scale+.5);draw();};
+        $('#exhibit-zoom-out').onclick=()=>{scale=Math.max(1,scale-.5);draw();};
+        $('#exhibit-zoom-reset').onclick=()=>{scale=1;draw();viewport.scrollTop=viewport.scrollLeft=0;};
+        dialog.showModal();draw();viewport.scrollTop=viewport.scrollLeft=0;
+      };
+    });
+  }
+  function compactMobileTools() {
+    if(!window.matchMedia('(max-width:760px)').matches)return;
+    const controls=$('.study-controls'),menu=document.createElement('details');menu.className='study-tools-menu';
+    const summary=document.createElement('summary');summary.textContent='Tools';menu.append(summary);
+    const items=document.createElement('div');items.className='study-tools-items';menu.append(items);
+    for(const selector of ['#shuffle-questions','#print-review','#read-question','#stop-reading','#flag-question','#copy-question','#download-exhibits','#show-answer','#dont-know','#undo-answer']){
+      const button=$(selector);if(!button)continue;
+      if(button.classList.contains('icon-only-control')){
+        const label=document.createElement('span');label.className='mobile-tool-label';label.textContent=button.getAttribute('aria-label');button.append(label);
+      }
+      items.append(button);
+    }
+    $('.question-card-actions')?.remove();controls.prepend(menu);
+    menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.stopPropagation();menu.open=false;summary.focus();}});
   }
   function plainQuestionMarkup(q,id,position,total) {
     const first=q.type==='grouped-boolean'?q.statements[0]:'',start=first?q.text.indexOf(first):-1;
@@ -792,9 +880,10 @@ Return only the questions in this format, ready to import into Rev.`;
     }
   }
   function plainExpired(id) { return state.mode==='exam'&&state.plainTimers[id]&&Date.now()-state.plainTimers[id]>=30_000&&!Object.hasOwn(state.results,id); }
+  function examLocked(id) { return state.mode==='exam'&&(Object.hasOwn(state.results,id)||Boolean(plainExpired(id))); }
   function checkPlainQuestion(card) {
     const id=Number(card.dataset.plainQuestion),q=currentReviewer().questions[id];
-    if(plainExpired(id))return;
+    if(examLocked(id))return;
     activatePlainQuestion(card);
     if(!(state.answers[id]||[]).some(value=>String(value??'').trim())){
       $('.feedback-area',card).textContent='Choose or enter an answer first.';return;
@@ -803,11 +892,13 @@ Return only the questions in this format, ready to import into Rev.`;
     // Practice remains unscored in the summary, but still gives immediate feedback.
     if(state.mode==='practice'&&isQuestionKeyed(q))state.results[id]=isAnswerCorrect(q,state.answers[id]);
     if(state.mode==='exam'&&state.timerQuestionId===id)state.timerExpired=true;
-    paintPlainQuestion(card);updatePlainProgress();saveSession();
+    paintPlainQuestion(card);updatePlainProgress(id);saveSession();
   }
-  function updatePlainProgress() {
+  function updatePlainProgress(id) {
+    if(Number.isInteger(id)){if(Object.hasOwn(state.results,id))plainChecked.add(id);else plainChecked.delete(id);}
+    else plainChecked=new Set(state.order.filter(key=>Object.hasOwn(state.results,key)));
     const progress=$('.plain-scroll .progress-copy');
-    if(progress)progress.textContent=`${state.order.filter(id=>Object.hasOwn(state.results,id)).length} / ${state.order.length} checked`;
+    if(progress)progress.textContent=`${plainChecked.size} / ${state.order.length} checked`;
   }
   function paintPlainQuestion(card) {
     const id=Number(card.dataset.plainQuestion),q=currentReviewer().questions[id],answer=state.answers[id]||[];
@@ -838,7 +929,7 @@ Return only the questions in this format, ready to import into Rev.`;
     const feedback=$('.feedback-area',card);
     feedback.textContent=graded?(state.results[id]?'Correct':'Incorrect'):expired?"Time's up. Retry after finishing.":!isQuestionKeyed(q)&&answer.length?'Answer saved. No answer key was provided.':'';
     const check=$('[data-check-answer]',card);if(check)check.hidden=graded||Boolean(expired);
-    card.querySelectorAll('input,button').forEach(control=>{control.disabled=Boolean(expired);});
+    card.querySelectorAll('[data-option],[data-statement],[data-match-tile],[data-match-target],[data-part],[data-short-answer],[data-check-answer]').forEach(control=>{control.disabled=examLocked(id);});
   }
   function renderPlainQuiz() {
     clearInterval(examTicker);
@@ -853,21 +944,21 @@ Return only the questions in this format, ready to import into Rev.`;
       root=$('.plain-scroll');root.dataset.session=signature;
       const activeMatches=new Map();
       const changed=card=>{
-        const id=Number(card.dataset.plainQuestion);delete state.results[id];if(state.statementPoints)delete state.statementPoints[id];state.revealed.delete(id);state.unknown.delete(id);
-        paintPlainQuestion(card);updatePlainProgress();saveSession();
+        const id=Number(card.dataset.plainQuestion);delete state.results[id];delete state.statementPoints?.[id];state.revealed.delete(id);state.unknown.delete(id);
+        paintPlainQuestion(card);updatePlainProgress(id);scheduleSessionSave();
       };
       const placeMatch=(card,tile,index)=>{
         const id=Number(card.dataset.plainQuestion),q=reviewer.questions[id];
-        if(!q.answerTiles.includes(tile)||plainExpired(id))return;
+        if(!q.answerTiles.includes(tile)||examLocked(id))return;
         activatePlainQuestion(card);
         const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[index]=tile;state.answers[id]=answers;
         activeMatches.delete(id);card.querySelectorAll('[data-match-tile]').forEach(button=>{button.classList.remove('is-picked');button.setAttribute('aria-pressed','false');});changed(card);
       };
-      root.addEventListener('focusin',event=>{const card=event.target.closest('[data-plain-question]');if(card){activatePlainQuestion(card);saveSession();}});
+      root.addEventListener('focusin',event=>{const card=event.target.closest('[data-plain-question]');if(card){activatePlainQuestion(card);scheduleSessionSave();}});
       root.addEventListener('click',event=>{
         const card=event.target.closest('[data-plain-question]');if(!card)return;
         const id=Number(card.dataset.plainQuestion),q=reviewer.questions[id],button=event.target.closest('button');
-        if(!button||button.disabled||plainExpired(id))return;activatePlainQuestion(card);
+        if(!button||button.disabled||examLocked(id))return;activatePlainQuestion(card);
         if(button.hasAttribute('data-option')){
           const option=Number(button.dataset.option),previous=state.answers[id]||[];
           state.answers[id]=q.correctAnswers.length>1?(previous.includes(option)?previous.filter(i=>i!==option):[...previous,option]):[option];
@@ -880,7 +971,7 @@ Return only the questions in this format, ready to import into Rev.`;
         }else if(button.hasAttribute('data-match-target'))placeMatch(card,activeMatches.get(id),Number(button.dataset.matchTarget));
       });
       root.addEventListener('input',event=>{
-        const card=event.target.closest('[data-plain-question]');if(!card||plainExpired(Number(card.dataset.plainQuestion)))return;
+        const card=event.target.closest('[data-plain-question]');if(!card||examLocked(Number(card.dataset.plainQuestion)))return;
         const id=Number(card.dataset.plainQuestion);activatePlainQuestion(card);
         if(event.target.hasAttribute('data-part')){const answer=[...(state.answers[id]||[])];answer[Number(event.target.dataset.part)]=event.target.value;state.answers[id]=answer;}
         else if(event.target.hasAttribute('data-short-answer'))state.answers[id]=event.target.value?[event.target.value]:[];
@@ -898,9 +989,10 @@ Return only the questions in this format, ready to import into Rev.`;
         placeMatch(card,event.dataTransfer.getData('text/plain'),Number(target.dataset.matchTarget));
       });
       root.addEventListener('error',event=>{
-        const image=event.target;if(!image.matches?.('.question-image')||image.nextElementSibling?.classList.contains('exhibit-error'))return;
+        const image=event.target;if(!image.matches?.('.question-image'))return;
+        const anchor=image.closest('.exhibit-open')||image;if(anchor.nextElementSibling?.classList.contains('exhibit-error'))return;
         const error=document.createElement('div');error.className='exhibit-error';error.setAttribute('role','status');error.textContent='This question needs an exhibit that could not load. ';
-        const retry=document.createElement('button');retry.type='button';retry.textContent='Retry exhibit';retry.onclick=()=>{error.remove();const source=image.src;image.removeAttribute('src');image.src=source;};error.append(retry);image.after(error);
+        const retry=document.createElement('button');retry.type='button';retry.textContent='Retry exhibit';retry.onclick=()=>{error.remove();const source=image.src;image.removeAttribute('src');image.src=source;};error.append(retry);anchor.after(error);
       },true);
       $('#exit-quiz').onclick=()=>{leaveStudy();render();};
       $('#finish-plain-quiz').onclick=()=>{
@@ -916,6 +1008,7 @@ Return only the questions in this format, ready to import into Rev.`;
       };
       if(state.position>0)requestAnimationFrame(()=>document.getElementById(`plain-question-${state.order[state.position]}`)?.scrollIntoView({block:'start',behavior:'instant'}));
     }
+    installExhibitZoom(root);
     root.querySelectorAll('[data-plain-question]').forEach(paintPlainQuestion);updatePlainProgress();
     if(state.mode==='exam'){
       const active=state.order[state.position];
@@ -926,7 +1019,7 @@ Return only the questions in this format, ready to import into Rev.`;
         for(const [key,started] of Object.entries(state.plainTimers)){
           const id=Number(key),card=document.getElementById(`plain-question-${id}`);if(!card)continue;
           const checked=Object.hasOwn(state.results,id),remaining=Math.max(0,30-Math.floor((Date.now()-started)/1000));
-          if(!remaining&&!checked&&!state.unknown.has(id)){gradeQuestion(id,true);paintPlainQuestion(card);changed=true;}
+          if(!remaining&&!checked&&!state.unknown.has(id)){gradeQuestion(id,true);paintPlainQuestion(card);updatePlainProgress(id);changed=true;}
           const timer=$('[data-plain-timer]',card);if(timer)timer.textContent=checked?'Checked':`${remaining}s`;
         }
         const id=state.order[state.position],remaining=Math.max(0,30-Math.floor((Date.now()-(state.plainTimers[id]||Date.now()))/1000));
@@ -971,6 +1064,10 @@ Return only the questions in this format, ready to import into Rev.`;
     const statementStart = firstStatement ? q.text.indexOf(firstStatement) : -1;
     const questionPrompt = statementStart < 0 ? q.text : q.text.slice(0, statementStart).replace(/\s*\d+[.)]\s*$/, '').trim();
     if (state.timerQuestionId !== id || (state.timerQuestionKey && state.timerQuestionKey !== questionKey(q))) { state.timerQuestionId = id; state.timerQuestionKey = questionKey(q); state.questionStarted = Date.now(); state.timerExpired = false; }
+    if(state.mode==='exam'){
+      state.plainTimers[id] ||= state.questionStarted;
+      state.questionStarted=state.plainTimers[id];
+    }
     const deckKey=JSON.stringify([reviewer.id,state.order]);
     const existingDeck=!plainMode()&&$('.question-deck')?.dataset.key===deckKey?$('.question-deck'):null;
     const deck = plainMode()||existingDeck ? '' : state.order.map((key, position) => {
@@ -1012,13 +1109,14 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       <button class="secondary-button" id="undo-answer" ${state.lastAction ? '' : 'disabled'}>Undo</button>
       `}<button class="secondary-button" id="prev-question" aria-keyshortcuts="ArrowLeft" ${state.position ? '' : 'disabled'}>Back</button>
       <button class="primary-button" id="next-question" aria-keyshortcuts="Enter ArrowRight">${state.position === state.order.length - 1 ? 'Finish' : 'Next'}</button></div></div>`;
+    compactMobileTools();installExhibitZoom($('#main-panel'));
     document.querySelectorAll('.question-image').forEach(image=>image.onerror=()=>{
-      if(image.nextElementSibling?.classList.contains('exhibit-error'))return;
+      const anchor=image.closest('.exhibit-open')||image;if(anchor.nextElementSibling?.classList.contains('exhibit-error'))return;
       const error=document.createElement('div');error.className='exhibit-error';error.setAttribute('role','status');
       error.textContent='This question needs an exhibit that could not load. ';
       const retry=document.createElement('button');retry.type='button';retry.textContent='Retry exhibit';
       retry.onclick=()=>{error.remove();const src=image.src;image.removeAttribute('src');image.src=src;};
-      error.append(retry);image.after(error);
+      error.append(retry);anchor.after(error);
     });
     if(q.sourcePage) $('.question-number').append(document.createTextNode(` · Source page ${q.sourcePage}`));
     if (direction && !motionReduced()) {
@@ -1058,7 +1156,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       const current = state.answers[id] || [];
       const answer = multi ? (current.includes(option) ? current.filter(x => x !== option) : [...current, option]) : [option];
       state.answers[id] = answer;
-      delete state.results[id]; state.revealed.delete(id);
+      delete state.results[id];delete state.statementPoints?.[id]; state.revealed.delete(id);
       $('#main-panel').querySelectorAll('[data-option]').forEach(choice => {
         const isSelected = answer.includes(Number(choice.dataset.option));
         choice.classList.remove('correct', 'incorrect');
@@ -1071,13 +1169,13 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       saveSession();
     });
     $('#main-panel').querySelectorAll('[data-statement]').forEach(button=>button.onclick=()=>{
-      const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
+      const answers=[...(state.answers[id]||[])],index=Number(button.dataset.statement);answers[index]=button.dataset.value;state.answers[id]=answers;delete state.results[id];delete state.statementPoints?.[id];state.revealed.delete(id);
       $('#main-panel').querySelectorAll('[data-statement]').forEach(choice=>choice.classList.remove('correct','incorrect'));
       $('#main-panel').querySelectorAll(`[data-statement="${index}"]`).forEach(choice=>{const selectedAnswer=choice.dataset.value===button.dataset.value;choice.classList.toggle('selected',selectedAnswer);choice.setAttribute('aria-pressed',String(selectedAnswer));});button.closest('.statement-item').classList.add('is-answered');if(plainMode()&&state.mode!=='practice')$('#next-question').textContent='Check answer';const feedbackArea=$('.feedback-area');if(feedbackArea)feedbackArea.innerHTML='';syncCurrentCard(answers.filter(Boolean).length===q.statements.length);saveSession();
     });
     if(q.type==='matching'){
       let activeTile='';
-      const placeMatch=(targetIndex,tile)=>{if(!tile)return;const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[targetIndex]=tile;state.answers[id]=answers;delete state.results[id];state.revealed.delete(id);
+      const placeMatch=(targetIndex,tile)=>{if(!tile)return;const answers=[...(state.answers[id]||[])];while(answers.length<q.matches.length)answers.push('');answers[targetIndex]=tile;state.answers[id]=answers;delete state.results[id];delete state.statementPoints?.[id];state.revealed.delete(id);
         const target=$('[data-match-target="'+targetIndex+'"]');target.textContent=tile;target.classList.remove('is-correct','is-incorrect');
         $('.feedback-area').textContent='';$('.matching-feedback').textContent='Answer placed. Choose another answer or submit.';
         if(plainMode()&&isQuestionKeyed(q)&&state.mode!=='practice')$('#next-question').textContent='Check answer';
@@ -1095,7 +1193,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     $('#short-answer')?.addEventListener('input', e => {
       state.answers[id] = e.target.value ? [e.target.value] : [];
       state.revealed.delete(id);
-      delete state.results[id];
+      delete state.results[id];delete state.statementPoints?.[id];
       const feedbackArea = $('.feedback-area'); if (feedbackArea) feedbackArea.innerHTML = '';
       if(plainMode()&&isQuestionKeyed(q)&&state.mode!=='practice')$('#next-question').textContent='Check answer';
       syncCurrentCard(state.answers[id].length > 0);
@@ -1103,13 +1201,13 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     });
     $('#main-panel').querySelectorAll('[data-part]').forEach(field=>field.addEventListener('input',()=>{
       const answers=[...(state.answers[id]||[])];answers[Number(field.dataset.part)]=field.value;state.answers[id]=answers;
-      state.revealed.delete(id);delete state.results[id];$('.feedback-area').innerHTML='';if(plainMode()&&state.mode!=='practice')$('#next-question').textContent='Check answer';syncCurrentCard(answers.some(Boolean));saveSession();
+      state.revealed.delete(id);delete state.results[id];delete state.statementPoints?.[id];$('.feedback-area').innerHTML='';if(plainMode()&&state.mode!=='practice')$('#next-question').textContent='Check answer';syncCurrentCard(answers.some(Boolean));saveSession();
     }));
     if($('#show-answer'))$('#show-answer').onclick = () => {
       const answer = answerToFill(q);
       if (!answer) { $('.feedback-area').innerHTML = '<span class="feedback neutral">No answer key in this reviewer.</span>'; return; }
       state.answers[id] = answer;
-      delete state.results[id];
+      delete state.results[id];delete state.statementPoints?.[id];
       state.revealed.add(id);
       renderQuestion();
     };
@@ -1140,7 +1238,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     };
     if($('#stop-reading'))$('#stop-reading').onclick = stopAudio;
     if($('#print-review'))$('#print-review').onclick = () => printReviewer(reviewer);
-    if($('#undo-answer'))$('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
+    if($('#undo-answer'))$('#undo-answer').onclick = () => { const old=state.lastAction; if(!old) return; state.position=old.position;state.answers=old.answers;state.results=old.results;state.statementPoints=old.statementPoints;state.unknown=new Set(old.unknown);state.revealed=new Set(old.revealed);state.lastAction=null;renderQuestion('previous'); };
     if($('#flag-question'))$('#flag-question').onclick = () => toggleFlag(q);
     if($('#copy-question'))$('#copy-question').onclick = async () => {
       const copyText = [`Question ${q.sourceNumber}`, questionPrompt, ...(q.type === 'grouped-boolean' ? q.statements.map((statement,index)=>`${index+1}. ${statement}`) : q.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`)),
@@ -1174,8 +1272,9 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     clearInterval(examTicker);
     if (state.mode === 'exam') examTicker = setInterval(() => {
       const remaining = Math.max(0, 30 - Math.floor((Date.now() - state.questionStarted) / 1000));
-      const clock = $('#exam-clock'); if (clock) clock.textContent = `${remaining}s`;
-      if (!remaining && !state.timerExpired) { state.timerExpired = true; advance(true); }
+      const graded=Object.hasOwn(state.results,id);
+      const clock = $('#exam-clock'); if (clock) clock.textContent = graded?'Checked':`${remaining}s`;
+      if (!remaining && !state.timerExpired&&!graded) { state.timerExpired = true; advance(true); }
     }, 250);
     $('#prev-question').onclick = () => { state.position--; renderQuestion('previous'); };
     const checked=Object.hasOwn(state.results,id)||state.mode==='practice'||!isQuestionKeyed(q);
@@ -1198,16 +1297,19 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       const currentId = state.order[state.position]; shuffleInPlace(state.order);
       state.position = state.order.indexOf(currentId); renderQuestion();
     };
+    if(examLocked(id))$('#main-panel').querySelectorAll('[data-option],[data-statement],[data-match-tile],[data-match-target],[data-part],#short-answer,#show-answer,#undo-answer').forEach(control=>{control.disabled=true;});
     saveSession();
   }
   function gradeCurrentAnswer(dontKnow) { return gradeQuestion(state.order[state.position],dontKnow); }
   function gradeQuestion(id,dontKnow=false,persistHistory=true) {
+    if(state.mode==='exam'&&Object.hasOwn(state.results,id))return;
+    if(plainExpired(id))dontKnow=true;
     const question = currentReviewer().questions[id];
-    state.lastAction = {position:state.position, answers:{...state.answers}, results:{...state.results}, unknown:[...state.unknown], revealed:[...state.revealed]};
+    state.lastAction = plainMode()||state.mode==='exam'?null:{position:state.position, answers:{...state.answers}, results:{...state.results}, statementPoints:{...state.statementPoints}, unknown:[...state.unknown], revealed:[...state.revealed]};
     const answer = state.answers[id] || [];
     if (dontKnow || state.revealed.has(id)) {
       state.unknown.add(id);
-      delete state.results[id];
+      delete state.results[id];delete state.statementPoints?.[id];
     } else if (state.mode === 'practice') {
       if (answer.length) state.unknown.delete(id);
       else if (state.revealed.has(id)) state.unknown.add(id);
@@ -1222,10 +1324,10 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       if (state.results[id]) state.unknown.delete(id);
       else if (state.retry) state.unknown.add(id);
     } else if (state.revealed.has(id) && !answer.length) {
-      delete state.results[id];
+      delete state.results[id];delete state.statementPoints?.[id];
       state.unknown.add(id);
     } else if (answer.length) {
-      delete state.results[id];
+      delete state.results[id];delete state.statementPoints?.[id];
       state.unknown.delete(id);
     }
     if (dontKnow || state.unknown.has(id)) recordHistory(question, 'unknown',persistHistory);
@@ -1238,7 +1340,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
   }
   function leaveStudy() {
     clearInterval(examTicker);stopAudio();
-    clearSession();
+    clearSession();state.lastAction=null;
     state.screen = 'home';
     if (state.sessionReviewer?.id === state.activeId) {
       state.activeId = state.sessionReviewer.sourceIds?.[0] || null;
@@ -1253,6 +1355,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       <button class="secondary-button" id="finish-now">View results</button></div></div></div>`;
     $('#retry-unknown').onclick = () => {
       state.order = [...state.unknown].sort((a, b) => a - b);
+      if(state.mode==='exam')for(const id of state.order){delete state.results[id];delete state.statementPoints?.[id];}
       state.position = 0; state.plainTimers={};state.timerQuestionId=null;state.questionStarted=0; state.retry = true; state.screen = 'study'; renderQuestion('next');
     };
     $('#finish-now').onclick = () => { state.screen = 'results'; render(); };
@@ -1298,6 +1401,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     $('#retry-quiz').onclick = () => startQuiz(false, state.mode);
     $('#review-missed')?.addEventListener('click', () => {
       state.order = missed.map(result => result.i); state.position = 0;
+      if(state.mode==='exam')for(const id of state.order){delete state.results[id];delete state.statementPoints?.[id];}
       state.unknown = new Set(state.order); state.plainTimers={};state.timerQuestionId=null;state.questionStarted=0; state.retry = true; state.screen = 'study'; renderQuestion('next');
     });
     $('#main-panel').querySelectorAll('[data-result-jump]').forEach(b => b.onclick = () => {
@@ -1613,7 +1717,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
         setMobileNav(false); return;
       }
       if (document.body.classList.contains('mobile-nav-open')) return;
-      if (state.screen !== 'study' || $('#import-dialog').open || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (state.screen !== 'study' || document.querySelector('dialog[open]') || event.target.closest('summary') || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
       if(plainMode()){
         const card=target.closest('[data-plain-question]')||document.getElementById(`plain-question-${state.order[state.position]}`);
@@ -1656,6 +1760,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     });
   }
   function initialize() {
+    document.addEventListener('click',event=>{document.querySelectorAll('.study-tools-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;});});
     const normalSettings=$('.sidebar-settings');
     const plainHeader=$('#plain-header');
     const updatePlainHeaderHeight=()=>{
@@ -1698,10 +1803,14 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     };
     load();
     const mobileLayout = window.matchMedia('(max-width:760px)');
+    let sidebarLayoutReady=false;
     const applySidebarLayout = () => {
+      const changed=document.body.classList.contains('mobile-nav')!==mobileLayout.matches;
       document.body.classList.toggle('mobile-nav', mobileLayout.matches);
       document.body.classList.toggle('sidebar-collapsed', !mobileLayout.matches && get('rev-sidebar-open') === 'false');
       if (!mobileLayout.matches) setMobileNav(false);
+      if(sidebarLayoutReady&&changed&&state.screen==='study'&&!plainMode())renderQuestion();
+      sidebarLayoutReady=true;
     };
     applySidebarLayout();
     mobileLayout.addEventListener?.('change', applySidebarLayout);
@@ -1718,7 +1827,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     setThemeAppearance(document.body.classList.contains('dark'));
     const systemMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
     const applyMotionPreference=()=>{
-      const choice=get('rev-motion','on');
+      const choice=get('rev-motion','auto');
       const reduced=choice==='off'||(choice==='auto'&&systemMotion.matches);
       document.documentElement.classList.toggle('motion-reduced',reduced);
       const motionLabel=choice==='auto'?`Motion: Auto, currently ${reduced?'off':'on'}. Click to change.`:`Motion: ${reduced?'Off':'On'}. Click to turn ${reduced?'on':'off'}.`;
@@ -1733,7 +1842,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     applyMotionPreference();
     systemMotion.addEventListener?.('change',applyMotionPreference);
     $('#motion-toggle').onclick=()=>{
-      const choice=get('rev-motion','on');
+      const choice=get('rev-motion','auto');
       put('rev-motion',choice==='on'?'off':choice==='off'?'auto':'on');
       applyMotionPreference();
     };

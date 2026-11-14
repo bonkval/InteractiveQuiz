@@ -1,5 +1,25 @@
 # Faster loading and Plain mode
 
+## Review fixes and storage lifecycle
+
+Saved sessions now record the reviewer revision and compact content identities for each question. Reordering or renumbering questions preserves answers for unchanged content; changes to wording, choices, exhibits or answer evidence discard the affected progress. Sessions from the older format cannot be mapped safely and reset with an explanation. Mixed-review sessions use the same reconciliation. Undo restores partial credit together with answers and results, and a new attempt clears the undo history.
+
+Submitted Exam answers lock in both layouts. Each question retains its deadline when revisited or when switching layouts, and grading checks the deadline before accepting an answer. Simple-mode typing and focus changes batch session persistence into a 200 ms debounce; checking an answer, changing layouts, hiding the page and leaving flush immediately. Checked-question progress updates incrementally, and Simple mode does not copy undo snapshots on every grade.
+
+New reviewer saves extract raster exhibits into immutable private blobs under `revvy/media/<version>/<content-hash>`. Each version has a unique namespace, so concurrent saves never adopt another version's files. Requests using `asset` read only that image blob and can use the browser cache. Existing inline reviewers and the original version-pinned `media` URLs remain supported. Existing content moves to separate image storage on its next save; reads do not migrate data. Raw downloads, exports, backups and older clients still receive inline image data.
+
+After a successful conditional index write, storage cleanup deletes unreferenced reviewer and image blobs older than 24 hours. The index records live image version prefixes, keeping the catalog small even for reviewers with many exhibits. Each save scans up to 1,000 blobs and persists a continuation cursor, so subsequent saves cover larger stores. Active blobs, the original legacy library and recent uploads are protected. Failed writes leave recent uploads for a later sweep. Cleanup failures do not report committed saves as failed; cleanup retries on subsequent scan cycles. This is save-triggered maintenance, not a background schedule.
+
+Deletion records are retained only where needed to hide a reviewer in the legacy library. Historical indexes beyond the former 1,000-entry cap can be read and compacted on the next save. The 300-active-reviewer limit is checked before uploads.
+
+Mobile normal mode groups secondary actions into an accessible Tools menu and reduces spacing around the quiz. Exhibits open in a native modal with zoom, scrolling, keyboard dismissal and focus restoration in either layout. Quiz shortcuts are suspended while a modal is open. Mobile navigation focuses the visible reviewer search field, and the default motion setting follows the device preference.
+
+Dependency updates include Vercel Blob 2.9, patched Undici and Vite versions, and a scoped Zod 4 override because `@vercel/cli-config` pins an affected Zod version. Keep the override until the parent dependency adopts a patched version. `npm audit` and `npm audit --omit=dev` report no known vulnerabilities for the updated lockfile.
+
+Regression coverage exercises reordered and replaced questions, partial-credit undo, submitted exam locks, batched typing saves, deletion churn, direct image reads, portable exports, active-file protection, failed cleanup and paginated cleanup. Browser coverage also checks exhibit zoom, modal shortcut isolation, focus return and mobile menu bounds.
+
+## Simple mode
+
 Plain mode (Simple mode) is a device preference next to the theme controls. It shares the existing quiz state and grading rules. Light theme uses white; dark theme uses black. All questions appear in a single scrollable document, with no Back/Next pagination. Each question keeps its own answer, exhibits, feedback and explanation. Selecting Plain mode or returning to the normal layout preserves answers, progress and the current question.
 
 Plain mode disables the normal stylesheet while active, including when entering from an already-loaded normal session. This prevents the normal flex layout and tinted surfaces from leaking into the plain layout. Its chrome uses only `#000` and `#fff`. After checking, the entire correct choice fills green (`#15803d`) and a selected wrong choice fills red (`#b91c1c`), with white text and explicit Correct/Incorrect labels. Original source exhibits keep their image colors. Desktop screens at 1024 px and above use a centered workspace up to 1280 px wide with two answer columns per question. Phones and tablets use a single-column flow with compact controls.
