@@ -4,11 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f5f7">
-  <meta name="description" content="Your reviewers, quizzes, and saved answers.">
+  <meta name="description" content="Learn your courses with clear explanations, examples, and interactive review.">
   <link rel="icon" type="image/svg+xml" href="/revvy-pixel.svg?v=1">
   <title>Revvy</title>
   <script>try{const choice=localStorage.getItem('rev-motion')||'auto';if(choice==='off'||(choice==='auto'&&matchMedia('(prefers-reduced-motion: reduce)').matches))document.documentElement.classList.add('motion-reduced')}catch{}</script>
   <link rel="stylesheet" href="base.css">
+  <link rel="stylesheet" href="course.css">
   <script>try{document.documentElement.classList.toggle("plain-mode",localStorage.getItem("rev-plain-mode")==="true");document.documentElement.classList.toggle("dark",localStorage.getItem("rev-theme")==="dark");}catch{}</script>
 </head>
 <body>
@@ -21,6 +22,7 @@
   <aside class="sidebar" id="sidebar" aria-label="Reviewers and settings">
     <div class="sidebar-brand-row"><a class="sidebar-brand brand-home" href="#easter-egg" aria-label="Rev by Ced Vales, version __APP_VERSION__"><span class="brand-name">Rev</span></a><span class="brand-meta" aria-label="Created by Ced Vales, app version __APP_VERSION__"><span class="brand-credit">by Ced Vales</span><span class="brand-version">v__APP_VERSION__</span></span></div>
     <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Collapse navigation" title="Collapse navigation"><svg class="ui-icon toggle-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5-7 7 7 7M7 12h14"/></svg><span class="toggle-label">Collapse sidebar</span></button>
+    <a class="reviewer-item" id="courses-link" href="#courses"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h6l3 2 3-2h6v15h-6l-3 2-3-2H3zM12 6v15"/></svg><span class="reviewer-copy"><span class="reviewer-title">My courses</span></span></a>
     <div class="side-heading"><span class="side-heading-label">REVIEWERS</span><button class="text-button owner-only" id="new-reviewer" aria-label="Add reviewer" title="Add reviewer">+ <span class="toggle-label">New</span></button></div>
     <div class="reviewer-tools"><label class="sr-only" for="reviewer-search">Search reviewers</label><input id="reviewer-search" type="search" placeholder="Search reviewers" autocomplete="off"><label class="sr-only" for="reviewer-sort">Sort reviewers</label><select id="reviewer-sort" aria-label="Sort reviewers"><option value="recent">Recently updated</option><option value="az">Name A–Z</option><option value="oldest">Oldest first</option></select></div>
     <div class="reviewer-list" id="reviewer-list"></div>
@@ -78,7 +80,7 @@
       });
       document.querySelector('link[rel="icon"]').href = 'public/revvy-pixel.svg?v=1';
       document.querySelectorAll('.boot-orbit img,.intro-figure img').forEach(image => { image.src = 'public/revvy-pixel.svg'; });
-      for (const path of ['reviewer-data.js', 'exhibit-alts.js', 'core.js', 'reviewer-client.js', 'study-app.js']) {
+      for (const path of ['course-app.js', 'reviewer-data.js', 'exhibit-alts.js', 'core.js', 'reviewer-client.js', 'study-app.js']) {
         document.write('<script src="' + path + '"><\/script>');
       }
     }

@@ -1,5 +1,6 @@
 import './core.js';
 import './reviewer-client.js';
+import './course-app.js';
 import normalStyles from './styles.css?url';
 
 let starterLoad, pdfLoad, styleLoad;

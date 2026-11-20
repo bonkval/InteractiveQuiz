@@ -1,0 +1,2261 @@
+{
+  "id": "it0204",
+  "code": "IT0204",
+  "title": "Cybersecurity and Privacy Laws",
+  "description": "Understand the laws, reason through real situations, and connect privacy with secure systems.",
+  "editorialNote": "Prepared from Modules 1–8 and their subtopic decks. Lessons explain the central concepts in plain language and add labeled teaching examples. They are a guided study companion, not a slide-by-slide transcript. Source clarifications identify selected outdated or simplified claims; original slides remain available for detailed reference.",
+  "version": 1,
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Module 1: Foundations",
+      "originalName": "Module 1 - Privacy Law and Regulation in the Phil.pptx.pdf",
+      "url": "/courses/it0204/sources/s1.pdf"
+    },
+    {
+      "id": "s2",
+      "title": "Module 2: Data protection",
+      "originalName": "Module 2 -Data Protection Regulations.pptx.pdf",
+      "url": "/courses/it0204/sources/s2.pdf"
+    },
+    {
+      "id": "s3",
+      "title": "Module 3: Incident response",
+      "originalName": "Module 3 - Incident Response and Breach Notification.pptx.pdf",
+      "url": "/courses/it0204/sources/s3.pdf"
+    },
+    {
+      "id": "s4",
+      "title": "Module 4: Philippine privacy law",
+      "originalName": "Module 4 - Privacy Laws and Regulations in the Philippines.pptx.pdf",
+      "url": "/courses/it0204/sources/s4.pdf"
+    },
+    {
+      "id": "s5",
+      "title": "Module 5: Compliance and standards",
+      "originalName": "Module 5 - Compliance Frameworks and Security Standards.pptx.pdf",
+      "url": "/courses/it0204/sources/s5.pdf"
+    },
+    {
+      "id": "s5b",
+      "title": "Module 5, subtopic 2: National frameworks",
+      "originalName": "Module 5 Subtopic 2 - Compliance Frameworks and Security Standards.pptx.pdf",
+      "url": "/courses/it0204/sources/s5b.pdf"
+    },
+    {
+      "id": "s5c",
+      "title": "Module 5, subtopic 3: Industry and governance",
+      "originalName": "Module 5 Subtopic 3 - Compliance Frameworks and Security Standards.pptx.pdf",
+      "url": "/courses/it0204/sources/s5c.pdf"
+    },
+    {
+      "id": "s5d",
+      "title": "Module 5, subtopic 5: Secure development and STRIDE",
+      "originalName": "Module 5  Subtopic 5- Compliance Frameworks and Security Standards.pptx.pdf",
+      "url": "/courses/it0204/sources/s5d.pdf"
+    },
+    {
+      "id": "s6",
+      "title": "Module 6: International legal aspects",
+      "originalName": "Module 6 -International Legal Aspects, Laws, and Regulation - Global Data Protection.pptx.pdf",
+      "url": "/courses/it0204/sources/s6.pdf"
+    },
+    {
+      "id": "s6a",
+      "title": "Module 6, subtopic 1: Global data protection",
+      "originalName": "Module 6 Subtopic 1 -International Legal Aspects, Laws, and Regulation - Global Data Protection.pptx.pdf",
+      "url": "/courses/it0204/sources/s6a.pdf"
+    },
+    {
+      "id": "s6b",
+      "title": "Module 6, subtopic 2: Coordinated incident response",
+      "originalName": "Module 6 Subtopic 2 -International Legal Aspects, Laws, and Regulation - Global Data Protection.pptx.pdf",
+      "url": "/courses/it0204/sources/s6b.pdf"
+    },
+    {
+      "id": "s7",
+      "title": "Module 7: Emerging technologies",
+      "originalName": "Module 7 - Legal and Ethical Considerations in Emerging Technologies.pptx.pdf",
+      "url": "/courses/it0204/sources/s7.pdf"
+    },
+    {
+      "id": "s8",
+      "title": "Module 8: Philippine context",
+      "originalName": "Module 8 - Key Issues in Cybersecurity The Philippine Context.pptx.pdf",
+      "url": "/courses/it0204/sources/s8.pdf"
+    }
+  ],
+  "modules": [
+    {
+      "id": "m1",
+      "title": "Foundations of cybersecurity and privacy",
+      "description": "Build the vocabulary, then connect protection of systems to protection of people.",
+      "lessons": [
+        {
+          "id": "m1-l1",
+          "title": "Cybersecurity and privacy: connected, but distinct",
+          "goal": "Explain why a secure system can still handle personal data unfairly.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s1",
+              "pages": [
+                5,
+                9
+              ]
+            }
+          ],
+          "essentials": [
+            "**Cybersecurity** protects systems and information against compromise.",
+            "**Privacy** concerns how personal information is collected, used, shared, and retained.",
+            "Good design addresses both from the beginning."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Two questions to ask",
+              "text": "Cybersecurity asks: can someone read, change, or disrupt something they should not? Privacy asks: should this information be collected or used this way at all? These questions overlap when personal data is exposed, but they are not interchangeable."
+            },
+            {
+              "type": "text",
+              "title": "Use the CIA triad",
+              "text": "**Confidentiality** limits who can see information. **Integrity** protects it against improper changes. **Availability** keeps it usable when needed. A privacy review adds questions about purpose, necessity, transparency, and the rights of the person represented by the data."
+            },
+            {
+              "type": "table",
+              "title": "Two lenses on the same student portal",
+              "headers": [
+                "Lens",
+                "Question",
+                "Example"
+              ],
+              "rows": [
+                [
+                  "Confidentiality",
+                  "Who can see it?",
+                  "Only authorized staff see grades."
+                ],
+                [
+                  "Integrity",
+                  "Can it be changed improperly?",
+                  "Grade edits require authorization."
+                ],
+                [
+                  "Availability",
+                  "Can people use it?",
+                  "Enrollment stays accessible."
+                ],
+                [
+                  "Privacy",
+                  "Is this handling appropriate?",
+                  "Collect only data needed for enrollment."
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A school encrypts its student database but reuses emergency contact numbers for unrelated advertising.",
+            "explanation": "Encryption supports confidentiality. It does not establish an appropriate purpose for advertising. Examine the use of the data as well as its technical protection."
+          },
+          "recall": {
+            "prompt": "How could a system have strong security and weak privacy?",
+            "answer": "It might strictly restrict access yet collect excessive personal details or reuse them for an unrelated purpose. Security controls do not automatically justify processing."
+          },
+          "check": {
+            "prompt": "Which action most directly addresses data minimization rather than access security?",
+            "options": [
+              "Turn on multi-factor authentication",
+              "Stop asking for an unnecessary home address",
+              "Restrict database administrator access"
+            ],
+            "correct": 1,
+            "explanation": "Removing an unnecessary field reduces the data collected. Authentication and access restrictions address who may enter or use the system."
+          }
+        },
+        {
+          "id": "m1-l2",
+          "title": "Why cyber laws developed",
+          "goal": "Connect historical incidents to the kinds of problems legal frameworks address.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s1",
+              "pages": [
+                12,
+                17
+              ]
+            }
+          ],
+          "essentials": [
+            "Technology can create harms that older legal rules did not clearly address.",
+            "Cyber incidents can affect **money, physical infrastructure, and public trust**.",
+            "Use a case study to identify a control failure and a legal issue."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Read cases as cause and effect",
+              "text": "The module uses the ILOVEYOU incident to discuss gaps in legal coverage, Stuxnet to show the physical effects of malicious software, and the Bangladesh Bank heist to connect cyber incidents with financial crime. The learning task is to explain what each case reveals, rather than memorize a list of dates."
+            },
+            {
+              "type": "text",
+              "title": "Separate prevention from accountability",
+              "text": "A technical safeguard can reduce the chance of an incident. A legal framework can define obligations, prohibited acts, enforcement powers, and consequences. A strong response needs people, processes, technology, and clear responsibility."
+            }
+          ],
+          "example": {
+            "situation": "A payment system blocks an unusual transfer, while investigators preserve records and determine which laws apply.",
+            "explanation": "The block is a preventive or detective control. Investigation and legal classification support accountability. Neither activity replaces the other."
+          },
+          "recall": {
+            "prompt": "What does a historical cyber incident teach beyond its date?",
+            "answer": "Identify the asset, the failure or gap, the harm, and the change in controls or governance that could reduce a similar risk."
+          },
+          "check": {
+            "prompt": "What is the best way to study the cases in this module?",
+            "options": [
+              "Memorize dates without connecting them to impacts",
+              "Assume every incident has the same cause",
+              "Identify the asset, failure, harm, and response"
+            ],
+            "correct": 2,
+            "explanation": "This structure makes the cases useful for analyzing a new situation. The module’s cases illustrate different technical and governance problems."
+          }
+        },
+        {
+          "id": "m1-l3",
+          "title": "Turn the definitions into a data lifecycle",
+          "goal": "Connect collection, use, retention, and disposal to concrete safeguards.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s1",
+              "pages": [
+                19,
+                26
+              ]
+            }
+          ],
+          "essentials": [
+            "**Personal data** can identify someone directly or indirectly.",
+            "**Retention** asks how long information is needed; secure disposal ends its lifecycle.",
+            "**Pseudonymization is not the same as anonymization**: a link to the person may remain."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Follow the information",
+              "text": "Instead of memorizing isolated terms, follow one record. A person submits it, an organization stores and uses it, a recipient may receive it, and eventually it is deleted or destroyed. At each stage, ask who can access it, what purpose permits the activity, and how long the information remains necessary."
+            },
+            {
+              "type": "text",
+              "title": "Give each tool a job",
+              "text": "Encryption makes information unreadable without the appropriate key. Access controls restrict permitted actions. Pseudonymization substitutes identifiers but may leave a way to reconnect the record to a person. An incident response plan tells the organization how to act when safeguards fail."
+            },
+            {
+              "type": "flow",
+              "title": "A record’s journey",
+              "steps": [
+                "Collect for a defined purpose",
+                "Store with appropriate safeguards",
+                "Use and share within that purpose and applicable rules",
+                "Review whether continued retention is justified",
+                "Dispose securely when no longer needed"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A research file replaces student names with codes, and a separate spreadsheet maps codes back to names.",
+            "explanation": "This is pseudonymization. Protect both the research data and the mapping; the ability to reconnect them means the records should not simply be treated as anonymous."
+          },
+          "recall": {
+            "prompt": "Why is keeping data securely forever still a problem?",
+            "answer": "Security addresses protection, while retention asks whether keeping the data is still necessary and justified. The lifecycle includes an appropriate endpoint."
+          },
+          "check": {
+            "prompt": "A coded dataset has a separate key that identifies each participant. What is the best description?",
+            "options": [
+              "Pseudonymized data",
+              "Definitely anonymous data",
+              "Data with no privacy implications"
+            ],
+            "correct": 0,
+            "explanation": "The mapping allows re-identification. Replacing names with codes does not by itself remove the relationship to a person."
+          }
+        },
+        {
+          "id": "m1-l4",
+          "title": "Accountability is something you can demonstrate",
+          "goal": "Distinguish saying you comply from showing how protection works.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s1",
+              "pages": [
+                21,
+                31
+              ]
+            }
+          ],
+          "essentials": [
+            "**Compliance** means meeting applicable obligations.",
+            "**Accountability** includes being able to explain and demonstrate the measures taken.",
+            "Security and privacy affect individuals, organizations, and national infrastructure."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "From policy to evidence",
+              "text": "A policy expresses what an organization intends to do. Accountability also needs assigned responsibilities, implemented controls, staff training, records, and review. A statement such as “we protect your data” is much weaker than an explanation of who has access, why, and how access is checked."
+            },
+            {
+              "type": "text",
+              "title": "Think at several scales",
+              "text": "For a person, protection may mean avoiding identity misuse. For an organization, it includes continuity and trust. For critical infrastructure, disruption can affect public services and safety. The significance of an asset depends on the consequences of its loss or compromise."
+            }
+          ],
+          "example": {
+            "situation": "A clinic has a privacy policy, but former employees can still sign in to patient records.",
+            "explanation": "The written policy is not enough. Offboarding, access review, and evidence that accounts are disabled connect the policy to actual protection."
+          },
+          "recall": {
+            "prompt": "What evidence could support a claim that only current staff can access records?",
+            "answer": "Account inventories, approved roles, offboarding records, access reviews, and relevant logs can show that access restrictions are implemented and checked."
+          },
+          "check": {
+            "prompt": "Which provides the strongest evidence of implemented accountability?",
+            "options": [
+              "A slogan about trust",
+              "An unassigned policy document",
+              "Documented access reviews with corrective actions"
+            ],
+            "correct": 2,
+            "explanation": "A completed review with follow-up actions shows responsibility and operation of a control, rather than only an intention."
+          }
+        }
+      ]
+    },
+    {
+      "id": "m2",
+      "title": "Data protection and regulation",
+      "description": "Understand the principles, compare legal roles, and follow data across borders.",
+      "lessons": [
+        {
+          "id": "m2-l1",
+          "title": "The seven principles as practical questions",
+          "goal": "Recognize a data protection principle in an everyday design decision.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s2",
+              "pages": [
+                7,
+                13
+              ]
+            }
+          ],
+          "essentials": [
+            "Know **why** data is processed, **how much** is needed, and **how long** it should be kept.",
+            "Accuracy and protection matter throughout processing.",
+            "**Accountability** ties the principles to evidence."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Use the principles as a design review",
+              "text": "Lawfulness, fairness, and transparency concern the basis for processing and how people are treated and informed. Purpose limitation keeps processing connected to specified aims. Data minimization reduces what is collected; storage limitation restricts how long identifiable data is retained."
+            },
+            {
+              "type": "text",
+              "title": "Protection includes quality",
+              "text": "Incorrect personal information can cause harm even if nobody hacks the system. Accuracy requires attention to whether records are correct and up to date. Integrity and confidentiality concern appropriate protection. Accountability asks the organization to demonstrate how the principles are followed."
+            },
+            {
+              "type": "table",
+              "title": "Translate principles into questions",
+              "headers": [
+                "Principle",
+                "Ask yourself"
+              ],
+              "rows": [
+                [
+                  "Lawfulness, fairness, transparency",
+                  "Is there a lawful basis, fair handling, and a clear explanation?"
+                ],
+                [
+                  "Purpose limitation",
+                  "Is this use compatible with the specified purpose?"
+                ],
+                [
+                  "Minimization",
+                  "Do we need this data?"
+                ],
+                [
+                  "Accuracy",
+                  "Is it correct and up to date?"
+                ],
+                [
+                  "Storage limitation",
+                  "Do we still need to keep it?"
+                ],
+                [
+                  "Integrity and confidentiality",
+                  "Is it appropriately protected?"
+                ],
+                [
+                  "Accountability",
+                  "Can we demonstrate these practices?"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "An event registration form needs your email for confirmation but also asks for your parents’ employment histories.",
+            "explanation": "Question the relevance of the extra fields. A field being easy to collect does not make it necessary for the stated purpose."
+          },
+          "recall": {
+            "prompt": "How do minimization and storage limitation differ?",
+            "answer": "Minimization concerns collecting and processing only what is needed. Storage limitation concerns how long identifiable information is retained."
+          },
+          "check": {
+            "prompt": "Deleting registration records after their justified retention period most directly supports which principle?",
+            "options": [
+              "Storage limitation",
+              "Accuracy",
+              "Data portability"
+            ],
+            "correct": 0,
+            "explanation": "The decision addresses duration of retention. Minimization addresses the amount or extent of processing."
+          }
+        },
+        {
+          "id": "m2-l2",
+          "title": "GDPR: scope, rights, and responsibility",
+          "goal": "Understand the difference between an individual’s rights and an organization’s duties.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s2",
+              "pages": [
+                9,
+                18
+              ]
+            }
+          ],
+          "essentials": [
+            "GDPR is the EU data protection regulation; do not assume it applies simply because a person is an EU citizen.",
+            "Rights include access, correction, erasure, and portability, subject to legal conditions.",
+            "**Privacy by design** means considering protection while designing the service."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Start with scope",
+              "text": "Before applying a regulation, establish whether the organization and processing fall within it. GDPR includes processing connected with an EU establishment, and certain processing by organizations outside the EU involving offering goods or services to people in the Union or monitoring their behavior there."
+            },
+            {
+              "type": "text",
+              "title": "Rights need operational support",
+              "text": "It is not enough to list rights in a notice. An organization needs a way to receive requests, verify identity appropriately, locate records, assess applicable conditions, and respond. Design choices such as minimizing collection and restricting defaults make these duties easier to fulfill."
+            }
+          ],
+          "example": {
+            "situation": "A service offers an account export option and has a process for correcting an incorrect profile.",
+            "explanation": "These features support exercising rights. They work alongside security controls rather than being replaced by a strong password policy."
+          },
+          "recall": {
+            "prompt": "Why should territorial scope be checked before memorizing obligations?",
+            "answer": "A regulation’s reach depends on its legal criteria and the facts of the processing, not simply the organization’s location or a person’s nationality."
+          },
+          "check": {
+            "prompt": "Which statement is the most accurate starting point for GDPR scope?",
+            "options": [
+              "It only matters where the server is located",
+              "Apply Article 3’s establishment, offering, and monitoring criteria",
+              "It automatically covers every record about any EU citizen worldwide"
+            ],
+            "correct": 1,
+            "explanation": "Article 3 sets the territorial scope. Citizenship and server location alone do not settle the question."
+          },
+          "correction": "The slides simplify GDPR’s reach. Use Article 3’s actual criteria. Consent is one lawful basis under Article 6, not a universal requirement for every processing activity.",
+          "references": [
+            {
+              "title": "Official reference: GDPR, Articles 3, 6, 33–34 and 44–49",
+              "url": "https://eur-lex.europa.eu/eli/reg/2016/679"
+            }
+          ]
+        },
+        {
+          "id": "m2-l3",
+          "title": "DPA, DPO, and NPC: who does what?",
+          "goal": "Separate the Philippine law, an internal officer, and a regulatory authority.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s2",
+              "pages": [
+                19,
+                33
+              ]
+            }
+          ],
+          "essentials": [
+            "**RA 10173** is the Philippine Data Privacy Act of 2012.",
+            "A **DPO** is the organization’s data protection officer.",
+            "The **NPC** is the Philippine regulator; “DPA” can also mean a data protection authority in international discussions."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Resolve the acronyms first",
+              "text": "In this course, DPA often refers to the Data Privacy Act. In a discussion of international enforcement, DPAs can refer to data protection authorities. Read the surrounding sentence. The law sets obligations; the regulator oversees compliance; an organization’s DPO supports its own privacy program."
+            },
+            {
+              "type": "text",
+              "title": "Responsibility does not disappear",
+              "text": "Appointing a DPO does not transfer all organizational responsibility to one person. Management, technical teams, and staff must carry out their roles. The NPC’s functions include guidance, investigations, and enforcement; these differ from the internal work of a DPO."
+            }
+          ],
+          "example": {
+            "situation": "A university receives a student’s complaint about misuse of enrollment records.",
+            "explanation": "The university’s DPO can coordinate the internal response. The NPC is the external regulatory authority. RA 10173 is the legal framework relevant to the handling of personal information."
+          },
+          "recall": {
+            "prompt": "Explain the law–officer–regulator distinction without acronyms.",
+            "answer": "The law defines obligations. The organization’s officer helps manage compliance. The regulator oversees enforcement and handles matters within its authority."
+          },
+          "check": {
+            "prompt": "Which role is internal to an organization?",
+            "options": [
+              "National Privacy Commission",
+              "Data protection officer",
+              "A supervisory authority in another country"
+            ],
+            "correct": 1,
+            "explanation": "The DPO works within or for the organization’s privacy program. The NPC is an external regulator."
+          },
+          "references": [
+            {
+              "title": "Official reference: Data Privacy Act, Sections 11–21",
+              "url": "https://privacy.gov.ph/data-privacy-act/"
+            }
+          ]
+        },
+        {
+          "id": "m2-l4",
+          "title": "Cross-border transfers and localization",
+          "goal": "Explain why using an overseas service needs more than choosing a server.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s2",
+              "pages": [
+                35,
+                48
+              ]
+            }
+          ],
+          "essentials": [
+            "A cross-border transfer moves or makes personal data available across jurisdictions.",
+            "**SCCs** and **BCRs** are transfer safeguards used in relevant GDPR contexts.",
+            "**Localization** concerns keeping specified data within a jurisdiction; it is not the same as all transfer regulation."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Map the people and the route",
+              "text": "A cloud service may involve a local organization, a foreign provider, backup locations, and subprocessors. Start by finding where the data goes and who can access it. Then identify which laws and contractual responsibilities apply. There is no single transfer rule for every country."
+            },
+            {
+              "type": "text",
+              "title": "Keep mechanisms distinct",
+              "text": "An adequacy decision recognizes an appropriate level of protection in a destination under GDPR. Other routes include appropriate safeguards such as standard contractual clauses and binding corporate rules, with relevant conditions. A localization rule is a different kind of requirement about storage or processing location."
+            }
+          ],
+          "example": {
+            "situation": "A local company chooses a foreign helpdesk platform that copies support messages to another region for backup.",
+            "explanation": "The data map must include the backup and relevant access arrangements, not just the platform’s advertised headquarters. Assess recipients, safeguards, and applicable transfer rules."
+          },
+          "recall": {
+            "prompt": "Why is “our provider is compliant” an incomplete transfer assessment?",
+            "answer": "You still need to understand the actual data, purpose, recipients, locations, contractual safeguards, and laws applicable to your own processing."
+          },
+          "check": {
+            "prompt": "Which statement best distinguishes localization from transfer safeguards?",
+            "options": [
+              "They always mean the same thing",
+              "Localization removes the need for security",
+              "Localization concerns location requirements; safeguards address protected transfers"
+            ],
+            "correct": 2,
+            "explanation": "A transfer mechanism and a location restriction answer different questions. Both may matter depending on the applicable legal framework."
+          },
+          "correction": "The slides’ wording can suggest adequacy is the only route for GDPR transfers. Chapter V also provides other mechanisms and limited derogations with conditions.",
+          "references": [
+            {
+              "title": "Official reference: GDPR, Articles 3, 6, 33–34 and 44–49",
+              "url": "https://eur-lex.europa.eu/eli/reg/2016/679"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m3",
+      "title": "Incident response and breach notification",
+      "description": "Move from recognizing risk to containing incidents and communicating responsibly.",
+      "lessons": [
+        {
+          "id": "m3-l1",
+          "title": "The incident response lifecycle",
+          "goal": "Choose the right response action for the stage of an incident.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s3",
+              "pages": [
+                5,
+                12
+              ]
+            }
+          ],
+          "essentials": [
+            "**Containment** limits damage; **eradication** removes the cause.",
+            "**Recovery** restores and validates service.",
+            "Preparation and lessons learned make response repeatable."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "A plan turns urgency into coordinated action",
+              "text": "An incident response plan defines responsibilities, escalation, communication, and procedures before an emergency. Detection may begin with an alert or a human report. Identification establishes what happened and whether it is an incident that needs coordinated response."
+            },
+            {
+              "type": "text",
+              "title": "Do not confuse the middle stages",
+              "text": "Isolating an infected computer contains spread, but may leave malware on the device. Removing the malware and fixing the exploited weakness are eradication work. Reconnecting a system belongs to recovery only after appropriate validation. The stages can overlap and repeat as new facts emerge."
+            },
+            {
+              "type": "flow",
+              "title": "The six stages used in your module",
+              "steps": [
+                "Preparation: establish roles and practice",
+                "Identification: confirm and scope the incident",
+                "Containment: limit further harm",
+                "Eradication: remove the cause",
+                "Recovery: restore and validate",
+                "Lessons learned: improve the plan"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A school isolates a compromised file server, removes malicious software, patches it, restores clean data, and monitors it before full use.",
+            "explanation": "Isolation is containment. Removal and patching address eradication. Restoration, validation, and monitoring support recovery. Document findings to improve the plan."
+          },
+          "recall": {
+            "prompt": "Why is isolating an infected device not enough to call the incident resolved?",
+            "answer": "Isolation limits spread but does not establish that the cause has been removed or that the system is safe to restore."
+          },
+          "check": {
+            "prompt": "Which action most clearly illustrates recovery?",
+            "options": [
+              "Drafting a contact list before an incident",
+              "Restoring and validating service from clean backups",
+              "Disconnecting an infected host to stop spread"
+            ],
+            "correct": 1,
+            "explanation": "Recovery restores safe operations. Contact lists support preparation, while isolation is containment."
+          }
+        },
+        {
+          "id": "m3-l2",
+          "title": "Breach notification: assess, document, communicate",
+          "goal": "Understand why the notification trigger matters as much as the deadline.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s3",
+              "pages": [
+                13,
+                16
+              ]
+            }
+          ],
+          "essentials": [
+            "A security event is not automatically a reportable personal data breach.",
+            "Determine the **jurisdiction, trigger, recipients, and timing**.",
+            "Record the assessment and communicate clearly with relevant parties."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "A deadline belongs to a rule",
+              "text": "The slides emphasize 72 hours. To use that fact correctly, first identify the applicable law and when its notification conditions are met. A technical alert, a confirmed security incident, and a personal data breach requiring notification are related but different determinations."
+            },
+            {
+              "type": "text",
+              "title": "Make the message useful",
+              "text": "A notification should explain the nature of the breach, affected information, likely consequences where known, response measures, and steps people can take. Affected individuals need plain language. The incident team should involve privacy and legal responsibilities early rather than wait for every technical detail to be final."
+            }
+          ],
+          "example": {
+            "situation": "An investigation finds that personal records were sent to an unauthorized recipient.",
+            "explanation": "Determine the data involved, access or acquisition, potential harm, and applicable reporting conditions. Preserve the timeline and reasoning; do not assume either that every alert is reportable or that containment removes the duty to assess."
+          },
+          "recall": {
+            "prompt": "What four things must you identify before applying a notification deadline?",
+            "answer": "The jurisdiction, the triggering conditions, who must be notified, and when the clock starts under the applicable rule."
+          },
+          "check": {
+            "prompt": "What should the team do first when applying a “72-hour” rule?",
+            "options": [
+              "Wait until every forensic detail is complete",
+              "Assume every antivirus alert must be publicly announced",
+              "Identify the applicable notification trigger and when it was met"
+            ],
+            "correct": 2,
+            "explanation": "Timing follows the applicable trigger. Assessment and documentation are essential; technical containment alone does not answer the notification question."
+          },
+          "correction": "The module simplifies notification duties. Under the Philippine IRR, the 72-hour period concerns a breach requiring notification and the specified knowledge or reasonable-belief trigger. GDPR Articles 33 and 34 distinguish supervisory-authority notification from communication to affected people and include risk conditions.",
+          "references": [
+            {
+              "title": "Official reference: NPC breach management rules",
+              "url": "https://privacy.gov.ph/implementing-rules-regulations-data-privacy-act-2012/"
+            },
+            {
+              "title": "Official reference: GDPR, Articles 3, 6, 33–34 and 44–49",
+              "url": "https://eur-lex.europa.eu/eli/reg/2016/679"
+            }
+          ]
+        },
+        {
+          "id": "m3-l3",
+          "title": "Assets, threats, vulnerabilities, and risk",
+          "goal": "Describe a risk scenario using the correct terms.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s3",
+              "pages": [
+                17,
+                31
+              ]
+            }
+          ],
+          "essentials": [
+            "An **asset** has value; a **vulnerability** is a weakness.",
+            "A **threat** can exploit a weakness and cause harm.",
+            "Assess **likelihood and consequence** against the organization’s risk criteria."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Build a complete scenario",
+              "text": "“Hackers” is too vague to describe a useful risk. State what is valuable, what weakness exists, what event could happen, and what the consequences would be. This gives the organization something specific to evaluate and treat."
+            },
+            {
+              "type": "text",
+              "title": "Prioritize in context",
+              "text": "Risk criteria reflect objectives and obligations. A brief outage of a nonessential test system differs from an outage of emergency services. Controls can reduce likelihood or impact, but a risk decision also needs an owner, a rationale, and follow-up. A rating is a decision aid, not a guarantee."
+            },
+            {
+              "type": "flow",
+              "title": "A useful risk statement",
+              "steps": [
+                "Asset: what matters?",
+                "Weakness and threat: what could go wrong?",
+                "Consequence and likelihood: how serious is it?",
+                "Treatment and owner: what will we do?",
+                "Review: did the action reduce the risk?"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A publicly exposed database contains student addresses because authentication was disabled.",
+            "explanation": "The records are an asset; disabled authentication is a vulnerability; unauthorized access is a threat event; exposure and misuse are possible consequences. Restrict access and assess what already happened."
+          },
+          "recall": {
+            "prompt": "What is the difference between a weakness and a risk?",
+            "answer": "A weakness is a vulnerability. Risk considers uncertainty about an event and its effect on objectives, including likelihood and consequences in context."
+          },
+          "check": {
+            "prompt": "In “an attacker exploits an unpatched server to steal records,” what is the vulnerability?",
+            "options": [
+              "The unpatched server weakness",
+              "The student records",
+              "The financial and personal harm"
+            ],
+            "correct": 0,
+            "explanation": "The missing patch is the exploitable weakness. Records are an asset; harm describes consequences."
+          }
+        },
+        {
+          "id": "m3-l4",
+          "title": "Read breach cases for the lesson",
+          "goal": "Compare failures in prevention, detection, disclosure, and due diligence.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s3",
+              "pages": [
+                32,
+                37
+              ]
+            }
+          ],
+          "essentials": [
+            "The module uses **Equifax, Marriott, Yahoo, and British Airways** as cases.",
+            "Different cases highlight different failures; do not collapse them into “a company was hacked.”",
+            "Notification and security safeguards are separate responsibilities."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Extract the recurring patterns",
+              "text": "In the module’s account, Equifax illustrates patching and response concerns; Marriott highlights inherited risks and monitoring; Yahoo illustrates disclosure failures; British Airways shows why reporting an incident does not erase inadequate safeguards. Treat these as the module’s teaching themes, rather than a complete legal history of each case."
+            },
+            {
+              "type": "text",
+              "title": "Apply the themes elsewhere",
+              "text": "Acquiring a business includes acquiring systems and their risks. Discovering a breach requires coordinated investigation and communication. Reporting promptly is valuable, but an organization still needs to examine the controls that allowed the incident and improve them."
+            },
+            {
+              "type": "table",
+              "title": "The module’s case-study themes",
+              "headers": [
+                "Case",
+                "Study focus"
+              ],
+              "rows": [
+                [
+                  "Equifax",
+                  "Patching and coordinated response"
+                ],
+                [
+                  "Marriott / Starwood",
+                  "Due diligence and detection"
+                ],
+                [
+                  "Yahoo",
+                  "Transparency and delayed disclosure"
+                ],
+                [
+                  "British Airways",
+                  "Safeguards as well as notification"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A company buys a smaller firm and connects its old customer database without assessing access controls.",
+            "explanation": "The acquisition should trigger due diligence. New ownership does not make inherited weaknesses disappear; integrate assessment and monitoring into the transition."
+          },
+          "recall": {
+            "prompt": "Why can an organization face consequences even after notifying promptly?",
+            "answer": "Notification addresses communication duties. It does not prove the organization had appropriate preventive and detective safeguards before the breach."
+          },
+          "check": {
+            "prompt": "Which lesson best matches an acquisition that brings an insecure legacy database?",
+            "options": [
+              "A purchase automatically removes old risks",
+              "Due diligence must include inherited systems and data",
+              "Only the acquired company needs to know about the database"
+            ],
+            "correct": 1,
+            "explanation": "Inherited technology can carry existing weaknesses and undiscovered incidents. Assess it before assuming it is safe."
+          }
+        }
+      ]
+    },
+    {
+      "id": "m4",
+      "title": "Philippine privacy law in practice",
+      "description": "Use RA 10173 to connect principles, rights, responsibilities, and compliance.",
+      "lessons": [
+        {
+          "id": "m4-l1",
+          "title": "The DPA’s three principles and lawful processing",
+          "goal": "Explain why consent is not the only question in a processing decision.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s4",
+              "pages": [
+                5,
+                10
+              ]
+            }
+          ],
+          "essentials": [
+            "The Philippine principles are **transparency, legitimate purpose, and proportionality**.",
+            "Section 12 provides several criteria for lawful processing of personal information.",
+            "Sensitive personal and privileged information require examination of **Section 13**."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Purpose, openness, and proportion",
+              "text": "Transparency concerns awareness of the handling of personal data. Legitimate purpose asks whether the objective is proper and specified. Proportionality asks whether processing is necessary and appropriate to that objective. A long notice does not excuse excessive collection."
+            },
+            {
+              "type": "text",
+              "title": "Do not make consent do every job",
+              "text": "Section 12 includes consent and other criteria, such as contract, legal obligation, vital interests, public authority functions, and qualifying legitimate interests. Identify the applicable criterion rather than assume all processing requires the same permission. Section 13 has a separate framework for sensitive personal and privileged information."
+            }
+          ],
+          "example": {
+            "situation": "A school needs enrollment records but also proposes collecting unrelated medical histories from every visitor.",
+            "explanation": "Examine each purpose and category separately. A general agreement at the gate does not settle necessity or the stricter conditions relevant to sensitive information."
+          },
+          "recall": {
+            "prompt": "Why is “the person agreed” an incomplete explanation of compliance?",
+            "answer": "The processing still needs to meet the relevant legal conditions and privacy principles, including purpose and proportionality. Sensitive information requires the appropriate separate assessment."
+          },
+          "check": {
+            "prompt": "Which statement best describes Section 12?",
+            "options": [
+              "It makes consent the only possible processing criterion",
+              "It provides multiple lawful-processing criteria",
+              "It removes all safeguards when a contract exists"
+            ],
+            "correct": 1,
+            "explanation": "Section 12 lists multiple conditions. Finding one does not remove other applicable obligations and safeguards."
+          },
+          "references": [
+            {
+              "title": "Official reference: Data Privacy Act, Sections 11–21",
+              "url": "https://privacy.gov.ph/data-privacy-act/"
+            }
+          ]
+        },
+        {
+          "id": "m4-l2",
+          "title": "Rights and the people responsible for data",
+          "goal": "Distinguish a data subject, controller, processor, and data protection officer.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s4",
+              "pages": [
+                9,
+                16
+              ]
+            }
+          ],
+          "essentials": [
+            "The **data subject** is the person the information relates to.",
+            "The **controller** determines processing; a **processor** handles data on its behalf.",
+            "Outsourcing does not erase the controller’s accountability."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Roles follow what the parties do",
+              "text": "A university may decide why student records are collected and how they are used. A service provider may process those records under its instructions. The labels in an agreement should reflect actual responsibilities; the same organization can have different roles for different activities."
+            },
+            {
+              "type": "text",
+              "title": "Make rights actionable",
+              "text": "People need ways to obtain information about processing, access or correct records, and exercise other applicable rights. Those rights have legal conditions and exceptions. Security under Section 20 and accountability under Section 21 support handling the data responsibly even when a third party is involved."
+            },
+            {
+              "type": "table",
+              "title": "Keep these roles separate",
+              "headers": [
+                "Role",
+                "Main idea"
+              ],
+              "rows": [
+                [
+                  "Data subject",
+                  "The individual the data relates to"
+                ],
+                [
+                  "PIC / controller",
+                  "Determines the processing"
+                ],
+                [
+                  "PIP / processor",
+                  "Processes on behalf of the controller"
+                ],
+                [
+                  "DPO",
+                  "Supports the organization’s privacy compliance"
+                ],
+                [
+                  "NPC",
+                  "Regulatory oversight and enforcement"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A university hires a platform to store enrollment records under its instructions.",
+            "explanation": "The university is the controller for that activity; the platform acts as a processor. The student is the data subject. The university’s DPO helps oversee its privacy program rather than becoming the owner of the student’s information."
+          },
+          "recall": {
+            "prompt": "What changes when processing is outsourced?",
+            "answer": "Another party carries out processing, so responsibilities, safeguards, and agreements must be managed. The controller does not simply hand away accountability."
+          },
+          "check": {
+            "prompt": "Who determines the purposes and means of processing in the university example?",
+            "options": [
+              "The student as a data subject",
+              "The storage hardware",
+              "The university as controller"
+            ],
+            "correct": 2,
+            "explanation": "The controller decides the relevant purposes and means. The processor acts on its behalf for the described activity."
+          },
+          "references": [
+            {
+              "title": "Official reference: Data Privacy Act, Sections 11–21",
+              "url": "https://privacy.gov.ph/data-privacy-act/"
+            }
+          ]
+        },
+        {
+          "id": "m4-l3",
+          "title": "The five pillars as an operating program",
+          "goal": "Connect privacy accountability activities to something an organization actually does.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s4",
+              "pages": [
+                24,
+                37
+              ]
+            }
+          ],
+          "essentials": [
+            "Assign a **DPO**, assess privacy impact, and establish a privacy management program.",
+            "Implement actual privacy and security measures.",
+            "**Rehearse response** and improve it; a document alone is not a program."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "A practical way to group the work",
+              "text": "The deck groups accountability into five pillars: a responsible officer, impact assessment, a management program, protective measures, and breach-response exercises. Think of these as connected work. An assessment finds a risk; the program assigns ownership; a control treats it; an exercise tests whether the response works."
+            },
+            {
+              "type": "text",
+              "title": "Keep evidence and revisit decisions",
+              "text": "An assessment is most useful before a new system or major change, while choices can still be adjusted. Record data flows, risks, safeguards, responsibilities, and unresolved issues. Review the program when processing changes instead of treating it as a one-time submission."
+            },
+            {
+              "type": "flow",
+              "title": "From a new feature to accountable operation",
+              "steps": [
+                "Map the processing",
+                "Assess privacy risks",
+                "Assign decisions and responsibilities",
+                "Implement and verify safeguards",
+                "Exercise response and improve"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A campus introduces facial recognition for attendance.",
+            "explanation": "An impact assessment should examine necessity, alternatives, data flows, access, retention, and potential harm before deployment. The organization then decides on proportionate safeguards and responsibilities, rather than merely adding a privacy notice after launch."
+          },
+          "recall": {
+            "prompt": "What makes a privacy impact assessment useful before launch?",
+            "answer": "It can change the design while there is still time to avoid or reduce risks, rather than only document problems after people are affected."
+          },
+          "check": {
+            "prompt": "Which sequence best connects the five pillars?",
+            "options": [
+              "Buy a tool and assume compliance is complete",
+              "Assess risks, assign actions, implement controls, and test response",
+              "Appoint a DPO and leave all other teams uninvolved"
+            ],
+            "correct": 1,
+            "explanation": "The pillars support a continuing program. Ownership, assessment, implementation, and rehearsal need to work together."
+          },
+          "references": [
+            {
+              "title": "Official reference: Data Privacy Act, Sections 11–21",
+              "url": "https://privacy.gov.ph/data-privacy-act/"
+            }
+          ]
+        },
+        {
+          "id": "m4-l4",
+          "title": "Government data, violations, and local cases",
+          "goal": "Recognize why accountability includes access, disposal, and third-party handling.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s4",
+              "pages": [
+                17,
+                41
+              ]
+            }
+          ],
+          "essentials": [
+            "Government-held sensitive information needs defined responsibility and authorized access.",
+            "Violations can concern **processing, access, disposal, concealment, or disclosure**.",
+            "Study local cases for the control and governance failure, not only the headline."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Protection extends beyond the database",
+              "text": "The deck covers sensitive information in government and accountability for contractors. Security includes who may access records, under what authority, how records are moved, and how they are disposed of. Printed copies and exports can create exposure outside the original application."
+            },
+            {
+              "type": "text",
+              "title": "Read cases critically",
+              "text": "The module discusses Comeleak and passport-data concerns to connect public-sector systems with stewardship of personal data. A case should prompt questions about oversight, provider transitions, access controls, and response. Keep separate confirmed facts, allegations, and conclusions rather than infer liability from a headline."
+            }
+          ],
+          "example": {
+            "situation": "An agency replaces a contractor but does not confirm who retains copies of citizens’ records.",
+            "explanation": "Plan data return or deletion, access revocation, records of handover, and continuing responsibilities. A contract ending does not by itself demonstrate secure disposal."
+          },
+          "recall": {
+            "prompt": "Why can disposal be a privacy issue even without a network attack?",
+            "answer": "A discarded file, storage device, or retained contractor copy can expose personal data. Protection applies throughout the lifecycle, including its endpoint."
+          },
+          "check": {
+            "prompt": "Which best addresses risk when changing data-processing providers?",
+            "options": [
+              "Assume the old provider deletes everything automatically",
+              "Only change the logo in the user portal",
+              "Verify data handover, retention or deletion, and revoked access"
+            ],
+            "correct": 2,
+            "explanation": "The transition should account for actual data copies and permissions. A new contract does not prove the old access and copies are gone."
+          },
+          "correction": "Slide 41 has a passport-data heading but describes the Bangladesh Bank / RCBC incident. Those are different cases. This lesson does not repeat the mismatched label or treat the slide’s penalty tables as a complete legal analysis.",
+          "references": [
+            {
+              "title": "Official reference: Data Privacy Act, Sections 11–21",
+              "url": "https://privacy.gov.ph/data-privacy-act/"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m5",
+      "title": "Compliance frameworks and secure design",
+      "description": "Give each standard a purpose, then apply risk management and threat modeling.",
+      "lessons": [
+        {
+          "id": "m5-l1",
+          "title": "Laws, standards, and frameworks",
+          "goal": "Explain what kind of requirement or guidance you are looking at.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5",
+              "pages": [
+                5,
+                30
+              ]
+            }
+          ],
+          "essentials": [
+            "A **law** creates legal obligations; a **standard** specifies requirements or practices in its scope.",
+            "A **framework** organizes outcomes, responsibilities, or controls.",
+            "A technical control can support several obligations; it does not prove complete compliance."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Do not study the acronyms as synonyms",
+              "text": "The module surveys a large ecosystem. Start by asking what problem each item helps solve. ISO/IEC 27001 concerns requirements for an information security management system. ISO/IEC 27002 gives guidance on information security controls. ISO/IEC 27003 concerns implementation guidance."
+            },
+            {
+              "type": "text",
+              "title": "Use the family as a map",
+              "text": "The deck connects other standards with network security, application security, storage, cloud protection, and privacy. Knowing the category helps you select the right reference. The existence of a standard is not the same as a legal requirement for every organization to adopt it; applicability depends on laws, contracts, and context."
+            },
+            {
+              "type": "table",
+              "title": "Navigate the standards named in the deck",
+              "headers": [
+                "Reference",
+                "Study association"
+              ],
+              "rows": [
+                [
+                  "ISO/IEC 27001",
+                  "ISMS requirements"
+                ],
+                [
+                  "ISO/IEC 27002 / 27003",
+                  "Controls guidance / implementation guidance"
+                ],
+                [
+                  "ISO/IEC 27701 / 29100",
+                  "Privacy information management / privacy framework"
+                ],
+                [
+                  "ISO/IEC 27033 / 27034",
+                  "Network security / application security"
+                ],
+                [
+                  "ISO/IEC 27040",
+                  "Storage security"
+                ],
+                [
+                  "ISO/IEC 27017 / 27018",
+                  "Cloud controls / personal data in public clouds"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A team needs a management system for security risks and also practical guidance on choosing access controls.",
+            "explanation": "Think of ISO/IEC 27001 for ISMS requirements and ISO/IEC 27002 for control guidance. One is not simply a second name for the other."
+          },
+          "recall": {
+            "prompt": "Why is a framework useful when laws already exist?",
+            "answer": "It helps translate broad obligations and objectives into organized risk decisions, responsibilities, controls, and review activities."
+          },
+          "check": {
+            "prompt": "Which pairing best matches the module?",
+            "options": [
+              "ISO 27001: ISMS requirements; ISO 27002: control guidance",
+              "ISO 27001: a Philippine criminal statute; ISO 27002: a court",
+              "Every ISO standard: automatic proof of legal compliance"
+            ],
+            "correct": 0,
+            "explanation": "The standards have related but distinct roles. An ISMS manages risk systematically; control guidance supports the practical selection and use of safeguards."
+          }
+        },
+        {
+          "id": "m5-l2",
+          "title": "NIST CSF and CMMC: outcomes and assurance",
+          "goal": "Choose a framework by the context rather than by its popularity.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5b",
+              "pages": [
+                4,
+                19
+              ]
+            }
+          ],
+          "essentials": [
+            "NIST CSF organizes cybersecurity risk outcomes.",
+            "**CSF 2.0 has six functions**, including Govern.",
+            "CMMC concerns cybersecurity assurance for the US defense contracting context."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Use functions to organize a program",
+              "text": "Identify covers understanding assets and risk. Protect implements safeguards. Detect finds possible adverse events. Respond addresses detected incidents. Recover restores affected assets and operations. Govern connects strategy, policies, expectations, and oversight with the other functions."
+            },
+            {
+              "type": "text",
+              "title": "Match the framework to the need",
+              "text": "NIST CSF helps organize desired outcomes and compare current and target states. CMMC assesses implementation of requirements in a particular contracting context. Neither label should be chosen only because a diagram looks comprehensive. Identify the organization’s obligations and desired assurance first."
+            },
+            {
+              "type": "flow",
+              "title": "CSF 2.0 functions",
+              "steps": [
+                "Govern: establish direction and oversight",
+                "Identify: understand risk",
+                "Protect: implement safeguards",
+                "Detect: find adverse events",
+                "Respond: act on incidents",
+                "Recover: restore operations"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A school has backups but no assigned owner for cybersecurity risk decisions.",
+            "explanation": "Backups support protection and recovery. Governance addresses who sets expectations, accepts risk, and checks whether the program meets organizational needs."
+          },
+          "recall": {
+            "prompt": "What does Govern add to the familiar five CSF functions?",
+            "answer": "It makes cybersecurity strategy, policy, oversight, and organizational responsibility explicit across the risk management program."
+          },
+          "check": {
+            "prompt": "Which function was added in NIST CSF 2.0?",
+            "options": [
+              "Recover",
+              "Govern",
+              "Detect"
+            ],
+            "correct": 1,
+            "explanation": "Govern is the additional function in CSF 2.0. The older five-function diagram is still present in your slides."
+          },
+          "correction": "Your slides show the older five CSF functions and a five-level CMMC diagram. CSF 2.0 includes Govern; the current CMMC model uses three levels. Keep those versions separate when reviewing the deck.",
+          "references": [
+            {
+              "title": "Official reference: NIST CSF 2.0",
+              "url": "https://www.nist.gov/publications/nist-cybersecurity-framework-csf-20"
+            },
+            {
+              "title": "Official reference: CMMC model overview",
+              "url": "https://dodcio.defense.gov/Portals/0/Documents/CMMC/ModelOverview.pdf"
+            }
+          ]
+        },
+        {
+          "id": "m5-l3",
+          "title": "Industry safeguards: payment cards and health data",
+          "goal": "Explain why applicability starts with the data and the organization’s role.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5c",
+              "pages": [
+                4,
+                11
+              ]
+            }
+          ],
+          "essentials": [
+            "**PCI DSS** addresses protection of payment card account data in its scope.",
+            "**HIPAA Security Rule** concerns electronic protected health information for regulated entities.",
+            "Administrative, physical, and technical safeguards complement each other."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Data type is a clue, not the entire analysis",
+              "text": "A shop processing card payments needs to understand its payment-data environment. HIPAA is a US legal framework with defined covered entities and business associates; the presence of health information alone does not mean every organization worldwide is subject to it."
+            },
+            {
+              "type": "text",
+              "title": "Different safeguards solve different problems",
+              "text": "Training and risk assessment are administrative measures. Protecting rooms and devices are physical measures. Authentication, access controls, encryption, and logging are technical measures. A complete approach considers the interaction among people, physical environments, and systems."
+            },
+            {
+              "type": "table",
+              "title": "Recognize the category",
+              "headers": [
+                "Category",
+                "Example"
+              ],
+              "rows": [
+                [
+                  "Administrative",
+                  "Training, assigned responsibilities, risk assessment"
+                ],
+                [
+                  "Physical",
+                  "Controlled rooms, secured devices, protected work areas"
+                ],
+                [
+                  "Technical",
+                  "Access controls, encryption, logging"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A clinic encrypts records but leaves an unlocked, signed-in workstation in a public corridor.",
+            "explanation": "Encryption alone does not solve unattended access. Session controls, workspace placement, staff practices, and physical safeguards also matter."
+          },
+          "recall": {
+            "prompt": "Why should you check scope before applying a sector-specific standard?",
+            "answer": "The applicable duties depend on what data is involved, the organization’s role, contracts, and the legal framework, rather than a familiar acronym alone."
+          },
+          "check": {
+            "prompt": "Which example is primarily a physical safeguard?",
+            "options": [
+              "Locking a room containing record servers",
+              "Running a staff awareness session",
+              "Requiring a second authentication factor"
+            ],
+            "correct": 0,
+            "explanation": "A locked server room restricts physical access. Training is administrative; authentication is technical."
+          }
+        },
+        {
+          "id": "m5-l4",
+          "title": "Governance and a working compliance program",
+          "goal": "Connect COBIT, COSO, policies, inventories, and evidence.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5",
+              "pages": [
+                55,
+                86
+              ]
+            }
+          ],
+          "essentials": [
+            "**COBIT** connects enterprise IT governance and management with organizational goals.",
+            "**COSO** addresses internal control and enterprise risk more broadly.",
+            "A program needs inventories, owners, controls, evidence, and review."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Start from an objective",
+              "text": "A compliance program is not just a folder of policies. Define what must be protected and which requirements apply. Inventory systems and data, identify risks, assign responsible people, implement controls, and collect evidence. Review whether the actions achieve the intended outcomes."
+            },
+            {
+              "type": "text",
+              "title": "Make the organizational connection",
+              "text": "A governance framework helps leaders decide what direction to set and how to oversee results. Management turns direction into operating activities. An asset inventory makes these decisions concrete by recording systems, owners, configurations, and dependencies instead of relying on memory."
+            },
+            {
+              "type": "flow",
+              "title": "Operate the program",
+              "steps": [
+                "Identify obligations and assets",
+                "Assess gaps and risks",
+                "Assign owners and actions",
+                "Implement controls",
+                "Collect evidence and review",
+                "Correct gaps and repeat"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "An organization requires timely account removal but does not know which systems each employee can use.",
+            "explanation": "The policy depends on a usable inventory and assigned owners. Link account records, offboarding responsibilities, and verification so the policy can be carried out and demonstrated."
+          },
+          "recall": {
+            "prompt": "What connects a policy to evidence of compliance?",
+            "answer": "Named owners implement controls, record their operation, review outcomes, and correct gaps against the policy’s objectives."
+          },
+          "check": {
+            "prompt": "Which is the most useful next step after writing a policy?",
+            "options": [
+              "Store it and assume the problem is solved",
+              "Assign owners, implement controls, and verify evidence",
+              "Replace all risk decisions with a single checklist"
+            ],
+            "correct": 1,
+            "explanation": "Policies express expectations. Operation and verification establish whether those expectations are met."
+          }
+        },
+        {
+          "id": "m5-l5",
+          "title": "Secure development and threat modeling",
+          "goal": "Use four questions to bring security decisions into system design.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5d",
+              "pages": [
+                5,
+                19
+              ]
+            }
+          ],
+          "essentials": [
+            "The **Secure Development Lifecycle** integrates security throughout development.",
+            "Threat modeling starts with an understanding of the system and its data flows.",
+            "Ask: **what are we building, what can go wrong, what will we do, and did it work?**"
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Make the system visible",
+              "text": "Draw the people, processes, data stores, and flows involved in the feature. Mark trust boundaries where assumptions or privileges change. A data flow diagram helps show movement and interactions; an entity relationship diagram helps describe data relationships. They answer related but different questions."
+            },
+            {
+              "type": "text",
+              "title": "Treat the model as a living decision tool",
+              "text": "Threat modeling is useful before implementation because a design can still change cheaply. It also matters during changes and operation. Prioritize threats by context, choose mitigations, and verify them with review and testing instead of ending the exercise at a list of possible attacks."
+            },
+            {
+              "type": "flow",
+              "title": "The four-question loop",
+              "steps": [
+                "What are we working on?",
+                "What can go wrong?",
+                "What are we going to do about it?",
+                "Did we do a good job?"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A team designs online grade submission: teacher browser → API → grade database.",
+            "explanation": "Ask who may submit grades, how authorization is checked at the API, what is stored, what crosses each boundary, and which records prove an approved change. The diagram points to questions that code and tests must answer."
+          },
+          "recall": {
+            "prompt": "Why does threat modeling require a system model first?",
+            "answer": "You need to know the assets, interactions, data stores, and trust boundaries to identify plausible threats and meaningful mitigations."
+          },
+          "check": {
+            "prompt": "Which activity best completes a threat-modeling decision?",
+            "options": [
+              "List threats without owners",
+              "Choose controls without understanding the system",
+              "Verify whether the selected mitigations address the threats"
+            ],
+            "correct": 2,
+            "explanation": "The fourth question asks whether the work was effective. A threat list without verification is incomplete."
+          }
+        },
+        {
+          "id": "m5-l6",
+          "title": "STRIDE: classify the threat, choose a control",
+          "goal": "Distinguish the six STRIDE categories using a familiar application.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s5d",
+              "pages": [
+                20,
+                26
+              ]
+            }
+          ],
+          "essentials": [
+            "STRIDE is a prompt for examining **six kinds of security threat**.",
+            "Classify the action and affected property, not merely the attacker.",
+            "A mitigation must address the specific threat and be verified."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Look at what goes wrong",
+              "text": "Spoofing concerns pretending to be another identity. Tampering changes data or behavior improperly. Repudiation concerns denying actions without adequate proof. Information disclosure exposes information. Denial of service disrupts availability. Elevation of privilege gives someone powers they should not have."
+            },
+            {
+              "type": "text",
+              "title": "One scenario can contain several threats",
+              "text": "Stolen credentials may enable spoofing, followed by privilege escalation, record changes, and disclosure. STRIDE helps ensure the review considers different failure modes. Avoid assuming a single control covers all of them: authentication, authorization, audit evidence, and availability controls solve different parts of the problem."
+            },
+            {
+              "type": "table",
+              "title": "STRIDE in a student portal",
+              "headers": [
+                "Category",
+                "Example",
+                "Control idea"
+              ],
+              "rows": [
+                [
+                  "Spoofing",
+                  "Pretend to be a teacher",
+                  "Strong authentication"
+                ],
+                [
+                  "Tampering",
+                  "Alter submitted grades",
+                  "Authorization and integrity checks"
+                ],
+                [
+                  "Repudiation",
+                  "Deny making a grade change",
+                  "Protected audit evidence"
+                ],
+                [
+                  "Information disclosure",
+                  "Read another student’s record",
+                  "Access restrictions"
+                ],
+                [
+                  "Denial of service",
+                  "Make enrollment unavailable",
+                  "Capacity and abuse controls"
+                ],
+                [
+                  "Elevation of privilege",
+                  "Gain administrator actions",
+                  "Server-side role enforcement"
+                ]
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A student changes a request parameter and gains teacher-only grade-editing powers.",
+            "explanation": "The unauthorized increase in capabilities is elevation of privilege. Server-side authorization must enforce permitted actions; hiding the edit button is not an adequate boundary."
+          },
+          "recall": {
+            "prompt": "How do spoofing and elevation of privilege differ?",
+            "answer": "Spoofing pretends to be another identity. Elevation of privilege gains capabilities beyond those authorized, potentially even while using a legitimate identity."
+          },
+          "check": {
+            "prompt": "An ordinary account gains administrator-only capabilities. Which STRIDE category is most direct?",
+            "options": [
+              "Repudiation",
+              "Denial of service",
+              "Elevation of privilege"
+            ],
+            "correct": 2,
+            "explanation": "The account gains unauthorized powers. The classification concerns privilege, whether or not another identity was impersonated."
+          }
+        }
+      ]
+    },
+    {
+      "id": "m6",
+      "title": "International law and coordinated response",
+      "description": "Handle overlapping jurisdictions, global standards, and evidence across organizations.",
+      "lessons": [
+        {
+          "id": "m6-l1",
+          "title": "One service, several jurisdictions",
+          "goal": "Explain why a global service needs a map of applicable obligations.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s6a",
+              "pages": [
+                5,
+                24
+              ]
+            }
+          ],
+          "essentials": [
+            "A single service may involve users, establishments, and providers in several places.",
+            "Do not assume one law cancels another.",
+            "Map processing and applicable rules before selecting a transfer mechanism."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Follow the processing, not the brand name",
+              "text": "A company may operate in one country while collecting information through another establishment and relying on providers elsewhere. Determine the actors, purposes, data categories, and locations, then assess the reach of each relevant framework. A provider’s reputation does not establish your own compliance."
+            },
+            {
+              "type": "text",
+              "title": "Turn overlap into an operational map",
+              "text": "The module revisits GDPR principles, rights, and compliance roadmaps in a global setting. Link an obligation to an activity: access requests need a response process; retention needs deletion practices; transfer restrictions need an assessed transfer route. Record why each rule applies and who is responsible."
+            }
+          ],
+          "example": {
+            "situation": "A Philippine service markets subscriptions to people in the EU and uses an overseas analytics provider.",
+            "explanation": "Examine GDPR scope using the actual offering or monitoring activities, Philippine obligations relevant to the organization, and the analytics data flows. Do not decide from citizenship or hosting location alone."
+          },
+          "recall": {
+            "prompt": "What information belongs in an international compliance map?",
+            "answer": "Actors and roles, data categories, purposes, relevant establishments and activities, recipients, locations, applicable rules, and responsible owners."
+          },
+          "check": {
+            "prompt": "What is the strongest starting point for a multinational privacy assessment?",
+            "options": [
+              "Use whichever country has the shortest law",
+              "Map processing activities and assess each relevant law’s scope",
+              "Assume the hosting provider handles all legal duties"
+            ],
+            "correct": 1,
+            "explanation": "Mapping the processing makes applicability and responsibility assessable. Geography alone or a provider promise is insufficient."
+          },
+          "correction": "The decks sometimes equate lawful processing with consent. GDPR Article 6 provides several lawful bases. Treat consent as one basis and assess the correct conditions for each processing activity.",
+          "references": [
+            {
+              "title": "Official reference: GDPR, Articles 3, 6, 33–34 and 44–49",
+              "url": "https://eur-lex.europa.eu/eli/reg/2016/679"
+            }
+          ]
+        },
+        {
+          "id": "m6-l2",
+          "title": "International organizations and different kinds of rules",
+          "goal": "Distinguish cooperation, standards, and enforceable legal requirements.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s6a",
+              "pages": [
+                25,
+                32
+              ]
+            }
+          ],
+          "essentials": [
+            "**OECD, APEC, and ISO** play different roles in international cooperation and standards.",
+            "A convention, national law, standard, and policy resolution do not have identical legal effects.",
+            "Cross-border cooperation helps where data and incidents span jurisdictions."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Classify the instrument",
+              "text": "The international survey includes privacy regulations, national laws, cooperative arrangements, and standards. Ask who issued the instrument, who it addresses, and how it becomes applicable. A treaty depends on its terms and state participation; a standard is not automatically a criminal statute."
+            },
+            {
+              "type": "text",
+              "title": "Why cooperation matters",
+              "text": "Investigations and data handling may cross national boundaries. Organizations and authorities need ways to coordinate while respecting applicable powers and safeguards. Harmonization can reduce friction, but it does not make all national requirements identical or remove local accountability."
+            }
+          ],
+          "example": {
+            "situation": "A supplier says it follows an international standard, while a customer asks which transfer rules govern their records.",
+            "explanation": "The standard may support safeguards. It does not by itself answer territorial scope, the lawful transfer route, or the parties’ respective duties."
+          },
+          "recall": {
+            "prompt": "What should you ask before treating an international instrument as binding?",
+            "answer": "Identify its issuer, legal nature, scope, participation or adoption requirements, and the way it applies to the actors and activity involved."
+          },
+          "check": {
+            "prompt": "Which statement is most accurate?",
+            "options": [
+              "Every international guideline creates the same criminal penalties",
+              "Following one standard displaces all national laws",
+              "Different instruments have different scope and legal effects"
+            ],
+            "correct": 2,
+            "explanation": "The legal nature and applicability of an instrument must be checked. Standards, laws, conventions, and resolutions should not be treated as interchangeable."
+          }
+        },
+        {
+          "id": "m6-l3",
+          "title": "Coordinated response and preserving evidence",
+          "goal": "Connect technical response decisions with a reliable account of what happened.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s6b",
+              "pages": [
+                6,
+                14
+              ]
+            }
+          ],
+          "essentials": [
+            "Coordinate technical responders with management, privacy, and legal responsibilities.",
+            "**Preserve evidence** and document relevant actions.",
+            "Validate recovery and review the incident before closure."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "A response needs both action and a record",
+              "text": "The subtopic breaks incident response into awareness, assessment, escalation, investigation, containment, eradication, recovery, and closure activities. These are more detailed steps within the lifecycle studied earlier. Teams may revisit decisions as the scope changes."
+            },
+            {
+              "type": "text",
+              "title": "Protect the reliability of the record",
+              "text": "Logs, system images, and other records can explain the incident and support later review. Record collection and handling, timestamps, decision makers, and changes made during response. Avoid unnecessary alteration, and coordinate urgent protective action with appropriate evidence preservation."
+            }
+          ],
+          "example": {
+            "situation": "An administrator wants to wipe a compromised server immediately, while responders still need to establish what records were accessed.",
+            "explanation": "Contain the threat and coordinate evidence preservation before unnecessary destructive changes. Recovery speed and reliable investigation both matter; the response plan should help the team manage that tradeoff."
+          },
+          "recall": {
+            "prompt": "Why document response actions as well as attacker activity?",
+            "answer": "Your own actions can change systems and evidence. Recording them helps others interpret the timeline, validate findings, and assess the response."
+          },
+          "check": {
+            "prompt": "Which practice best supports a reliable investigation?",
+            "options": [
+              "Change systems without recording anything",
+              "Document collection, handling, timestamps, and response changes",
+              "Treat the first alert as the complete incident timeline"
+            ],
+            "correct": 1,
+            "explanation": "A traceable record makes evidence and decisions easier to interpret. Alerts are a starting point for investigation, not a complete account."
+          }
+        },
+        {
+          "id": "m6-l4",
+          "title": "SIEM, privacy risk, and compliance evidence",
+          "goal": "Explain what a SIEM contributes and what still requires human assessment.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s6b",
+              "pages": [
+                15,
+                31
+              ]
+            }
+          ],
+          "essentials": [
+            "A **SIEM** collects, normalizes, correlates, and analyzes security event data.",
+            "Alerts and logs can support detection, investigation, and accountability.",
+            "**A dashboard is not a legal determination** and logs themselves need protection."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "From scattered records to a timeline",
+              "text": "An identity provider records sign-ins, a firewall records connections, and an application records data access. Correlation can connect unusual logins with an unexpected export. The SIEM helps responders find patterns across records that would be harder to interpret separately."
+            },
+            {
+              "type": "text",
+              "title": "Use the evidence responsibly",
+              "text": "Someone must assess whether an alert is an incident, what data was affected, and which obligations apply. Logging also processes information: restrict access, choose relevant events, and manage retention. The deck’s discussion of privacy risk reminds you to consider effects on people as well as attacks on systems."
+            }
+          ],
+          "example": {
+            "situation": "A SIEM flags a large export after repeated failed logins.",
+            "explanation": "Investigate the user, authorization, records involved, and timeline. The alert supports scoping; it does not automatically establish that a reportable breach occurred or identify every affected person."
+          },
+          "recall": {
+            "prompt": "Why does buying a SIEM not finish a compliance program?",
+            "answer": "The organization still needs correct configuration, relevant data, monitoring responsibilities, investigation, legal assessment, response, and protection of the logs."
+          },
+          "check": {
+            "prompt": "What is the most accurate description of a SIEM alert?",
+            "options": [
+              "An automatically final legal finding",
+              "Proof that all data is safe",
+              "A signal requiring contextual assessment"
+            ],
+            "correct": 2,
+            "explanation": "Correlation helps identify suspicious activity. People and processes must determine its meaning and appropriate response."
+          },
+          "correction": "The decks show a five-function NIST cybersecurity diagram near discussion of the Privacy Framework. Do not treat the two frameworks as identical. CSF 2.0 has six functions, including Govern.",
+          "references": [
+            {
+              "title": "Official reference: NIST CSF 2.0",
+              "url": "https://www.nist.gov/publications/nist-cybersecurity-framework-csf-20"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "m7",
+      "title": "Emerging technologies: legal and ethical choices",
+      "description": "Apply familiar privacy and security questions to AI, blockchain, IoT, and cloud services.",
+      "lessons": [
+        {
+          "id": "m7-l1",
+          "title": "AI: privacy, fairness, and accountability",
+          "goal": "Explain why an accurate-looking prediction may still be unfair or difficult to justify.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s7",
+              "pages": [
+                5,
+                10
+              ]
+            }
+          ],
+          "essentials": [
+            "AI concerns include **personal data use, bias, transparency, and accountability**.",
+            "Training data and evaluation choices influence outcomes.",
+            "Identify who can explain, challenge, and correct a harmful decision."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Follow the decision, not just the model",
+              "text": "An AI system takes data and produces an output used in a real process. Examine what data was collected, whether it represents the affected people, how the output is interpreted, and what happens when it is wrong. Accuracy measured across everyone can conceal different error rates across groups."
+            },
+            {
+              "type": "text",
+              "title": "Accountability needs an owner",
+              "text": "Transparency means providing an appropriate explanation of relevant processing and decisions. Accountability asks who is responsible for evaluating the system and handling problems. The fact that software generated an output does not resolve an organization’s responsibilities to the people affected."
+            }
+          ],
+          "example": {
+            "situation": "An automated scholarship ranking performs well overall but repeatedly underrates applicants from a group poorly represented in its training data.",
+            "explanation": "Assess the data, outcomes for different groups, decision process, and a route to human review. A high average score alone does not establish fair treatment."
+          },
+          "recall": {
+            "prompt": "What should you ask besides “how accurate is this AI?”",
+            "answer": "Ask whose data is used, whose errors are hidden by averages, how outputs affect people, and who can explain and review a decision."
+          },
+          "check": {
+            "prompt": "Which best addresses the possibility that overall accuracy hides unfair outcomes?",
+            "options": [
+              "Evaluate errors across relevant groups and review the decision process",
+              "Use only the overall average",
+              "Remove all routes for questioning decisions"
+            ],
+            "correct": 0,
+            "explanation": "Group-level evaluation and process review can reveal harms hidden by an aggregate metric."
+          },
+          "correction": "Your deck describes the EU AI Regulation as proposed. The AI Act entered into force on 1 August 2024. Its obligations have phased application; consult the official timeline rather than reuse the deck’s proposal status.",
+          "references": [
+            {
+              "title": "Official reference: AI Act entered into force",
+              "url": "https://commission.europa.eu/news-and-media/news/ai-act-enters-force-2024-08-01_en"
+            }
+          ]
+        },
+        {
+          "id": "m7-l2",
+          "title": "Blockchain: immutability meets personal data",
+          "goal": "Explain the tension between persistent records and correction or erasure.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s7",
+              "pages": [
+                12,
+                16
+              ]
+            }
+          ],
+          "essentials": [
+            "Blockchain’s resistance to alteration can conflict with changing or deleting personal information.",
+            "**Off-chain storage** can reduce direct exposure of personal data on-chain.",
+            "Decentralization does not automatically resolve responsibility or privacy."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "A useful property can create a new problem",
+              "text": "A durable shared ledger can help establish a history of transactions. The same persistence becomes difficult when personal information is inaccurate, excessive, or subject to a valid deletion request. Consider what genuinely needs to be placed on the ledger before choosing the technology."
+            },
+            {
+              "type": "text",
+              "title": "Reduce the data exposed by the design",
+              "text": "The module discusses keeping personal data off-chain with a reference or hash on-chain. This changes the design problem, but does not automatically solve every privacy issue. References, linkability, copies, and the parties controlling the off-chain data still need examination."
+            }
+          ],
+          "example": {
+            "situation": "A team proposes putting complete student medical records on a shared immutable ledger.",
+            "explanation": "Ask whether the ledger needs the underlying sensitive details at all. A design using controlled off-chain records may reduce exposure, while references and access arrangements still require assessment."
+          },
+          "recall": {
+            "prompt": "Why is immutability not always a benefit for personal data?",
+            "answer": "It makes later correction or deletion difficult, and may preserve information longer or more widely than is appropriate."
+          },
+          "check": {
+            "prompt": "Which design question should come first?",
+            "options": [
+              "How can we place the most personal data on-chain?",
+              "Does this information need to be on the ledger at all?",
+              "Can decentralization replace all accountability?"
+            ],
+            "correct": 1,
+            "explanation": "Necessity should guide the architecture. Reducing direct personal data on a persistent ledger can avoid creating a difficult privacy problem."
+          }
+        },
+        {
+          "id": "m7-l3",
+          "title": "IoT: sensors, surveillance, and secure defaults",
+          "goal": "Identify the privacy and security consequences of a connected device.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s7",
+              "pages": [
+                17,
+                21
+              ]
+            }
+          ],
+          "essentials": [
+            "IoT devices collect and exchange data, often continuously.",
+            "Weak defaults and missing updates can expose both data and device control.",
+            "Consider people nearby who did not actively choose the device."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Collection can be easy to overlook",
+              "text": "A camera, wearable, or smart speaker may collect information passively. Determine what it senses, when it operates, where data goes, who can access it, and how long it remains. A device owner is not necessarily the only person affected."
+            },
+            {
+              "type": "text",
+              "title": "Security is part of the product lifecycle",
+              "text": "Default credentials, exposed interfaces, missing updates, and insecure communication can create entry points. Secure design includes appropriate defaults and a realistic maintenance plan. Privacy design also considers unnecessary sensing, visibility of operation, and meaningful information for affected people."
+            }
+          ],
+          "example": {
+            "situation": "A classroom installs a connected camera that sends footage to a provider’s cloud.",
+            "explanation": "Assess the purpose, field of view, recording schedule, notices, access, retention, transfer arrangements, credentials, and update support. Changing the password addresses one risk, not the whole system."
+          },
+          "recall": {
+            "prompt": "Why is “the owner agreed” insufficient when assessing a classroom camera?",
+            "answer": "Students, staff, and visitors may be recorded too. The assessment must consider the people affected and the applicable processing conditions and safeguards."
+          },
+          "check": {
+            "prompt": "Which assessment covers both privacy and security?",
+            "options": [
+              "Check only whether the camera powers on",
+              "Change the password and ignore data flows",
+              "Review necessary sensing, access, retention, and update support"
+            ],
+            "correct": 2,
+            "explanation": "A connected sensor is both a data collection system and a maintained computing device. Both aspects need attention."
+          }
+        },
+        {
+          "id": "m7-l4",
+          "title": "Cloud and big data: shared responsibility",
+          "goal": "Explain what remains the customer’s responsibility when using a cloud service.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s7",
+              "pages": [
+                22,
+                26
+              ]
+            }
+          ],
+          "essentials": [
+            "A cloud provider and customer have different responsibilities depending on the service.",
+            "Access settings, data selection, and retention remain important customer decisions.",
+            "Big datasets can increase the consequences of exposure and linkability."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Outsourcing infrastructure does not outsource every decision",
+              "text": "A provider may operate physical infrastructure and parts of the platform while the customer controls users, application behavior, and which data is stored. The exact split depends on the service and agreement. Understand the split instead of assuming the provider handles everything."
+            },
+            {
+              "type": "text",
+              "title": "Data flows still matter",
+              "text": "Cloud services may replicate information and involve subprocessors in other jurisdictions. Big-data analysis can also reveal patterns or allow records to be linked in new ways. Apply minimization, access restrictions, retention decisions, and appropriate transfer assessment to the actual processing."
+            }
+          ],
+          "example": {
+            "situation": "A company uses a reputable cloud platform but makes its customer file bucket publicly accessible.",
+            "explanation": "The provider’s infrastructure security does not automatically correct the customer’s sharing configuration. Verify access settings and monitor exposure in the customer’s part of the service."
+          },
+          "recall": {
+            "prompt": "What should a cloud responsibility review clarify?",
+            "answer": "Which party handles each security and privacy task, what the customer must configure, where data flows, and how access, response, and deletion work."
+          },
+          "check": {
+            "prompt": "Which is the most accurate conclusion about cloud security?",
+            "options": [
+              "Responsibilities must be understood for the actual service",
+              "The provider always configures every customer permission",
+              "A trusted brand eliminates all transfer questions"
+            ],
+            "correct": 0,
+            "explanation": "Responsibility depends on the service and agreement. Customers still need to understand their data and configuration decisions."
+          }
+        }
+      ]
+    },
+    {
+      "id": "m8",
+      "title": "Cybersecurity in the Philippine context",
+      "description": "Connect local threats, public policy, cybercrime, and the human effects of incidents.",
+      "lessons": [
+        {
+          "id": "m8-l1",
+          "title": "Local threats need layers of protection",
+          "goal": "Connect awareness, infrastructure, skills, and critical services.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s8",
+              "pages": [
+                5,
+                11
+              ]
+            }
+          ],
+          "essentials": [
+            "Awareness gaps, infrastructure weaknesses, and skills shortages can interact.",
+            "Critical services require attention to continuity as well as confidentiality.",
+            "National strategy coordinates responsibilities; organizations still need operational controls."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Look beyond an individual mistake",
+              "text": "The module describes social engineering alongside organizational and infrastructure challenges. A phishing incident may begin with a deceptive message, but its impact depends on authentication, access scope, monitoring, reporting channels, and recovery. Improving only one person’s vigilance leaves other layers unexamined."
+            },
+            {
+              "type": "text",
+              "title": "Connect national goals to local actions",
+              "text": "Public strategy can guide coordination and priorities. An organization translates those priorities into known assets, assigned owners, tested response, staff training, and protection for essential services. An inventory and a working escalation path often matter more than a policy title on its own."
+            }
+          ],
+          "example": {
+            "situation": "A municipal office trains staff about phishing but has shared administrator accounts and no tested backups.",
+            "explanation": "Training addresses one entry point. Individual accounts, appropriate access, stronger authentication, monitoring, and tested recovery address additional consequences and failure points."
+          },
+          "recall": {
+            "prompt": "Why is awareness training valuable but incomplete?",
+            "answer": "People can still make mistakes, and attacks can exploit technical weaknesses. Layered safeguards reduce both the chance and impact of compromise."
+          },
+          "check": {
+            "prompt": "Which plan best reflects layered protection?",
+            "options": [
+              "Combine training, limited access, monitoring, and tested recovery",
+              "Rely only on employees recognizing every scam",
+              "Buy one tool without assigning any operating responsibilities"
+            ],
+            "correct": 0,
+            "explanation": "Complementary layers account for different failure modes and help reduce damage when one measure fails."
+          },
+          "correction": "The slides refer to a National Cybersecurity Plan 2022. Executive Order 58 adopted the National Cybersecurity Plan 2023–2028 in April 2024; use the newer plan when discussing current policy.",
+          "references": [
+            {
+              "title": "Official reference: Executive Order 58, National Cybersecurity Plan 2023–2028",
+              "url": "https://elibrary.judiciary.gov.ph/thebookshelf/showdocs/5/97132"
+            }
+          ]
+        },
+        {
+          "id": "m8-l2",
+          "title": "RA 10175: classify the conduct carefully",
+          "goal": "Distinguish cybercrime categories from privacy and compliance questions.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s8",
+              "pages": [
+                12,
+                17
+              ]
+            }
+          ],
+          "essentials": [
+            "RA 10175 is the **Cybercrime Prevention Act of 2012**.",
+            "The deck discusses illegal access, interference, and computer-related offenses.",
+            "Identify conduct and applicable provisions; do not infer a legal conclusion from a label alone."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "Describe the act before naming the offense",
+              "text": "Unauthorized entry into a system differs from altering data, interrupting a service, or using a computer to commit fraud. Start with what happened, the authorization involved, the evidence, and the effect. The same incident may raise privacy, cybersecurity, and other legal issues."
+            },
+            {
+              "type": "text",
+              "title": "Read tables with care",
+              "text": "A slide’s short penalty table cannot express every statutory element, amendment, or court ruling. Use it as a map to the relevant primary source. For study, focus first on the distinguishing conduct and then check the legal wording instead of treating every example as an automatic finding of guilt."
+            }
+          ],
+          "example": {
+            "situation": "A person enters a private account without authorization and then alters its records.",
+            "explanation": "Unauthorized access and alteration are different actions to analyze. Preserve the facts and evidence before deciding which provisions and elements are relevant."
+          },
+          "recall": {
+            "prompt": "Why should a cybercrime analysis start with conduct and authorization?",
+            "answer": "Those facts help identify potentially relevant provisions and distinguish access, interference, deception, and disclosure, rather than jump from a headline to liability."
+          },
+          "check": {
+            "prompt": "Which is the best starting point for classifying a suspected cyber offense?",
+            "options": [
+              "Assume all online misconduct is one offense",
+              "Identify the conduct, authorization, evidence, and relevant provision",
+              "Choose the highest penalty visible on a slide"
+            ],
+            "correct": 1,
+            "explanation": "Legal classification depends on the elements and facts. A short label or penalty table is not enough."
+          },
+          "correction": "The deck lists unsolicited commercial communications as a punishable RA 10175 offense. The Supreme Court’s Disini ruling declared Section 4(c)(3) unconstitutional. This lesson does not present that provision as enforceable.",
+          "references": [
+            {
+              "title": "Official reference: Supreme Court, Disini v. Secretary of Justice",
+              "url": "https://elibrary.judiciary.gov.ph/assets/pdf/philrep/2014/G.R.%20No.%20203335.pdf"
+            }
+          ]
+        },
+        {
+          "id": "m8-l3",
+          "title": "Use local cases to improve a system",
+          "goal": "Turn a case discussion into actions for prevention, detection, and recovery.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s8",
+              "pages": [
+                18,
+                20
+              ]
+            }
+          ],
+          "essentials": [
+            "Separate **defacement, service disruption, and personal data exposure**.",
+            "The harm depends on which assets and people were affected.",
+            "Turn each case into questions about controls, evidence, and response."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "The headline does not define the whole incident",
+              "text": "A changed webpage may indicate unauthorized modification, while a stolen dataset concerns confidentiality. Both may happen together, but one does not prove the other. The deck’s examples prompt a closer look at scope, affected services, personal data, and what the investigation establishes."
+            },
+            {
+              "type": "text",
+              "title": "Create actions from the analysis",
+              "text": "Ask how access was obtained, how the activity was detected, which safeguards limited damage, and how operations were restored. Assign improvements to owners. Treat uncertain or disputed case details as matters to verify rather than repeat them as established facts."
+            }
+          ],
+          "example": {
+            "situation": "An office discovers a defaced homepage and immediately announces that all citizen records were stolen.",
+            "explanation": "Investigate scope before making that claim. Defacement demonstrates an integrity problem on the affected page; record theft requires additional evidence. Communicate known facts and uncertainty clearly."
+          },
+          "recall": {
+            "prompt": "What can and cannot be concluded from a defaced webpage alone?",
+            "answer": "It indicates unauthorized modification of the page. It does not, on its own, prove all backend data was accessed or that no other system was affected."
+          },
+          "check": {
+            "prompt": "What does a defaced homepage establish most directly?",
+            "options": [
+              "Unauthorized change to the affected page",
+              "Proof that every database was stolen",
+              "Proof that no personal data could have been affected"
+            ],
+            "correct": 0,
+            "explanation": "The observed change concerns integrity. Investigate other systems and data before reaching conclusions about confidentiality or total scope."
+          }
+        },
+        {
+          "id": "m8-l4",
+          "title": "Human impact, ethics, and a final study method",
+          "goal": "Analyze cybercrime without losing sight of victims, rights, and responsible response.",
+          "minutes": 4,
+          "sources": [
+            {
+              "id": "s8",
+              "pages": [
+                21,
+                27
+              ]
+            }
+          ],
+          "essentials": [
+            "Cybercrime can cause financial, psychological, family, and community harm.",
+            "Victim protection and responsible reporting matter alongside investigation.",
+            "Avoid online vigilantism and unnecessary exposure of personal information."
+          ],
+          "blocks": [
+            {
+              "type": "text",
+              "title": "People experience the consequences",
+              "text": "The module discusses exploitation, cyber-enabled trafficking, manipulation, and effects on trust and family life. Study these as harms requiring prevention, support, and responsible institutional action. Avoid treating victims’ experiences as sensational examples or assuming a single technical control solves a social problem."
+            },
+            {
+              "type": "text",
+              "title": "Connect the whole course",
+              "text": "A useful analysis names the affected people and assets, the threat and vulnerability, the applicable rights or obligations, safeguards, and response. Explain uncertainty and preserve evidence responsibly. This combines the technical and legal vocabulary with a practical view of consequences."
+            },
+            {
+              "type": "flow",
+              "title": "A reusable case-analysis checklist",
+              "steps": [
+                "People and assets: who or what matters?",
+                "Facts and uncertainty: what do we know?",
+                "Threat and weakness: what went wrong?",
+                "Rights and rules: what obligations are relevant?",
+                "Controls and response: how can harm be reduced?",
+                "Evidence and review: can we justify the conclusion?"
+              ]
+            }
+          ],
+          "example": {
+            "situation": "A group wants to expose a suspected scammer by publishing private addresses and family details.",
+            "explanation": "Publicly spreading personal information can create further harm and misidentify people. Use appropriate reporting channels and preserve relevant evidence without unnecessarily distributing private details."
+          },
+          "recall": {
+            "prompt": "Analyze a new incident using the course’s core questions.",
+            "answer": "Who and what are affected? What happened and what is known? Which weakness and threat are involved? What rights and obligations may apply? Which controls and response actions reduce harm? What evidence supports the conclusion?"
+          },
+          "check": {
+            "prompt": "Which response best supports victims and responsible investigation?",
+            "options": [
+              "Publish relatives’ private details to pressure a suspect",
+              "Treat allegations as final findings",
+              "Preserve relevant evidence and use appropriate reporting channels"
+            ],
+            "correct": 2,
+            "explanation": "Responsible handling supports investigation while reducing additional exposure and harm. Avoid spreading unverified accusations or unnecessary personal information."
+          }
+        }
+      ]
+    }
+  ]
+}

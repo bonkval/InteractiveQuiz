@@ -604,6 +604,10 @@ Return only the questions in this format, ready to import into Rev.`;
     render();
   }
   function render() {
+    const courseScreen = Boolean(window.RevCourses) && (location.hash === '#courses' || location.hash.startsWith('#courses/') || (!location.hash && !state.activeId));
+    document.body.classList.toggle('course-view', courseScreen);
+    $('#courses-link')?.setAttribute('aria-current', courseScreen ? 'page' : 'false');
+    if (!courseScreen) window.RevCourses?.cancel();
     if(state.screen!=='study'||location.hash){stopAudio();clearInterval(examTicker);}
     if (location.hash === '#help') clearHash();
     syncOwnerControls();
@@ -619,6 +623,7 @@ Return only the questions in this format, ready to import into Rev.`;
     renderLibrary();
     syncOwnerControls();
     if (easterEgg) return renderEasterEgg();
+    if (courseScreen) { document.body.classList.remove('home-view', 'is-studying'); return window.RevCourses.render($('#main-panel')); }
     if (prompt) return renderPrompt(location.hash === '#import-prompt', location.hash === '#pdf-prompt');
     if (dataScreen) return renderDataSettings();
     const reviewer = currentReviewer();
@@ -686,6 +691,7 @@ Return only the questions in this format, ready to import into Rev.`;
     $('#egg-back').onclick = () => { clearHash(); render(); };
   }
   async function removeLocalStudyData() {
+    window.RevCourses?.clear();
     stopAudio();clearInterval(examTicker);++selectionVersion;
     await reviewerClient?.clear();
     const catalog=state.sharedLibraryInitialized?state.reviewers.map(item=>({id:item.id,title:item.title,updatedAt:item.updatedAt,
@@ -707,10 +713,10 @@ Return only the questions in this format, ready to import into Rev.`;
     const mobile=Boolean(window.matchMedia?.('(max-width: 760px)').matches), reduced=motionReduced();
     const checks=[['PDF import',Boolean(window.RevLoadPdf||window.RevPdfJs||window.pdfjsLib),'Browser PDF.js'],['Local storage',storageStatus(),storageStatus()?'Available':'Blocked or full'],['Shared reviewers',state.sharedLibraryStatus==='ready',state.sharedLibraryStatus==='ready'?(state.sharedLibraryInitialized?'Connected and initialized':'Storage connected; owner setup pending'):state.sharedLibraryStatus==='loading'?'Connecting':'Unavailable; Vercel setup required'],['Keyboard navigation','onkeydown' in document,'Tab and arrow key controls'],['Reduced motion',true,reduced?'Enabled by device':'Supported'],['Small-screen layout',true,mobile?'Compact layout active':'Responsive layout ready']];
     $('#main-panel').innerHTML = `<section class="data-page"><h1>Data &amp; deletion</h1>
-      <p>Reviewers are shared. Answers, flags, progress, and prompts stay in this browser.</p>
+      <p>Prepared courses and reviewers are shared. Answers, flags, course notes, progress, and prompts stay in this browser.</p>
       <div class="data-card"><h2>Browser compatibility</h2><ul class="compatibility-list">${checks.map(([name,ok,detail])=>`<li><i class="compat-indicator ${ok?'is-ok':'is-warning'}"></i><strong>${esc(name)}</strong><small>${esc(detail)}</small></li>`).join('')}</ul><p id="storage-estimate">Checking browser storage...</p></div>
       <div class="data-card"><h2>Backup</h2><p>Download reviewers and local progress.</p><button class="secondary-button" id="data-backup">Download backup</button></div>
-      <div class="data-card"><h2>Delete local data</h2><p>Removes this browser's cached reviewers, answers, progress, flags, prompts, and preferences. It does not remove the shared reviewer library.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
+      <div class="data-card"><h2>Delete local data</h2><p>Removes this browser's cached reviewers, answers, progress, course notes, empty course folders, flags, prompts, and preferences. It does not remove prepared courses or the shared reviewer library.</p><button class="danger-button" id="delete-local-data">Delete local study data</button></div>
       <p><a href="privacy.html">Privacy Policy</a> &middot; <a href="terms.html">Terms</a> &middot; <a href="cookies.html">Cookie Policy</a></p>
       <button class="secondary-button" id="data-back">Back to reviewer</button></section>`;
     $('#data-backup').onclick = exportLibraryBackup;
@@ -1441,7 +1447,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
   async function exportLibraryBackup() {
     let reviewers;
     try{reviewers=await reviewerClient.map([...state.reviewers],portableReviewer);}catch(error){return toast(error.message);}
-    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings};
+    const payload = {format:'rev-backup-v2',exportedAt:new Date().toISOString(),reviewers,flags:state.flags,history:state.history,schedule:state.schedule,settings:state.settings,courses:window.RevCourses?.export()};
     const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
     const a = document.createElement('a'), url = URL.createObjectURL(blob);
     a.href = url; a.download = `rev-backup-${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -1470,6 +1476,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
       state.reviewers = merged;
       try{await saveSharedLibrary();}catch(error){state.reviewers=previous;saveReviewers();throw error;}
       if (data && !Array.isArray(data)) {
+        if (data.courses) window.RevCourses?.restore(data.courses);
         for (const reviewer of restored) {
           if (Array.isArray(data.flags?.[reviewer.id])) state.flags[reviewer.id] = data.flags[reviewer.id].filter(value => typeof value === 'string');
           if (data.history?.[reviewer.id] && typeof data.history[reviewer.id] === 'object') state.history[reviewer.id] = data.history[reviewer.id];
@@ -1878,6 +1885,7 @@ ${plainMode()?'':`<nav class="question-deck" aria-label="Question navigation">${
     $('#import-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#pdf-prompt-link').addEventListener('click', () => setMobileNav(false));
     $('#data-link').addEventListener('click', () => setMobileNav(false));
+    $('#courses-link')?.addEventListener('click', () => { setMobileNav(false); document.body.classList.remove('plain-navigation'); $('#plain-reviewers').setAttribute('aria-expanded','false'); });
     $('#reviewer-search').oninput = event => { state.reviewerSearch = event.target.value; renderLibrary(); };
     $('#reviewer-sort').onchange = event => { state.reviewerSort = event.target.value; renderLibrary(); };
     $('#backup-library').onclick = exportLibraryBackup;

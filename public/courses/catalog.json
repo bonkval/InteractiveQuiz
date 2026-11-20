@@ -1,0 +1,11 @@
+[
+  {
+    "id": "it0204",
+    "code": "IT0204",
+    "title": "Cybersecurity and Privacy Laws",
+    "description": "Understand the laws, reason through real situations, and connect privacy with secure systems.",
+    "moduleCount": 8,
+    "lessonCount": 34,
+    "content": "/courses/it0204/course.json"
+  }
+]
